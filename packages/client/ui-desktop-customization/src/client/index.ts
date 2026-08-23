@@ -7,10 +7,11 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import { AppearanceController } from './appearance-controller.ts'
 import { AppearanceSection } from './AppearanceSection.tsx'
-// import { BrandBadge } from './BrandBadge.tsx'
+import { BrandBadge } from './BrandBadge.tsx'
 import { desktopBridge } from './bridge.ts'
 import { en, zh, type DesktopCustomizationKey } from './locales.ts'
 import { UpdateSection } from './UpdateSection.tsx'
@@ -35,7 +36,7 @@ const NS = 'desktop.customization'
 /** Services required by the Desktop customization client plugin. */
 export const inject = ['slots', 'locale', 'theme', 'connection', 'remote', 'modelDirectories']
 
-/** Register appearance, updates, and the team attribution overlay. */
+/** Register appearance, updates, and the team attribution sidebar action. */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'desktop-customization: dictionaries')
   const bridge = desktopBridge()
@@ -52,7 +53,7 @@ export function apply(ctx: ClientContext): void {
       ctx.remote.$on('settings/document-updated', (ns) => {
         if (ns === VISION_SETTINGS_NAMESPACE) vision.refreshIfLoaded()
       }),
-      ctx.remote.$on('credentials/updated', (ref) => {
+      ctx.remote.$on('credentials/reference-updated', (ref) => {
         if (ref === 'DSH_VISION_BAILIAN_API_KEY'
           || ref === 'DASHSCOPE_API_KEY'
           || ref === 'DSH_VISION_OPENROUTER_API_KEY'
@@ -106,16 +107,18 @@ export function apply(ctx: ClientContext): void {
         },
         resolveRoute: (modelProvider, model) => vision.route(modelProvider, model),
         activateRoute: (modelProvider, model) => vision.activate(modelProvider, model),
+        selectNativeVision: () => directory.select({
+          provider: 'deepseek-official',
+          model: 'deepseek-v4-flash-vision-exp',
+        }),
       }
     },
   }, VisionEnhancementShortcut))
-  // The team attribution badge is temporarily hidden; keep the slot registration
-  // commented so it can be restored in one step.
-  // ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-  //   name: 'shell.overlay',
-  //   id: 'beyondata-brand',
-  //   order: 100,
-  // }, BrandBadge))
+  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
+    name: 'sidebar.footer.action',
+    id: 'beyondata-brand',
+    order: 100,
+  }, BrandBadge))
 }
 
 export type { AppearanceSnapshot } from './appearance-controller.ts'

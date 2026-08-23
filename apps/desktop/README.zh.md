@@ -36,9 +36,9 @@ Electron 中的工作区选择通过固定 preload 方法调用 main 进程的 `
 
 ### 插件中心可信生命周期
 
-Desktop 持有插件中心发现、兼容与包变更权威。公开发现会合并 npm `dsh-plugin` 约定、有界文本查询、完整 scoped 包名直查，以及明确 `https://github.com/<owner>/<repo>` 仓库解析；短名与完整 scoped 名都可使用。关键词和 GitHub 映射只是发现信号，不代表官方背书或安装权威；Desktop 不会 clone、构建或直接安装 GitHub 源码。目录只允许固定 npm Registry 中声明 `dsh.bundle` 的确定版本继续；缓存候选形成权威前必须重新读取，每次查询最多为排序后的 96 个候选读取确定元数据。随后 Desktop 下载不可变 npm tarball，并校验 registry 完整性、SHA-256、压缩包边界、包身份、Host 同源 YAML schema 下的 Bundle patch、聚合包确定依赖与激活身份。Bundle 可以复用封闭 Desktop Host 依赖表中的模块，持久权威同时按该依赖表的确定指纹隔离。沙箱渲染器只能调用固定目录和操作方法，安装意图只包含插件 id、确定版本与幂等键。
+Desktop 持有插件中心发现、兼容与包变更权威。公开发现会合并 npm `dsh-plugin` 约定、有界文本查询、完整 scoped 包名直查，以及明确 `https://github.com/<owner>/<repo>` 仓库解析；短名与完整 scoped 名都可使用。关键词和 GitHub 映射只是发现信号，不代表官方背书或安装权威；Desktop 不会 clone、构建或直接安装 GitHub 源码。目录只允许固定 npm Registry 中声明 `dsh.bundle` 的确定版本继续；缓存候选形成权威前必须重新读取，每次查询最多为排序后的 96 个候选读取确定元数据。随后 Desktop 下载不可变 npm tarball，并校验 registry 完整性、SHA-256、压缩包边界、包身份、Host 同源 YAML schema 下的 Bundle patch、聚合包确定依赖与激活身份。Loader 条目可以使用由该 Bundle 包自身持有、且经过校验的 npm 导出子路径，例如 `dsh-builtin-browser/browser`；不安全或未声明的包引用仍会被拒绝。Bundle 可以复用封闭 Desktop Host 依赖表中的模块，持久权威同时按该依赖表的确定指纹隔离。沙箱渲染器只能调用固定目录和操作方法，安装意图只包含插件 id、确定版本与幂等键。
 
-同一个串行事务持有安装、启用、停用、确定更新和卸载。它在变更前快照 Profile，保留明确的活动或停用 Bundle 意图，在替换或删除包前停止 Host，并且只在目标 Profile 与已声明 Host、客户端和 Skill 证据一致后提交。连续性核对会排除属于实时预设实例、无法跨 Host 换代保持的 `include:agent-presets:*` Loader 子项。停用或卸载时，如果插件注册了 Skill 却没有把它写入 `expectedSkillIds`，校验器也允许该 Skill 随目标插件消失；已声明目标身份、其 `agent-presets` 所有者条目，以及全部无关 Loader 条目和客户端模块仍为必需证据。卸载默认保留配置与插件自有数据；提交后的独立桥接只能删除插件存储根下的确定声明路径。Host 换代时会保留桌面端最后一帧，直至新页面完成绘制，因此成功变更不会暴露中间导航。已安装管理器处于展开状态时，一项白名单 renderer URL 标记会把该子页面带入替换 Host，其他任意查询状态不会被迁移。普通 Host 启动前，Desktop 会停用与当前应用版本不兼容的已校验外部 Bundle，同时保留包和可解释原因。生产 preload 已通过带恢复能力的控制器开放这些操作。
+同一个串行事务持有安装、启用、停用、确定更新和卸载。它在变更前快照 Profile，保留明确的活动或停用 Bundle 意图，在替换或删除包前停止 Host，并且只在目标 Profile 与已声明 Host、客户端和 Skill 证据一致后提交。连续性核对会排除属于实时预设实例、无法跨 Host 换代保持的 `include:agent-presets:*` Loader 子项。停用或卸载时，如果插件注册了 Skill 却没有把它写入 `expectedSkillIds`，校验器也允许该 Skill 随目标插件消失；已声明目标身份、其 `agent-presets` 所有者条目，以及全部无关 Loader 条目和客户端模块仍为必需证据。卸载默认保留配置与插件自有数据；提交后的独立桥接只能删除插件存储根下的确定声明路径。Host 换代时会保留桌面端最后一帧，直至新页面完成绘制，因此成功变更不会暴露中间导航。已安装管理器处于展开状态时，一项白名单 renderer URL 标记会把该子页面带入替换 Host，其他任意查询状态不会被迁移。普通 Host 启动前，Desktop 会停用与当前应用版本不兼容的已校验外部 Bundle，同时保留包和可解释原因。它还会在确认所选 Profile 已持有实际安装的 `dshmarket` Bundle 后，仅移除旧版手动插入的重复 `dshmarket`；按 id 覆盖的设置与其他 patch 均保持不变。生产 preload 已通过带恢复能力的控制器开放这些操作。
 
 ### Preset 广场安装
 
@@ -52,13 +52,13 @@ Desktop 持有 Preset 广场的网络访问权威，只接受渲染器提交的�
 
 ## 打包
 
-本地打包命令会执行完整的仓库构建，为 Host 暂存封闭的生产依赖树，并为当前平台生成未封装应用。无需另行手动构建：
+本地打包命令会先从源码重新构建随包的 FF–LLM Wiki 应用，再执行完整的仓库构建，为 Host 暂存封闭的生产依赖树，并为当前平台生成未封装应用。生成的应用产物保持忽略，不作为干净发布 checkout 的事实源。无需另行手动构建：
 
 ```sh
 pnpm run package:desktop
 ```
 
-打包后的应用通过 Electron 的 Node 模式，在独立进程内运行已暂存的 `@deepseek-ai/dsh` CLI。应用因此保留受 supervisor 管理的 Host 生命周期，无需携带第二个 Node 可执行文件。如果暂存的 CLI 入口、Web 前端入口、通用 HTTPS 更新提供方或明确更新渠道缺失，`afterPack` 检查会在签名前拒绝该产物。同一钩子会为所有目标写入 `app-update.yml`，包括预览压缩包使用的未封装目录。预览包因此会请求已经发布的 `rc-mac.yml` 或 `rc.yml`，而不是 Electron 默认但并不存在的渠道文件，并能把同版本更新源正确识别为“已是最新”。macOS 和 Windows 都从受跟踪、带透明圆角的 `apps/desktop/build/icon.png` 派生平台图标；仓库不提交独立的平台专用变体。
+打包后的应用通过 Electron 的 Node 模式，在独立进程内运行已暂存的 `@deepseek-ai/dsh` CLI。应用因此保留受 supervisor 管理的 Host 生命周期，无需携带第二个 Node 可执行文件。如果暂存的 CLI 入口、Web 前端入口、通用 HTTPS 更新提供方或明确更新渠道缺失，`afterPack` 检查会在签名前拒绝该产物；它还会核验 Harness 图片管线所需的 macOS arm64 或 Windows x64 Sharp 原生模块。同一钩子会为所有目标写入 `app-update.yml`，包括预览压缩包使用的未封装目录。预览包因此会请求已经发布的 `rc-mac.yml` 或 `rc.yml`，而不是 Electron 默认但并不存在的渠道文件，并能把同版本更新源正确识别为“已是最新”。macOS 和 Windows 都从受跟踪、带透明圆角的 `apps/desktop/build/icon.png` 派生平台图标；仓库不提交独立的平台专用变体。
 
 ### 已签名的 macOS DMG 与 ZIP
 

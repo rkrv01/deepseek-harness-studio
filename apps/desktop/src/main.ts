@@ -44,6 +44,7 @@ import { resolveSupportedPluginPlatform } from './plugin-center/environment.ts'
 import { NpmEcosystemCatalogRepository } from './plugin-center/npm-ecosystem-catalog.ts'
 import { PluginArtifactDownloader } from './plugin-center/artifact-downloader.ts'
 import { reconcileApplicationUpdateCompatibility } from './plugin-center/app-update-compatibility.ts'
+import { migrateLegacyDshmarketRegistration } from './plugin-center/legacy-dshmarket-migration.ts'
 import { PluginRecoveryDiagnosticExporter } from './plugin-center/diagnostic-export.ts'
 import { PluginOperationController } from './plugin-center/operation-controller.ts'
 import {
@@ -449,6 +450,7 @@ function registerDesktopBridge(): PluginCenterBackend {
   updateController = new DesktopUpdateController(
     autoUpdater,
     app.getVersion(),
+    manifestVersion(paths.cliManifest),
     app.isPackaged,
   )
   updateController.subscribe((state) => {
@@ -731,6 +733,13 @@ async function initializePluginOperations(backend: PluginCenterBackend): Promise
         )) {
           healProfilesModuleFallback(manifestPath, dshHome)
         }
+      }
+      const dshmarketMigration = await migrateLegacyDshmarketRegistration({
+        profileDirectory,
+        installAnchor: backend.paths.cliManifest,
+      })
+      if (dshmarketMigration.removedEntries > 0) {
+        console.warn(`removed ${dshmarketMigration.removedEntries} legacy dshmarket registration(s) before Host start`)
       }
       const authority = await backend.catalog.installedAuthority()
       const selection = {
