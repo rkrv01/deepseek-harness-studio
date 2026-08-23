@@ -15,10 +15,12 @@
 
 # Desktop validation and chat use the same attachment service. Raise its
 # per-image bound only for the packaged learner app; ordinary Web keeps the
-# base bundle's 5 MB default.
+# base bundle's 5 MB default. Oversized non-animated uploads are downscaled to
+# the deployment caps at save instead of refused.
 - id: attachment-local
   config:
     maxImageBytes: !!js "process.env.DSH_DESKTOP === '1' ? 10485760 : undefined"
+    normalizeOversized: true
 
 - id: system-prompt
   config:
@@ -106,6 +108,10 @@
     # Read-only projection of current Loader entries for trusted client RPCs.
     - id: plugin-inventory
       name: '@deepseek-ai/dsh-host-plugin-inventory'
+
+    # Plugin catalog discovery, install, and management for the browser.
+    - id: plugin-center
+      name: '@deepseek-ai/dsh-host-plugin-center'
 
     # The API gateway: the transport-agnostic dispatch face every client shape
     # shares. The base layer's agent-default-model service owns the default model.
@@ -218,12 +224,10 @@
     - id: ui-settings-plugin-inventory
       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
 
-    # First-level reviewed Plugin and Skill Bundle discovery; Web only through the explicit dev marker.
+    # First-level reviewed Plugin and Skill Bundle discovery; available in Desktop and browser.
     - id: ui-plugin-center
       name: '@deepseek-ai/dsh-client-ui-plugin-center'
-      disabled: !!js process.env.DSH_DESKTOP !== '1' && process.env.DSH_PLUGIN_CENTER_DEV !== '1'
-      config:
-        development: !!js process.env.DSH_PLUGIN_CENTER_DEV === '1'
+      disabled: false
 
     - id: ui-conversation
       name: '@deepseek-ai/dsh-client-ui-conversation'

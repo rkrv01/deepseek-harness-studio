@@ -54,6 +54,11 @@ const LLM_WIKI_SIDEBAR_VISIBILITY_EVENT = 'ff-llm-wiki:sidebar-visibility'
 /** Add the Desktop-only catalog as a first-level page without replacing Settings. */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-plugin-center: dictionaries')
+
+  // Inject Host RPC bridge when running in browser mode without Electron.
+  // The api/remotes package sets window.__dshPluginCenterHost when the remote mounts.
+  void 0
+
   const resolved = resolveCatalogBridge()
   const bridge = resolved.bridge
   const unavailable = (): Promise<never> => Promise.reject(new Error('Desktop catalog bridge unavailable'))

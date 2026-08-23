@@ -484,6 +484,9 @@ describe('image attachments', () => {
         })
       }),
       // The real base-class batch method over this double's limits and members.
+      assertBatchLimits: (AttachmentStore.prototype as unknown as {
+        assertBatchLimits(inputs: readonly unknown[]): void
+      }).assertBatchLimits,
       saveImages(inputs: readonly unknown[]) {
         return (AttachmentStore.prototype.saveImages as (this: unknown, batch: readonly unknown[]) => Promise<unknown[]>).call(this, inputs)
       },

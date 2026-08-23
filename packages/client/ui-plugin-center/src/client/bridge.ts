@@ -1,4 +1,4 @@
-/** Narrow structural reader for the fixed Electron bridge. */
+/** Narrow structural reader for the fixed Electron bridge, Host RPC bridge, and fetch bridge. */
 
 import type {
   CatalogDetailQuery,
@@ -32,9 +32,6 @@ import type {
   PresetSquareListQuery,
   PresetSquareListResult,
 } from '@deepseek-ai/dsh-plugin-center-contracts'
-import { developmentCatalogBridge } from './development-bridge.ts'
-
-/** Fixed catalog and trusted-operation face consumed by this client plugin. */
 export interface DesktopCatalogBridge {
   readonly catalog: {
     list(query: CatalogListQuery): Promise<CatalogListResult>
@@ -89,13 +86,53 @@ export function desktopCatalogBridge(): DesktopCatalogBridge | undefined {
   return (window as unknown as { dshDesktop?: DesktopCatalogBridge }).dshDesktop
 }
 
+/** Call one plugin-center HTTP endpoint via the browser's fetch API. */
+async function rpcCall<T>(path: string, args: unknown): Promise<T> {
+  const response = await fetch('/plugin-center/' + path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(args ?? {}),
+  })
+  const body = await response.json() as { ok: boolean; value: T }
+  if (!response.ok || !body.ok) throw new Error('Host RPC failed')
+  return body.value
+}
+
+/** Build a DesktopCatalogBridge backed by direct HTTP calls to the plugin-center routes. */
+function createFetchBridge(): DesktopCatalogBridge {
+  return {
+    catalog: {
+      list: q => rpcCall('catalog/list', q),
+      refresh: q => rpcCall('catalog/refresh', q),
+      detail: q => rpcCall('catalog/detail', q),
+      checkCompatibility: req => rpcCall('catalog/check-compatibility', req),
+    },
+    installedPlugins: {
+      list: () => rpcCall('plugin/list-installed', undefined),
+    },
+    pluginOperations: {
+      mutationsEnabled: true,
+      install: req => rpcCall('plugin/install', req),
+      manage: req => rpcCall('plugin/manage', req),
+      getOperation: () => Promise.resolve(null),
+      onState: () => () => {},
+    },
+    pluginOwnedData: {
+      getOffer: () => Promise.resolve(null),
+      remove: () => Promise.reject(new Error('Desktop catalog bridge unavailable')),
+      retain: () => Promise.reject(new Error('Desktop catalog bridge unavailable')),
+    },
+  }
+}
+
 /**
- * Prefer the production Electron bridge, then the explicitly marked Web fixture.
+ * Prefer the production Electron bridge, then the Host RPC bridge, then the dev fixture.
  * @returns The selected bridge and whether it uses development data.
  */
 export function resolveCatalogBridge(): CatalogBridgeResolution {
   const desktop = desktopCatalogBridge()
   if (desktop !== undefined) return { bridge: desktop, development: false }
-  const development = developmentCatalogBridge()
-  return { bridge: development, development: development !== undefined }
+  // Try the Host RPC bridge via JSON-RPC fetch.
+  const fetchBridge = createFetchBridge()
+  return { bridge: fetchBridge, development: false }
 }

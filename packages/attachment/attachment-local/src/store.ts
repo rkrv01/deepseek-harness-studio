@@ -11,10 +11,11 @@ import {
 import type {
   ImageAttachmentLimits,
   ImageAttachmentRef,
+  ImageMediaType,
   SaveImageAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
-import { detectImage, probeImage } from './image.ts'
+import { detectImage, decodeAndNormalizeImage, probeImage } from './image.ts'
 
 const ID_PATTERN = /^sha256:([a-f0-9]{64})$/
 const durableHomes = new Set<string>()
@@ -65,6 +66,34 @@ export async function validateImageFile(input: SaveImageAttachment, limits: Imag
     throw new AttachmentError('Image exceeds the configured byte limit.', 'IMAGE_TOO_LARGE')
   }
   await inspectMetadata(input.data, input.mediaType, limits)
+}
+
+/**
+ * Decode one image to durable bytes: verify the declared type and, when
+ * `normalizeOversized` is set, downscale an oversized non-animated raster so
+ * the stored bytes satisfy the dimension and pixel caps; otherwise reuse the
+ * exact input bytes after strict admission.
+ * @param input - encoded bytes and declared metadata.
+ * @param limits - resolved storage policy.
+ * @param normalizeOversized - whether oversized non-animated uploads are downscaled instead of refused.
+ * @returns the bytes to store and their decoded metadata.
+ */
+async function admittedImage(
+  input: SaveImageAttachment,
+  limits: ImageAttachmentLimits,
+  normalizeOversized: boolean,
+): Promise<{ data: Uint8Array; mediaType: ImageMediaType; width: number; height: number }> {
+  if (normalizeOversized) {
+    const normalized = await decodeAndNormalizeImage(input.data, {
+      maxPixels: limits.maxImagePixels,
+      maxDimension: limits.maxImageDimension,
+    })
+    if (normalized.mediaType !== input.mediaType) {
+      throw new AttachmentError('Declared image type does not match its bytes.', 'IMAGE_TYPE_MISMATCH')
+    }
+    return normalized
+  }
+  return { data: input.data, ...await inspectMetadata(input.data, input.mediaType, limits) }
 }
 
 /**
@@ -131,12 +160,18 @@ async function ensureDurableHome(path: string): Promise<string> {
  * @param root - absolute `DSH_HOME/attachments/v1` root.
  * @param input - encoded bytes and declared metadata.
  * @param limits - resolved storage policy.
+ * @param normalizeOversized - whether oversized non-animated uploads are downscaled instead of refused.
  * @returns durable content-addressed reference.
  */
-export async function saveImageFile(root: string, input: SaveImageAttachment, limits: ImageAttachmentLimits): Promise<ImageAttachmentRef> {
+export async function saveImageFile(
+  root: string,
+  input: SaveImageAttachment,
+  limits: ImageAttachmentLimits,
+  normalizeOversized = false,
+): Promise<ImageAttachmentRef> {
   if (input.data.byteLength > limits.maxImageBytes) throw new AttachmentError('Image exceeds the configured byte limit.', 'IMAGE_TOO_LARGE')
-  const metadata = await inspectMetadata(input.data, input.mediaType, limits)
-  const sha256 = digest(input.data)
+  const admitted = await admittedImage(input, limits, normalizeOversized)
+  const sha256 = digest(admitted.data)
   const bucket = join(root, 'objects', sha256.slice(0, 2))
   const staging = join(root, 'tmp')
   // Establish DSH_HOME itself against the filesystem root once per process.
@@ -150,7 +185,7 @@ export async function saveImageFile(root: string, input: SaveImageAttachment, li
   let handle
   try {
     handle = await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600)
-    await handle.writeFile(input.data)
+    await handle.writeFile(admitted.data)
     await handle.sync()
     await handle.close()
     handle = undefined
@@ -188,7 +223,10 @@ export async function saveImageFile(root: string, input: SaveImageAttachment, li
   const name = displayName(input.name)
   return {
     attachmentId: AttachmentId(`sha256:${sha256}`),
-    ...metadata,
+    mediaType: admitted.mediaType,
+    bytes: admitted.data.byteLength,
+    width: admitted.width,
+    height: admitted.height,
     ...(name !== undefined ? { name } : {}),
   }
 }

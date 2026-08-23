@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import sharp from 'sharp'
 import type { ImageAttachmentLimits } from '@deepseek-ai/dsh-attachment'
 import { readImageFile, saveImageFile } from '../src/store.ts'
+import { detectImage } from '../src/image.ts'
 
 const fsControl = vi.hoisted(() => ({
   readSignals: [] as AbortSignal[],
@@ -233,5 +234,64 @@ describe('local attachment store', () => {
 
     await expect(saveImageFile(storageRoot, { data: PNG, mediaType: 'image/png' }, LIMITS))
       .rejects.toMatchObject({ code: 'ATTACHMENT_WRITE_FAILED' })
+  })
+})
+
+describe('normalized save admission', () => {
+  const NORMALIZE_LIMITS: ImageAttachmentLimits = {
+    ...LIMITS,
+    maxImagePixels: 40_000_000,
+    maxImageDimension: 4,
+  }
+
+  it('downscales an oversized non-animated upload before storing and reports the normalized reference', async () => {
+    const storageRoot = await root()
+    const wide = new Uint8Array(await sharp({
+      create: { width: 8, height: 4, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
+    }).png().toBuffer())
+
+    const ref = await saveImageFile(storageRoot, { data: wide, mediaType: 'image/png' }, NORMALIZE_LIMITS, true)
+
+    expect(ref.width).toBeLessThanOrEqual(4)
+    expect(ref.height).toBeLessThanOrEqual(4)
+    expect(ref.bytes).toBeLessThan(wide.byteLength)
+    const stored = await readImageFile(storageRoot, ref)
+    expect(stored.ref).toEqual(ref)
+    await expect(detectImage(stored.data, { maxDimension: 4, maxPixels: 40_000_000 }))
+      .resolves.toEqual({ mediaType: 'image/png', width: ref.width, height: ref.height })
+  })
+
+  it('stores within-limit bytes unchanged even when normalization is enabled', async () => {
+    const storageRoot = await root()
+
+    const ref = await saveImageFile(storageRoot, { data: PNG, mediaType: 'image/png' }, NORMALIZE_LIMITS, true)
+
+    expect(ref).toMatchObject({ mediaType: 'image/png', width: 1, height: 1, bytes: PNG.byteLength })
+    await expect(readImageFile(storageRoot, ref)).resolves.toEqual({ ref, data: PNG })
+  })
+
+  it('still refuses an oversized GIF and a declared type mismatch under normalization', async () => {
+    const storageRoot = await root()
+    const gif = new Uint8Array(await sharp({
+      create: { width: 8, height: 4, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
+    }).gif().toBuffer())
+
+    await expect(saveImageFile(storageRoot, { data: gif, mediaType: 'image/gif' }, NORMALIZE_LIMITS, true))
+      .rejects.toMatchObject({ code: 'IMAGE_DIMENSION_TOO_LARGE' })
+    const wide = new Uint8Array(await sharp({
+      create: { width: 8, height: 4, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
+    }).png().toBuffer())
+    await expect(saveImageFile(storageRoot, { data: wide, mediaType: 'image/jpeg' }, NORMALIZE_LIMITS, true))
+      .rejects.toMatchObject({ code: 'IMAGE_TYPE_MISMATCH' })
+  })
+
+  it('keeps the byte cap on the original upload even when normalization would shrink it', async () => {
+    const storageRoot = await root()
+    const wide = new Uint8Array(await sharp({
+      create: { width: 8, height: 4, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
+    }).png().toBuffer())
+
+    await expect(saveImageFile(storageRoot, { data: wide, mediaType: 'image/png' }, { ...NORMALIZE_LIMITS, maxImageBytes: 1 }, true))
+      .rejects.toMatchObject({ code: 'IMAGE_TOO_LARGE' })
   })
 })

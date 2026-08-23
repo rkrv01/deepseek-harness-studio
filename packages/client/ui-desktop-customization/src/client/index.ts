@@ -10,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import { AppearanceController } from './appearance-controller.ts'
 import { AppearanceSection } from './AppearanceSection.tsx'
-import { BrandBadge } from './BrandBadge.tsx'
+// import { BrandBadge } from './BrandBadge.tsx'
 import { desktopBridge } from './bridge.ts'
 import { en, zh, type DesktopCustomizationKey } from './locales.ts'
 import { UpdateSection } from './UpdateSection.tsx'
@@ -109,11 +109,13 @@ export function apply(ctx: ClientContext): void {
       }
     },
   }, VisionEnhancementShortcut))
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay',
-    id: 'beyondata-brand',
-    order: 100,
-  }, BrandBadge))
+  // The team attribution badge is temporarily hidden; keep the slot registration
+  // commented so it can be restored in one step.
+  // ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+  //   name: 'shell.overlay',
+  //   id: 'beyondata-brand',
+  //   order: 100,
+  // }, BrandBadge))
 }
 
 export type { AppearanceSnapshot } from './appearance-controller.ts'

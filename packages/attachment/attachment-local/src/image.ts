@@ -75,3 +75,54 @@ export async function detectImage(data: Uint8Array, limits?: DecodedImageLimits)
     throw new AttachmentError('Unsupported or malformed image data.', 'INVALID_IMAGE', { cause: error })
   }
 }
+
+/** A raster ready for durable storage after admission normalization. */
+export interface NormalizedImage {
+  /** Encoded bytes to store; unchanged when no downscale was needed. */
+  data: Uint8Array
+  mediaType: ImageMediaType
+  width: number
+  height: number
+}
+
+/**
+ * Fully decode one raster and, when a side exceeds `maxDimension` or decoded
+ * pixels exceed `maxPixels`, return proportionally downscaled re-encoded bytes
+ * that satisfy both limits. Oversized GIF remains refused because sharp cannot
+ * scale it while preserving animation. Within-limit input returns unchanged.
+ * @param data - complete encoded image bytes.
+ * @param limits - intrinsic-dimension admission limits.
+ * @returns normalized bytes and their decoded metadata.
+ */
+export async function decodeAndNormalizeImage(data: Uint8Array, limits: DecodedImageLimits): Promise<NormalizedImage> {
+  try {
+    const image = sharp(data, { failOn: 'error', limitInputPixels: false })
+    const detected = await imageMetadata(image)
+    const maxSide = Math.max(detected.width, detected.height)
+    let scale = 1
+    if (limits.maxDimension !== undefined) scale = Math.min(scale, limits.maxDimension / maxSide)
+    if (limits.maxPixels !== undefined && detected.width * detected.height > limits.maxPixels) {
+      scale = Math.min(scale, Math.sqrt(limits.maxPixels / (detected.width * detected.height)))
+    }
+    if (scale >= 1) return { data, ...detected }
+    if (detected.mediaType === 'image/gif') {
+      if (limits.maxDimension !== undefined && maxSide > limits.maxDimension) {
+        throw new AttachmentError('Image exceeds the configured per-side pixel limit.', 'IMAGE_DIMENSION_TOO_LARGE')
+      }
+      throw new AttachmentError('Image exceeds the configured decoded-pixel limit.', 'IMAGE_TOO_MANY_PIXELS')
+    }
+    let width = Math.max(1, Math.round(detected.width * scale))
+    let height = Math.max(1, Math.round(detected.height * scale))
+    while (limits.maxPixels !== undefined && width * height > limits.maxPixels) {
+      if (width >= height) width -= 1
+      else height -= 1
+    }
+    const format = detected.mediaType.slice('image/'.length) as 'png' | 'jpeg' | 'webp'
+    const normalized = new Uint8Array(await image.resize(width, height, { fit: 'fill' }).toFormat(format).toBuffer())
+    const metadata = await imageMetadata(sharp(normalized, { failOn: 'error', limitInputPixels: false }))
+    return { data: normalized, ...metadata }
+  } catch (error) {
+    if (error instanceof AttachmentError) throw error
+    throw new AttachmentError('Unsupported or malformed image data.', 'INVALID_IMAGE', { cause: error })
+  }
+}

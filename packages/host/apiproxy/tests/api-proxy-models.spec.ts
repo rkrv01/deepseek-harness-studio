@@ -152,6 +152,9 @@ describe('Web session model selection', () => {
       },
       validateImage,
       saveImage,
+      assertBatchLimits: (AttachmentStore.prototype as unknown as {
+        assertBatchLimits(inputs: readonly unknown[]): void
+      }).assertBatchLimits,
     }
     ctx.provide('attachments', {
       ...attachments,

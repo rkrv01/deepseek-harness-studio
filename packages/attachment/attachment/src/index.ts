@@ -54,7 +54,12 @@ export abstract class AttachmentStore extends Service {
    * @param inputs - encoded images in their owning message order.
    * @returns durable references in the exact input order.
    */
-  async saveImages(inputs: readonly SaveImageAttachment[]): Promise<readonly ImageAttachmentRef[]> {
+  /**
+   * Enforce the deployment's whole-batch admission limits without writing.
+   * Backends that normalize input before saving reuse this before committing.
+   * @param inputs - encoded images in their owning message order.
+   */
+  protected assertBatchLimits(inputs: readonly SaveImageAttachment[]): void {
     const { maxImagesPerMessage, maxMessageImageBytes, mediaTypes } = this.imageLimits
     if (inputs.length > maxImagesPerMessage) {
       throw new AttachmentError('Image batch exceeds the configured image-count limit.', 'TOO_MANY_IMAGES')
@@ -68,6 +73,10 @@ export abstract class AttachmentStore extends Service {
         throw new AttachmentError(`Image type ${input.mediaType} is not accepted by this deployment.`, 'UNSUPPORTED_IMAGE_TYPE')
       }
     }
+  }
+
+  async saveImages(inputs: readonly SaveImageAttachment[]): Promise<readonly ImageAttachmentRef[]> {
+    this.assertBatchLimits(inputs)
     for (const input of inputs) await this.validateImage(input)
 
     const refs: ImageAttachmentRef[] = []

@@ -26,6 +26,8 @@ export const DEFAULT_MAX_IMAGE_PIXELS = 40_000_000
  * to keep the durable history streamable.
  */
 export const DEFAULT_MAX_IMAGE_DIMENSION = 2000
+/** Default for downscaling oversized non-animated uploads at save instead of refusing them. */
+export const DEFAULT_NORMALIZE_OVERSIZED = false
 
 /** Local attachment backend configuration. */
 export interface Config {
@@ -41,6 +43,8 @@ export interface Config {
   maxImagePixels?: number
   /** Maximum intrinsic width and maximum intrinsic height accepted for one image. */
   maxImageDimension?: number
+  /** Downscale oversized non-animated uploads at save so they satisfy the dimension and pixel caps. */
+  normalizeOversized?: boolean
 }
 
 /** Persistent content-addressed local attachment store. */
@@ -52,15 +56,19 @@ export class LocalAttachmentStore extends AttachmentStore {
     maxMessageImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_MESSAGE_IMAGE_BYTES),
     maxImagePixels: z.number().step(1).min(1).default(DEFAULT_MAX_IMAGE_PIXELS),
     maxImageDimension: z.number().step(1).min(1).default(DEFAULT_MAX_IMAGE_DIMENSION),
+    normalizeOversized: z.boolean().default(DEFAULT_NORMALIZE_OVERSIZED),
   })
 
   /** Absolute versioned storage root. */
   readonly root: string
   readonly imageLimits: ImageAttachmentLimits
+  /** Whether oversized non-animated uploads are downscaled at save instead of refused. */
+  readonly normalizeOversized: boolean
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
     this.root = resolve(join(resolveDshHome(config.dshHome), 'attachments', 'v1'))
+    this.normalizeOversized = config.normalizeOversized ?? DEFAULT_NORMALIZE_OVERSIZED
     this.imageLimits = Object.freeze({
       maxImageBytes: config.maxImageBytes ?? DEFAULT_MAX_IMAGE_BYTES,
       maxImagesPerMessage: config.maxImagesPerMessage ?? DEFAULT_MAX_IMAGES_PER_MESSAGE,
@@ -75,8 +83,16 @@ export class LocalAttachmentStore extends AttachmentStore {
     await validateImageFile(input, this.imageLimits)
   }
 
+  override async saveImages(inputs: readonly SaveImageAttachment[]): Promise<readonly ImageAttachmentRef[]> {
+    if (!this.normalizeOversized) return super.saveImages(inputs)
+    this.assertBatchLimits(inputs)
+    const refs: ImageAttachmentRef[] = []
+    for (const input of inputs) refs.push(await this.saveImage(input))
+    return refs
+  }
+
   async saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef> {
-    return saveImageFile(this.root, input, this.imageLimits)
+    return saveImageFile(this.root, input, this.imageLimits, this.normalizeOversized)
   }
 
   async readImage(ref: ImageAttachmentRef, signal?: AbortSignal): Promise<StoredImageAttachment> {

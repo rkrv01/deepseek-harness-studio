@@ -284,6 +284,25 @@ async function launchElectron(desktopRoot: string): Promise<number> {
 }
 
 /**
+ * Launch the built Web Host in the default browser instead of Electron. The
+ * `dsh web` CLI opens the browser itself unless `--no-open` is passed, which
+ * is exactly the Electron bypass this mode replaces.
+ * @param repoRoot - repository root containing the built CLI entry.
+ * @returns the Host process's exit code.
+ */
+async function launchWebInBrowser(repoRoot: string): Promise<number> {
+  const cliEntry = resolve(repoRoot, 'apps/cli/lib/bin.js')
+  if (!existsSync(cliEntry)) {
+    throw new Error(`dev:desktop:web: built CLI entry is missing: ${cliEntry}; run pnpm run build first`)
+  }
+  return runProcess(
+    process.execPath,
+    ['--expose-internals', cliEntry, 'web', '--host', '127.0.0.1', '--port', '3080'],
+    repoRoot,
+  )
+}
+
+/**
  * Preserve the Node runtime that owns the development launcher for trusted child processes.
  * @param inheritedEnvironment - Environment inherited by the launcher.
  * @param nodeExecutable - Absolute Node executable running the launcher.
@@ -324,11 +343,15 @@ function runProcess(
 }
 
 async function main(args: readonly string[]): Promise<number> {
-  if (args.length > 1 || (args.length === 1 && args[0] !== '--rebuild')) {
-    throw new Error('dev:desktop: usage: pnpm run dev:desktop [--rebuild]')
+  const flags = args.filter(arg => arg !== '--')
+  const web = flags.includes('--web')
+  const allowed = new Set(['--rebuild', '--web'])
+  if (flags.some(arg => !allowed.has(arg)) || new Set(flags).size !== flags.length) {
+    throw new Error('dev:desktop: usage: pnpm run dev:desktop [--rebuild] [--web]')
   }
   const repoRoot = resolve(import.meta.dirname, '../../..')
-  await ensureDesktopBuild({ repoRoot, force: args[0] === '--rebuild' })
+  await ensureDesktopBuild({ repoRoot, force: flags.includes('--rebuild') })
+  if (web) return launchWebInBrowser(repoRoot)
   return launchElectron(resolve(repoRoot, 'apps/desktop'))
 }
 

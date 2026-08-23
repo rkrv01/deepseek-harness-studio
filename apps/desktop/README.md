@@ -6,10 +6,16 @@ The desktop app supervises the existing loopback Web Host and keeps it alive fro
 
 ## Development
 
-Install dependencies, then use the desktop development command. On the first run, after a relevant input changes, or when a required output is missing, it builds the Host and client packages, Web frontend, and Electron main process before launching the application. When those inputs and outputs are unchanged, it launches Electron directly from the verified build:
+Install dependencies, then use the development command. On the first run, after a relevant input changes, or when a required output is missing, it builds the Host and client packages and the Web frontend before launching the Web Host in the default browser (no Electron shell):
 
 ```sh
 pnpm run dev:desktop
+```
+
+Use the Electron shell instead — which owns tray-driven Host lifetime, Plugin Center, Preset Square, and the application center — with:
+
+```sh
+pnpm run dev:desktop:electron
 ```
 
 The launcher records a content fingerprint under the ignored `apps/desktop/lib/` output directory. Source, manifest, build-configuration, Node runtime, or build-environment changes invalidate that record; documentation-only edits do not. A failed build never leaves a reusable record. Force a complete rebuild when diagnosing generated output or toolchain state:
@@ -20,7 +26,7 @@ pnpm run dev:desktop:rebuild
 
 The launcher also passes its absolute Node executable into Electron, so development Host startup and package recovery do not depend on an interactive shell `PATH`.
 
-Closing the window hides it. Use the tray menu to restore the window or quit the application. Explicit quit waits for the Host process to stop and escalates termination after the bounded Host grace period.
+In the Electron shell, closing the window hides it. Use the tray menu to restore the window or quit the application. Explicit quit waits for the Host process to stop and escalates termination after the bounded Host grace period.
 
 The desktop app accepts only the readiness URL emitted by `dsh web` for `127.0.0.1` or `localhost`. Navigation stays on that origin; HTTP and HTTPS links open in the system browser.
 
