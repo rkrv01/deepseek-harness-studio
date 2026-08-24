@@ -32,6 +32,8 @@ import type {
   PresetSquareListQuery,
   PresetSquareListResult,
 } from '@deepseek-ai/dsh-plugin-center-contracts'
+import { developmentCatalogBridge } from './development-bridge.ts'
+
 export interface DesktopCatalogBridge {
   readonly catalog: {
     list(query: CatalogListQuery): Promise<CatalogListResult>
@@ -60,7 +62,6 @@ export interface DesktopCatalogBridge {
     exportDiagnostics(request: PluginDiagnosticExportRequest): Promise<PluginDiagnosticExportResult>
     onState(listener: (snapshot: PluginRecoverySnapshot) => void): () => void
   }
-  /** Fixed-origin Preset Square reads and Desktop-only verified archive installation. */
   readonly presetSquare?: {
     readonly mutationsEnabled: boolean
     list(query: PresetSquareListQuery): Promise<PresetSquareListResult>
@@ -72,21 +73,15 @@ export interface DesktopCatalogBridge {
   }
 }
 
-/** Selected catalog transport and whether it is the browser development fixture. */
 export interface CatalogBridgeResolution {
   readonly bridge: DesktopCatalogBridge | undefined
   readonly development: boolean
 }
 
-/**
- * Read the optional bridge without owning or merging the global Window type.
- * @returns The Electron catalog bridge when preload installed it.
- */
 export function desktopCatalogBridge(): DesktopCatalogBridge | undefined {
   return (window as unknown as { dshDesktop?: DesktopCatalogBridge }).dshDesktop
 }
 
-/** Call one plugin-center HTTP endpoint via the browser's fetch API. */
 async function rpcCall<T>(path: string, args: unknown): Promise<T> {
   const response = await fetch('/plugin-center/' + path, {
     method: 'POST',
@@ -98,7 +93,6 @@ async function rpcCall<T>(path: string, args: unknown): Promise<T> {
   return body.value
 }
 
-/** Build a DesktopCatalogBridge backed by direct HTTP calls to the plugin-center routes. */
 function createFetchBridge(): DesktopCatalogBridge {
   return {
     catalog: {
@@ -125,14 +119,24 @@ function createFetchBridge(): DesktopCatalogBridge {
   }
 }
 
-/**
- * Prefer the production Electron bridge, then the Host RPC bridge, then the dev fixture.
- * @returns The selected bridge and whether it uses development data.
- */
+let fetchBridgeCache: DesktopCatalogBridge | undefined
+let fetchBridgeAttempted = false
+
+function tryFetchBridge(): DesktopCatalogBridge | undefined {
+  if (fetchBridgeAttempted) return fetchBridgeCache
+  fetchBridgeAttempted = true
+  if (typeof window !== 'undefined' && window.location?.hostname === '127.0.0.1') {
+    fetchBridgeCache = createFetchBridge()
+    return fetchBridgeCache
+  }
+  return undefined
+}
+
 export function resolveCatalogBridge(): CatalogBridgeResolution {
   const desktop = desktopCatalogBridge()
   if (desktop !== undefined) return { bridge: desktop, development: false }
-  // Try the Host RPC bridge via JSON-RPC fetch.
-  const fetchBridge = createFetchBridge()
-  return { bridge: fetchBridge, development: false }
+  const fetchBridge = tryFetchBridge()
+  if (fetchBridge !== undefined) return { bridge: fetchBridge, development: false }
+  const development = developmentCatalogBridge()
+  return { bridge: development, development: development !== undefined }
 }
