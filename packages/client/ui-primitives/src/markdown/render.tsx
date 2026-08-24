@@ -122,6 +122,8 @@ export interface MarkdownFileMentions {
 export interface MarkdownRenderContext {
   /** Streaming arm: fences render plain and TeX stays literal. */
   readonly streaming: boolean
+  /** Frozen block during streaming: code is complete, passes real lang for diagrams. */
+  readonly frozen: boolean
   /** Localized fence copy-button labels. */
   readonly codeLabels: MarkdownCodeLabels | undefined
   /** Inside a blockquote's children: tables there always fill the quote's width. */
@@ -328,7 +330,7 @@ function renderCode(node: Md.Code, key: Key, context: MarkdownRenderContext): Re
       // CodeBlock's display trim removes; feeding the bare value would make
       // that trim eat a REAL trailing blank line inside the fence instead.
       code={`${node.value}\n`}
-      lang={lang}
+      lang={context.streaming && !context.frozen ? undefined : lang}
       copyLabel={context.codeLabels?.copyLabel}
       copiedLabel={context.codeLabels?.copiedLabel}
       copyDisabled={context.streaming}

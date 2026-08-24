@@ -36,6 +36,7 @@ function renderSettled(
   collectReferenceTargets(root.children, targets)
   const context: MarkdownRenderContext = {
     streaming: false,
+    frozen: false,
     codeLabels,
     fileMentions,
     targets,
@@ -100,6 +101,7 @@ class StreamingRenderer {
     if (newlyFrozen.length > 0) {
       const frozenContext: MarkdownRenderContext = {
         streaming: true,
+        frozen: true,
         codeLabels: this.codeLabels,
         fileMentions: undefined,
         targets: frameTargets,
@@ -118,6 +120,7 @@ class StreamingRenderer {
     }
     const tailContext: MarkdownRenderContext = {
       streaming: true,
+      frozen: false,
       codeLabels: this.codeLabels,
       fileMentions: undefined,
       targets: frameTargets,
