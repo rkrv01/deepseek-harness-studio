@@ -1,5 +1,5 @@
 ---
-name: 一句话启动项目
+name: one-sentence-project-launch
 description: 当用户说"根据材料帮我把项目初始化出来"、"启动XX项目"或提供项目文档并描述项目目标时，使用此 skill。自动读取项目文档，生成项目启动方案（含信息卡、阶段规划、任务分解、风险识别），确认后创建项目空间。
 disable-model-invocation: true
 ---
