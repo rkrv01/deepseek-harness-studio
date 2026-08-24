@@ -60,7 +60,7 @@ describe('FishLogo', () => {
     const svg = container.querySelector('svg')!
     expect(svg.getAttribute('width')).toBe('24')
     expect(svg.getAttribute('height')).toBe('24')
-    expect(svg.getAttribute('viewBox')).toBe('0 0 24 24')
+    expect(svg.getAttribute('viewBox')).toBe('0 0 1024 1024')
     expect(container.querySelectorAll('path')).toHaveLength(1)
     expect(container.innerHTML).toContain('currentColor')
   })
@@ -75,6 +75,6 @@ describe('BrandWordmark', () => {
 
     view.rerender(<primitives.BrandWordmark includeMark={false} />)
     expect(svg.getAttribute('width')).toBe('120')
-    expect(svg.getAttribute('viewBox')).toBe('26 0 120 24')
+    expect(svg.getAttribute('viewBox')).toBe('0 0 120 24')
   })
 })

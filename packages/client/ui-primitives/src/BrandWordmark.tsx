@@ -22,7 +22,7 @@ export function BrandWordmark({ size = 24, className, includeMark = true }: Bran
       width={(size * width) / 24}
       height={size}
       className={className}
-      viewBox={includeMark ? '0 0 146 24' : '26 0 120 24'}
+      viewBox={includeMark ? '0 0 146 24' : '0 0 120 24'}
       fill="none"
       aria-hidden="true"
     >
