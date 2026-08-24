@@ -12,7 +12,7 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
-describe('FF - LLM Wiki sidebar visibility', () => {
+describe('星光 LLM Wiki sidebar visibility', () => {
   it('removes and restores the launcher when the shared preference changes', async () => {
     window.localStorage.setItem('ff-llm-wiki:sidebar-visible', 'true')
     const ctx = new Context()
@@ -31,21 +31,21 @@ describe('FF - LLM Wiki sidebar visibility', () => {
     render(createElement(Nav, {
       wide: true,
       primaryPage: undefined,
-      t: (key: string) => key === 'nav' ? 'FF - LLM Wiki' : key,
+      t: (key: string) => key === 'nav' ? '星光 LLM Wiki' : key,
     }))
-    expect(screen.getByRole('button', { name: /FF - LLM Wiki/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /星光 LLM Wiki/ })).toBeTruthy()
 
     act(() => {
       window.localStorage.setItem('ff-llm-wiki:sidebar-visible', 'false')
       window.dispatchEvent(new CustomEvent('ff-llm-wiki:sidebar-visibility'))
     })
-    expect(screen.queryByRole('button', { name: /FF - LLM Wiki/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /星光 LLM Wiki/ })).toBeNull()
 
     act(() => {
       window.localStorage.setItem('ff-llm-wiki:sidebar-visible', 'true')
       window.dispatchEvent(new CustomEvent('ff-llm-wiki:sidebar-visibility'))
     })
-    expect(screen.getByRole('button', { name: /FF - LLM Wiki/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /星光 LLM Wiki/ })).toBeTruthy()
 
     await ctx.fiber.dispose()
   })
@@ -66,9 +66,9 @@ describe('FF - LLM Wiki sidebar visibility', () => {
     render(createElement(Nav, {
       wide: true,
       primaryPage: undefined,
-      t: (key: string) => key === 'nav' ? 'FF - LLM Wiki' : key,
+      t: (key: string) => key === 'nav' ? '星光 LLM Wiki' : key,
     }))
-    expect(screen.queryByRole('button', { name: /FF - LLM Wiki/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /星光 LLM Wiki/ })).toBeNull()
 
     await ctx.fiber.dispose()
   })
