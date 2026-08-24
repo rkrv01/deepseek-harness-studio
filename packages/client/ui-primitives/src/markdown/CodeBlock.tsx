@@ -8,6 +8,7 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 import clsx from 'clsx'
 import { writeClipboard } from '../clipboard.ts'
 import { grammarLoadCount, highlightToHtml, subscribeGrammarLoaded } from './highlight.ts'
+import { MermaidDiagram } from './MermaidDiagram.tsx'
 import css from './CodeBlock.module.css'
 
 export interface CodeBlockProps {
@@ -29,6 +30,20 @@ export function CodeBlock({
   code, lang, className, copyLabel = '复制', copiedLabel = '复制成功', copyDisabled = false,
 }: CodeBlockProps) {
   const trimmed = code.endsWith('\n') ? code.slice(0, -1) : code
+
+  if (lang === 'mermaid') {
+    return (
+      <div className={clsx(css.block, 'md-code-block', className)}>
+        <div className={css.bannerWrap}>
+          <div className={css.banner}>
+            <div className={css.infostring}>mermaid</div>
+          </div>
+        </div>
+        <MermaidDiagram code={trimmed} />
+      </div>
+    )
+  }
+
   // Re-render when a lazy grammar finishes loading, so a fence that showed plain
   // text while its language's grammar imported picks up highlighting. The
   // snapshot value is opaque; only its change across renders drives the memo.
