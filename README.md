@@ -393,22 +393,23 @@ cd deepseek-harness-studio
 pnpm install
 ```
 
-构建所需模块并启动开发环境（默认在本机浏览器打开，不启动 Electron 壳）：
+构建所需模块并启动开发环境：
 
 ```sh
-pnpm run dev:desktop
+# 在默认浏览器打开 Web 工作区（不启动 Electron 壳）
+pnpm start:web
+
+# 启动 Electron 桌面应用（插件中心、Preset 广场等桌面专属能力）
+pnpm start:desktop
+
+# 同时启动 Web 和桌面端
+pnpm start:all
 ```
 
 开发启动器会在相关源码或构建输入变化时重新构建；需要强制完整重建时运行：
 
 ```sh
 pnpm run dev:desktop:rebuild
-```
-
-如需使用 Electron 桌面壳（插件中心、Preset 广场等桌面专属能力），运行：
-
-```sh
-pnpm run dev:desktop:electron
 ```
 
 ## 目录结构
@@ -433,8 +434,9 @@ deepseek-harness-studio/
 
 | 命令 | 用途 |
 | --- | --- |
-| `pnpm run dev:desktop` | 构建必要模块并在默认浏览器打开 Web 工作区（不启动 Electron） |
-| `pnpm run dev:desktop:electron` | 构建必要模块并启动 Electron 桌面应用 |
+| `pnpm start:web` | 在默认浏览器打开 Web 工作区（不启动 Electron） |
+| `pnpm start:desktop` | 启动 Electron 桌面应用 |
+| `pnpm start:all` | 同时启动 Web 和 Electron 桌面端 |
 | `pnpm run dev:desktop:rebuild` | 强制完整重建后启动（默认浏览器） |
 | `pnpm run build` | 构建 Host、客户端、Web 与桌面端 |
 | `pnpm run package:desktop` | 为当前平台生成未封装桌面应用 |
