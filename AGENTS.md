@@ -130,6 +130,18 @@ Real-API tests and demos read `DEEPSEEK_API_KEY`, optional `DEEPSEEK_BASE_URL`, 
 - TODO markers: `FIXME`/`TODO`/`XXX` by urgency ([semantics](docs/development.md)).
 - Files end with exactly one trailing newline; `git diff --cached --check` (pre-commit) gates it.
 
+## Git 提交
+
+**规则**: 不要主动运行 `git commit` 或 `git push`
+
+**原因**: 提交和推送是高风险操作，应当由用户明确决定。自动提交会混入非预期的改动，污染 git 历史。
+
+**适用场景**:
+- 只有在用户明确要求提交时才执行 `git add` + `git commit` + `git push`
+- 不要在完成任务后自动提交
+- 不要在重启服务前自动提交
+- 如果用户要求提交代码，不要在提交前自动运行 lint 或格式化
+
 ## Defensive patterns
 
 Read [docs/defensive-patterns.md](docs/defensive-patterns.md) before lifecycle, concurrency, subprocess, or teardown work.

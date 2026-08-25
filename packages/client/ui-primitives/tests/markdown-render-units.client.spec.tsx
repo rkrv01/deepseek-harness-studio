@@ -19,6 +19,7 @@ afterEach(cleanup)
 function makeContext(): MarkdownRenderContext {
   return {
     streaming: false,
+    frozen: false,
     codeLabels: undefined,
     fileMentions: undefined,
     targets: createReferenceTargets(),

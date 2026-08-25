@@ -21,9 +21,8 @@ function ensureInit(): void {
 export function MermaidDiagram({ code }: { readonly code: string }): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null)
   const [svg, setSvg] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  // Stable id based on code content hash, so mermaid can cache renders across re-renders.
   const id = useMemo(() => {
     let hash = 0
     for (let i = 0; i < code.length; i++) {
@@ -35,17 +34,22 @@ export function MermaidDiagram({ code }: { readonly code: string }): ReactNode {
 
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
+    setSvg(null)
     ensureInit()
-    const render = async () => {
+    const timer = setTimeout(async () => {
+      if (cancelled) return
       try {
         const { svg: result } = await mermaid.render(id, code)
-        if (!cancelled) setSvg(result)
-      } catch (e) {
-        if (!cancelled) setError(String(e))
+        if (!cancelled) {
+          setSvg(result)
+          setLoading(false)
+        }
+      } catch {
+        if (!cancelled) setLoading(false)
       }
-    }
-    render()
-    return () => { cancelled = true }
+    }, 300)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [code, id])
 
   const exportPng = () => {
@@ -71,42 +75,53 @@ export function MermaidDiagram({ code }: { readonly code: string }): ReactNode {
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)))
   }
 
-  if (error !== null) {
+  if (svg !== null) {
     return (
-      <pre className="mermaid-error" style={{ color: 'var(--dsw-alias-label-danger, #e53e3e)', padding: '8px' }}>
-        <code>{code}</code>
-        <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.7 }}>Mermaid render error: {error}</div>
-      </pre>
+      <div ref={containerRef} style={{ position: 'relative' }}>
+        <div
+          className="mermaid-diagram"
+          style={{ overflow: 'auto', padding: '8px 0' }}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+        <button
+          type="button"
+          onClick={exportPng}
+          style={{
+            position: 'absolute', top: '4px', right: '4px',
+            background: 'var(--dsw-alias-bg-secondary, #f0f0f0)',
+            border: '1px solid var(--dsw-alias-border-secondary, #ddd)',
+            borderRadius: '4px', padding: '2px 8px', fontSize: '12px',
+            cursor: 'pointer', opacity: 0.6,
+          }}
+          title="导出图片"
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.6' }}
+        >
+          导出图片
+        </button>
+      </div>
     )
   }
 
-  if (svg === null) {
-    return <div style={{ padding: '16px', textAlign: 'center', opacity: 0.5 }}>Loading diagram…</div>
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '24px 16px', opacity: 0.5 }}>
+        <span className="mermaid-loading-spinner" style={{
+          display: 'inline-block', width: '16px', height: '16px',
+          border: '2px solid var(--dsw-alias-border-secondary, #ddd)',
+          borderTopColor: 'var(--dsw-alias-text-secondary, #999)',
+          borderRadius: '50%',
+          animation: 'mermaid-spin 0.8s linear infinite',
+        }} />
+        <span style={{ fontSize: '13px', color: 'var(--dsw-alias-text-secondary, #999)' }}>图表生成中…</span>
+        <style>{'@keyframes mermaid-spin { to { transform: rotate(360deg) } }'}</style>
+      </div>
+    )
   }
 
   return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
-      <div
-        className="mermaid-diagram"
-        style={{ overflow: 'auto', padding: '8px 0' }}
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
-      <button
-        type="button"
-        onClick={exportPng}
-        style={{
-          position: 'absolute', top: '4px', right: '4px',
-          background: 'var(--dsw-alias-bg-secondary, #f0f0f0)',
-          border: '1px solid var(--dsw-alias-border-secondary, #ddd)',
-          borderRadius: '4px', padding: '2px 8px', fontSize: '12px',
-          cursor: 'pointer', opacity: 0.6,
-        }}
-        title="导出图片"
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.6' }}
-      >
-        导出图片
-      </button>
-    </div>
+    <pre style={{ padding: '8px', color: 'var(--dsw-alias-text-secondary, #999)', fontSize: '13px' }}>
+      <code>{code}</code>
+    </pre>
   )
 }

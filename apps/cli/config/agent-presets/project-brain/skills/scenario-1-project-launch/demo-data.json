@@ -1,0 +1,45 @@
+{
+  "projectName": "智慧园区一体化管理平台",
+  "projectCode": "PRJ-2026-001",
+  "status": "initiated",
+  "startDate": "2026-09-01",
+  "endDate": "2027-08-31",
+  "budget": 12000000,
+  "objectives": [
+    "完成园区智能化改造，建立统一数据平台",
+    "实现设备互联互通与集中管控",
+    "构建智慧安防及能耗管理系统",
+    "搭建移动端运营管理门户"
+  ],
+  "phases": [
+    { "name": "启动阶段", "start": "2026-09", "end": "2026-09", "deliverables": ["项目章程", "团队组建方案"] },
+    { "name": "设计阶段", "start": "2026-10", "end": "2026-11", "deliverables": ["需求规格说明书", "系统设计方案", "技术选型报告"] },
+    { "name": "实施阶段", "start": "2026-12", "end": "2027-03", "deliverables": ["系统原型", "采购合同", "开发文档"] },
+    { "name": "联调阶段", "start": "2027-04", "end": "2027-06", "deliverables": ["安装报告", "联调测试报告"] },
+    { "name": "验收阶段", "start": "2027-07", "end": "2027-08", "deliverables": ["验收报告", "运维手册", "培训资料"] }
+  ],
+  "tasks": [
+    { "id": "TASK-001", "name": "需求调研与确认", "assignee": "产品经理", "estimate": 15, "dependencies": [] },
+    { "id": "TASK-002", "name": "系统方案设计", "assignee": "架构师", "estimate": 20, "dependencies": ["TASK-001"] },
+    { "id": "TASK-003", "name": "技术选型与验证", "assignee": "技术负责人", "estimate": 10, "dependencies": ["TASK-002"] },
+    { "id": "TASK-004", "name": "硬件设备采购", "assignee": "采购经理", "estimate": 30, "dependencies": ["TASK-003"] },
+    { "id": "TASK-005", "name": "平台开发", "assignee": "开发团队", "estimate": 60, "dependencies": ["TASK-003"] },
+    { "id": "TASK-006", "name": "系统集成测试", "assignee": "测试团队", "estimate": 30, "dependencies": ["TASK-004", "TASK-005"] },
+    { "id": "TASK-007", "name": "用户培训", "assignee": "培训专员", "estimate": 15, "dependencies": ["TASK-006"] },
+    { "id": "TASK-008", "name": "上线验收", "assignee": "项目经理", "estimate": 10, "dependencies": ["TASK-007"] }
+  ],
+  "risks": [
+    { "id": "RISK-001", "type": "技术", "description": "子系统接口标准不统一，集成难度大", "level": "高", "mitigation": "提前制定接口规范，预留适配层" },
+    { "id": "RISK-002", "type": "供应链", "description": "关键设备采购周期长，可能影响工期", "level": "高", "mitigation": "提前确认供应商，建立备选方案" },
+    { "id": "RISK-003", "type": "管理", "description": "涉及部门多，协调成本高", "level": "中", "mitigation": "建立周例会制度，明确各节点负责人" },
+    { "id": "RISK-004", "type": "进度", "description": "工期紧张，多任务并行风险", "level": "中", "mitigation": "设置里程碑检查点，关键路径加缓冲" },
+    { "id": "RISK-005", "type": "安全", "description": "数据隐私与网络安全合规要求", "level": "高", "mitigation": "提前进行安全评估，部署防护措施" }
+  ],
+  "team": [
+    { "role": "项目经理", "name": "张明", "department": "项目管理部" },
+    { "role": "架构师", "name": "李华", "department": "技术部" },
+    { "role": "产品经理", "name": "王芳", "department": "产品部" },
+    { "role": "采购经理", "name": "陈强", "department": "采购部" },
+    { "role": "测试负责人", "name": "赵磊", "department": "质量部" }
+  ]
+}
