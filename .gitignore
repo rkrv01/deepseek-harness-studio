@@ -38,6 +38,7 @@ apps/desktop/dist/
 /artifacts/
 /assets-src/
 .playwright-mcp/
+.superpowers/
 .orig
 .worktrees/
 worktrees/
@@ -45,3 +46,28 @@ worktrees/
 .typert-*/
 /docs/
 /DEVELOPER-HANDOFF/
+
+# 本地演示资料与工具生成的源码旁产物
+demo/武汉协和/
+demo/项目智脑-test2/
+demo/项目智脑-模拟/
+packages/core/agent/src/*.js
+packages/core/agent/src/*.js.map
+packages/core/agent/src/*.d.ts
+packages/core/agent/src/*.d.ts.map
+packages/core/scope/src/*.js
+packages/core/scope/src/*.js.map
+packages/core/scope/src/*.d.ts
+packages/core/scope/src/*.d.ts.map
+packages/core/session/src/*.js
+packages/core/session/src/*.js.map
+packages/core/session/src/*.d.ts
+packages/core/session/src/*.d.ts.map
+packages/core/system-prompt/src/*.js
+packages/core/system-prompt/src/*.js.map
+packages/core/system-prompt/src/*.d.ts
+packages/core/system-prompt/src/*.d.ts.map
+packages/typert/protocol/src/*.js
+packages/typert/protocol/src/*.js.map
+packages/typert/protocol/src/*.d.ts
+packages/typert/protocol/src/*.d.ts.map
