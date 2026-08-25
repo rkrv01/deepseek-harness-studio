@@ -6,7 +6,7 @@
 
 Electron 外壳将 `html[data-dsh-desktop-platform]` 标为 `darwin` 或 `win32` 时，AppFrame 只让自身框架与侧栏列半透明，使原生窗口材质透过侧栏；会话列和详情列继续绘制 `--dsw-alias-bg-base`。Web 页面与 Linux 桌面窗口不匹配这些材质选择器，因此仍使用普通的不透明侧栏。Windows 把原生窗口按钮覆盖层组合进会话首行，Linux 在工作列上方预留覆盖层高度，macOS 交通灯则只占用侧栏预留区域。一条由桌面标记控制的拖拽 seat 会独立于会话内容覆盖中心列标题栏带，因此在没有可见 Session header 的空白、加载和未选中状态中，窗口仍可移动。
 
-AppFrame 始终挂载会话栏和详情栏；已连接 Session 通过 `SessionProvider` 渲染。布局 store 是瞬时状态，侧边栏以默认宽度启动，详情栏则保持关闭，且该 store 从不读写 `localStorage`。hero 和其他未选中状态也会将详情栏的渲染宽度派生为零，但不会改变存储的宽度偏好。AppFrame 会跨越这些状态保留最后一个非 blank 会话 id：首个会话保持关闭；显式打开详情栏的操作会使用约定默认宽度；返回同一会话时恢复其未改变的宽度；选择不同会话时，详情栏会在绘制前关闭。会话 owner share 为空，侧边栏 owner share 只包含 `collapsed` 和 `width`；注册方通过标准钩子获取业务数据，并从各自的 inject 接口获取操作。
+AppFrame 始终挂载会话栏和详情栏；已连接 Session 通过 `SessionProvider` 渲染。布局 store 是瞬时状态，侧边栏以默认宽度启动，详情栏则保持关闭，且该 store 从不读写 `localStorage`。hero 和其他未选中状态也会将详情栏的渲染宽度派生为零，但不会改变存储的宽度偏好。AppFrame 会跨越这些状态跟踪已选中的会话 id：首个会话保持关闭；显式打开详情栏的操作会为当前会话使用约定默认宽度，即使该会话仍是 blank；返回同一会话时恢复其未改变的宽度；选择不同会话时，详情栏会在绘制前关闭。会话 owner share 为空，侧边栏 owner share 只包含 `collapsed` 和 `width`；注册方通过标准钩子获取业务数据，并从各自的 inject 接口获取操作。
 
 `/client` 导出表层包含插件主体（`apply`／`inject`）、`LayoutController` 和四个 owner-share 接口。AppFrame、面板 store 与让步求解器仍属于包内部。
 

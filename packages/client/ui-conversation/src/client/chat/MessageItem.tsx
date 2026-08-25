@@ -37,6 +37,29 @@ function contentParts(content: readonly unknown[]): {
   return { text: texts.join(''), images, rest }
 }
 
+/**
+ * Project a user message into its visible transcript text.
+ * The Project Brain editor keeps its deterministic revision payload in the
+ * durable model prompt; only its exact trailing marker is private to the UI.
+ * @param text - Durable user message text.
+ * @returns Text safe to render and copy from the user bubble.
+ */
+export interface ProjectUserMessageProjection { readonly text: string; readonly revisionDetails: readonly string[] }
+
+/** Project private Project Brain payloads into transcript-safe user content. */
+export function projectUserMessageProjection(text: string): ProjectUserMessageProjection {
+  const detailMatch = /\s*<!-- project-brain:revision-summary ([A-Za-z0-9%._~-]+) -->/u.exec(text)
+  let revisionDetails: readonly string[] = []
+  if (detailMatch?.[1] !== undefined) {
+    try { const decoded = JSON.parse(decodeURIComponent(detailMatch[1])); if (Array.isArray(decoded) && decoded.every(item => typeof item === 'string')) revisionDetails = decoded } catch { /* private payload is optional UI metadata */ }
+  }
+  return { text: text.replace(/\s*<!-- project-brain:(?:revision-summary|revision|confirm) [A-Za-z0-9%._~-]+ -->/gu, '').trimEnd(), revisionDetails }
+}
+
+export function projectUserMessageText(text: string): string {
+  return projectUserMessageProjection(text).text
+}
+
 function retrySeconds(milliseconds: number): number {
   return Math.max(1, Math.ceil(milliseconds / 1_000))
 }
@@ -227,14 +250,17 @@ function UserStyleBubble({
   t: ChatViewSlotProps['t']
 }): ReactNode {
   const { text, images, rest } = contentParts(content)
+  const projection = projectUserMessageProjection(text)
+  const visibleText = projection.text
   const truncated = (total: number): string => t('json.truncated', { total })
-  const showBubble = text !== '' || rest.length > 0
+  const showBubble = visibleText !== '' || rest.length > 0
   return (
     <div className={css.userRow} data-pending-steering={pending || undefined} data-time-hover-root>
       <div className={css.userStack}>
         {renderMessageImages({ images, align: 'end' })}
         {showBubble && <div className={css.bubble}>
-          {projectUserText(text, referenceLabels)}
+          {projectUserText(visibleText, referenceLabels)}
+          {projection.revisionDetails.length > 0 && <details className={css.revisionDetails}><summary>查看修改明细</summary><ul>{projection.revisionDetails.map(detail => <li key={detail}>{detail}</li>)}</ul></details>}
           {rest.map((block, i) => <JsonBlock key={i} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />)}
         </div>}
         {referenceLabels.length > 0 && (
@@ -243,7 +269,7 @@ function UserStyleBubble({
           </div>
         )}
       </div>
-      {actions?.(text)}
+      {actions?.(visibleText)}
     </div>
   )
 }

@@ -51,6 +51,38 @@ describe('ConversationController', () => {
     await b.runtime.dispose()
   })
 
+  it('lets a registered submit handler consume plain composer sends before prompt admission', async () => {
+    const b = await bench()
+    const handler = vi.fn(async () => ({ kind: 'success' as const }))
+    const dispose = b.root.registerSubmitHandler(handler)
+
+    await expect(b.scoped.sendSession(
+      b.runtime.sessions.binding('s1')!.session,
+      '帮我启动智慧园区建设项目',
+      [],
+      'queue',
+    )).resolves.toEqual({ kind: 'success' })
+
+    expect(handler).toHaveBeenCalledWith({
+      sessionId: 's1',
+      text: '帮我启动智慧园区建设项目',
+      imageIds: [],
+      mode: 'queue',
+      signal: expect.any(AbortSignal),
+    })
+    expect(b.prompt).not.toHaveBeenCalled()
+
+    dispose()
+    await b.scoped.sendSession(
+      b.runtime.sessions.binding('s1')!.session,
+      'fallback',
+      [],
+      'queue',
+    )
+    expect(b.prompt).toHaveBeenCalledOnce()
+    await b.runtime.dispose()
+  })
+
   it('folds Session business failures into callback rejections', async () => {
     const b = await bench()
     b.prompt.mockResolvedValueOnce({ ok: false, error: { code: 'agent-busy', message: 'busy', details: {} } } as never)

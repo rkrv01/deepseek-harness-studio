@@ -775,6 +775,14 @@ export const IconChecklistOutline14 = ({ size = 14, className }: IconProps) => (
   </svg>
 )
 
+/** Calendar outline used by date controls. */
+export const IconCalendarOutline16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+    <rect x="1.5" y="2.75" width="13" height="11.75" rx="1.5" stroke="currentColor" strokeWidth="1.25" />
+    <path d="M4.75 1.25V4.25M11.25 1.25V4.25M1.75 6.25H14.25M5 9H6.25M9.75 9H11M5 11.75H6.25M9.75 11.75H11" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+  </svg>
+)
+
 /** ic_ds_List_Pen_outline_16 */
 export const IconListPenOutline16 = ({ size = 16, className }: IconProps) => (
   <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">

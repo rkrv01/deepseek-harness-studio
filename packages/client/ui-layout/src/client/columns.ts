@@ -38,9 +38,9 @@ export const SIDEBAR_AUTO_COLLAPSE = 1024
 /** Details drag clamp floor. */
 export const DETAILS_MIN = 300
 /** Details drag clamp ceiling. */
-export const DETAILS_MAX = 520
+export const DETAILS_MAX = 960
 /** Details width before any user drag. */
-export const DETAILS_DEFAULT = 360
+export const DETAILS_DEFAULT = 520
 
 /**
  * Clamp a panel width into its contract range.
@@ -69,17 +69,18 @@ export function computeColumns(
   sidebar: number,
   details: number,
   collapsedSidebar: number = SIDEBAR_COLLAPSED,
+  centerMin: number = CENTER_MIN,
 ): Columns {
   // The sidebar is fixed at its preference (or the rail) — it never concedes.
   const s = sidebar === 0 ? collapsedSidebar : clampWidth(sidebar, SIDEBAR_MIN, SIDEBAR_MAX)
   const d0 = details === 0 ? 0 : clampWidth(details, DETAILS_MIN, DETAILS_MAX)
 
   // Step 1: everything fits at preferred widths.
-  if (s + d0 + CENTER_MIN <= viewport) return { sidebar: s, center: viewport - s - d0, details: d0 }
+  if (s + d0 + centerMin <= viewport) return { sidebar: s, center: viewport - s - d0, details: d0 }
 
   // Step 2: shrink details toward its minimum.
-  const d1 = d0 === 0 ? 0 : Math.max(DETAILS_MIN, viewport - s - CENTER_MIN)
-  if (s + d1 + CENTER_MIN <= viewport) return { sidebar: s, center: CENTER_MIN, details: d1 }
+  const d1 = d0 === 0 ? 0 : Math.max(DETAILS_MIN, viewport - s - centerMin)
+  if (s + d1 + centerMin <= viewport) return { sidebar: s, center: centerMin, details: d1 }
 
   // Step 3: auto-close details (derived — preferences untouched); center
   // absorbs any remaining deficit (may drop below CENTER_MIN).

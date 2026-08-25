@@ -42,6 +42,17 @@ describe('LayoutController', () => {
     expect(panels.setDetails).not.toHaveBeenCalled()
   })
 
+  it('opens details at a caller-provided preferred width without changing the default path', () => {
+    const service = new LayoutController()
+    const panels = fakePanels()
+    service.attachPanels(panels)
+
+    service.openDetails(840, 400)
+
+    expect(panels.openDetails).toHaveBeenCalledWith(840, 400)
+    expect(panels.setDetails).not.toHaveBeenCalled()
+  })
+
   it('fails loud before the root entry wired its actions', () => {
     const service = new LayoutController()
     expect(() => { service.toggleSidebar() }).toThrow(/panel actions not wired/)

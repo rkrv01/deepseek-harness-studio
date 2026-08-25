@@ -33,6 +33,13 @@
   font-size: 12px;
   line-height: 18px;
 }
+
+.revisionDetails { margin-top: 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+.revisionDetails summary { color: var(--dsw-alias-state-business-primary); cursor: pointer; list-style: none; }
+.revisionDetails summary::-webkit-details-marker { display: none; }
+.revisionDetails summary::before { margin-right: 5px; content: '›'; }
+.revisionDetails[open] summary::before { content: '⌄'; }
+.revisionDetails ul { margin: 6px 0 0; padding-left: 16px; }
 .contextRow {
   padding: 2px 0;
 }

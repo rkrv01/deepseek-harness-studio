@@ -100,7 +100,7 @@ export function AppFrame({
   const primaryPage = panels.primaryPage
   const detailsSession = useSessions((s) => {
     const current = s.current
-    return current !== undefined && s.byId[current]?.blank === false ? current : undefined
+    return current !== undefined && s.byId[current] !== undefined ? current : undefined
   })
   const frameRef = useRef<HTMLDivElement | null>(null)
   const [viewport, setViewport] = useState(() => window.innerWidth)
@@ -154,6 +154,7 @@ export function AppFrame({
     sidebarPreference,
     detailsSession === undefined || primaryPage !== null ? 0 : panels.details,
     collapsedSidebar,
+    panels.detailsCenterMin,
   )
   const colsRef = useRef(cols)
   colsRef.current = cols

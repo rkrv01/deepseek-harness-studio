@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createLayoutStore } from '@deepseek-ai/dsh-client-ui-layout/src/client/stores.ts'
 import {
-  DETAILS_DEFAULT, DETAILS_MAX, DETAILS_MIN,
+  CENTER_MIN, DETAILS_DEFAULT, DETAILS_MAX, DETAILS_MIN,
   SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
 } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
 
@@ -25,6 +25,7 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot()).toEqual({
       sidebar: SIDEBAR_DEFAULT,
       details: 0,
+      detailsCenterMin: CENTER_MIN,
       narrow: false,
       narrowExpanded: false,
       primaryPage: null,
@@ -67,6 +68,7 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot()).toEqual({
       sidebar: 400,
       details: 0,
+      detailsCenterMin: CENTER_MIN,
       narrow: true,
       narrowExpanded: true,
       primaryPage: null,
@@ -100,6 +102,13 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot().details).toBe(0)
   })
 
+  it('opens a focused details surface at its preferred width and center allowance', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.openDetails(840, 400)
+
+    expect(store.getSnapshot()).toMatchObject({ details: 840, detailsCenterMin: 400 })
+  })
+
   it('opens one first-level page, closes details, and supports guarded teardown', () => {
     const { store, actions } = createLayoutStore().create()
     actions.openDetails()
@@ -130,6 +139,7 @@ describe('createLayoutStore', () => {
     expect(second.store.getSnapshot()).toEqual({
       sidebar: SIDEBAR_DEFAULT,
       details: 0,
+      detailsCenterMin: CENTER_MIN,
       narrow: false,
       narrowExpanded: false,
       primaryPage: null,

@@ -20,7 +20,7 @@ describe('clampWidth', () => {
 describe('computeColumns', () => {
   it('step 1: everything fits at preferred widths', () => {
     const cols = computeColumns(1920, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT))
-    expect(cols).toEqual({ sidebar: 280, center: 1920 - 280 - 360, details: 360 })
+    expect(cols).toEqual({ sidebar: 280, center: 1920 - 280 - DETAILS_DEFAULT, details: DETAILS_DEFAULT })
   })
 
   it('closed sidebar keeps its compact rail while closed details contribute zero width', () => {
@@ -46,7 +46,7 @@ describe('computeColumns', () => {
   })
 
   it('step 2: details shrinks first, center pinned at min', () => {
-    // 280 + 360 + 640 = 1280 > 1250; details concedes to 1250-280-640 = 330.
+    // 280 + 520 + 640 = 1440 > 1250; details concedes to 1250-280-640 = 330.
     const cols = computeColumns(1250, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT))
     expect(cols).toEqual({ sidebar: 280, center: CENTER_MIN, details: 330 })
   })

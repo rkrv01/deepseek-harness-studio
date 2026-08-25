@@ -59,7 +59,8 @@ export function renderToolDetails(
   t: TranslateNS<'conversation'>,
   description?: HostDescription,
 ): DetailsSlotProps['renderSlot'] {
-  return (_key, owner) => {
+  return (key, owner) => {
+    if (key !== 'conversation.details.tool') return null
     // PropsRenderSlots keeps its key generic even for this one-key share;
     // recover the concrete owner selected by the adapter's fixed slot.
     const details = owner as unknown as DetailsToolOwnerProps

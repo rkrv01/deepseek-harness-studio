@@ -9,7 +9,7 @@
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  clampWidth, DETAILS_DEFAULT, DETAILS_MAX, DETAILS_MIN,
+  CENTER_MIN, clampWidth, DETAILS_DEFAULT, DETAILS_MAX, DETAILS_MIN,
   SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
 } from './columns.ts'
 
@@ -32,6 +32,7 @@ function initialPrimaryPage(): string | null {
 type LayoutState = {
   sidebar: number
   details: number
+  detailsCenterMin: number
   narrow: boolean
   narrowExpanded: boolean
   primaryPage: string | null
@@ -46,7 +47,7 @@ type LayoutActions = {
   setDetails: (draft: LayoutState, px: number) => void
   toggleSidebar: (draft: LayoutState) => void
   setNarrow: (draft: LayoutState, narrow: boolean) => void
-  openDetails: (draft: LayoutState) => void
+  openDetails: (draft: LayoutState, preferredWidth?: number, centerMin?: number) => void
   closeDetails: (draft: LayoutState) => void
   openPrimaryPage: (draft: LayoutState, pageId: string) => void
   closePrimaryPage: (draft: LayoutState, pageId?: string) => void
@@ -67,6 +68,7 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
     init: (): LayoutState => ({
       sidebar: SIDEBAR_DEFAULT,
       details: 0,
+      detailsCenterMin: CENTER_MIN,
       narrow: false,
       narrowExpanded: false,
       primaryPage: initialPrimaryPage(),
@@ -87,11 +89,18 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
         d.narrow = narrow
         d.narrowExpanded = false
       },
-      openDetails: (d) => { if (d.details === 0) d.details = DETAILS_DEFAULT },
-      closeDetails: (d) => { d.details = 0 },
+      openDetails: (d, preferredWidth?: number, centerMin: number = CENTER_MIN) => {
+        if (preferredWidth === undefined) {
+          if (d.details === 0) d.details = DETAILS_DEFAULT
+        }
+        else d.details = clampWidth(preferredWidth, DETAILS_MIN, DETAILS_MAX)
+        d.detailsCenterMin = centerMin
+      },
+      closeDetails: (d) => { d.details = 0; d.detailsCenterMin = CENTER_MIN },
       openPrimaryPage: (d, pageId: string) => {
         d.primaryPage = pageId
         d.details = 0
+        d.detailsCenterMin = CENTER_MIN
       },
       closePrimaryPage: (d, pageId?: string) => {
         if (pageId === undefined || d.primaryPage === pageId) d.primaryPage = null

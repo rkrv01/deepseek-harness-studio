@@ -57,7 +57,34 @@ export interface IConversation {
    * @returns completion of the page pull.
    */
   loadOlder(): Promise<void>
+  /**
+   * Register a high-priority composer submit handler. Handlers run before the
+   * normal Host prompt admission and may consume a submit by returning an
+   * outcome; `undefined` delegates to the next handler or the normal prompt.
+   * @param handler - submit handler owned by another browser plugin.
+   * @returns disposer for this registration.
+   */
+  registerSubmitHandler(handler: ConversationSubmitHandler): () => void
 }
+
+/** One composer submit before normal Host prompt admission. */
+export interface ConversationSubmitRequest {
+  /** Target Host session identity. */
+  readonly sessionId: SessionId
+  /** Draft text as submitted. */
+  readonly text: string
+  /** Ordered browser draft-image ids still owned by the conversation service. */
+  readonly imageIds: readonly DraftAttachmentId[]
+  /** Queue or steer delivery selected by the composer policy. */
+  readonly mode: InputSubmitMode
+  /** Cancellation for the complete admission attempt. */
+  readonly signal: AbortSignal
+}
+
+/** Return an outcome to consume a submit, or undefined to delegate. */
+export type ConversationSubmitHandler = (
+  request: ConversationSubmitRequest,
+) => Promise<SubmitOutcome | undefined> | SubmitOutcome | undefined
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
 function browserDraftAttachment(file: File): ComposerAttachment {
@@ -98,6 +125,7 @@ export class ConversationController extends Service implements IConversation {
   private readonly imageUrls = new Map<string, ImageUrlEntry>()
   private readonly imageGenerations = new Map<SessionId, number>()
   private readonly createdImageUrls = new Set<string>()
+  private readonly submitHandlers = new Set<ConversationSubmitHandler>()
   private disposed = false
 
   /**
@@ -149,16 +177,39 @@ export class ConversationController extends Service implements IConversation {
     mode: InputSubmitMode,
     signal?: AbortSignal,
   ): Promise<SubmitOutcome> {
+    const requestSignal = signal ?? new AbortController().signal
+    for (const handler of this.submitHandlers) {
+      const outcome = await handler({
+        sessionId: session.sessionId,
+        text,
+        imageIds: [...imageIds],
+        mode,
+        signal: requestSignal,
+      })
+      if (outcome === undefined) continue
+      if (outcome.kind === 'success') this.releaseDraftImages(this.draftImages(imageIds))
+      return outcome
+    }
     const attachments = this.draftImages(imageIds)
     if (attachments.length !== imageIds.length) {
       throw new Error('conversation.sendSession: one or more draft images are no longer available')
     }
     const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
     const content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
-    const result = await session.prompt(content, mode, signal)
+    const result = await session.prompt(content, mode, requestSignal)
     if (!result.ok) return { kind: 'error' }
     this.releaseDraftImages(attachments)
     return { kind: 'success' }
+  }
+
+  /**
+   * Register a submit handler before the normal prompt path.
+   * @param handler - submit handler to run in insertion order.
+   * @returns disposer.
+   */
+  registerSubmitHandler(handler: ConversationSubmitHandler): () => void {
+    this.submitHandlers.add(handler)
+    return () => { this.submitHandlers.delete(handler) }
   }
 
   /**

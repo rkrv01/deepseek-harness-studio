@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-25-project-brain-deterministic-demo.md
+2026-08-25-project-brain-deterministic-demo.md: b37f0154309d9ffa26bf632122cce7caa6b923fa
+2026-08-25-project-brain-deterministic-demo.zh.md: 99304431bc91560a4f2973215f8fc7b29586d633

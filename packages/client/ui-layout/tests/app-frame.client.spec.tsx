@@ -16,6 +16,7 @@ import { useSyncExternalStore } from 'react'
 import { AppFrame } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
 import type { AppFrameProps } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
 import {
+  DETAILS_DEFAULT,
   SIDEBAR_COLLAPSED,
   SIDEBAR_COLLAPSED_MACOS,
 } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
@@ -183,7 +184,7 @@ describe('AppFrame', () => {
     expect(tracks(frame)).toEqual([280, 0])
 
     act(() => { instance.actions.openDetails() })
-    expect(tracks(frame)).toEqual([280, 360])
+    expect(tracks(frame)).toEqual([280, DETAILS_DEFAULT])
 
     selectedSession.current = 's-next' as SessionId
     act(() => { rerenderFrame() })
@@ -194,12 +195,15 @@ describe('AppFrame', () => {
     selectedSessionBlank.current = true
     act(() => { rerenderFrame() })
     expect(tracks(frame)).toEqual([280, 0])
-    expect(instance.getSnapshot().details).toBe(360)
+    expect(instance.getSnapshot().details).toBe(0)
+
+    act(() => { instance.actions.openDetails() })
+    expect(tracks(frame)).toEqual([280, DETAILS_DEFAULT])
 
     selectedSession.current = 's-next' as SessionId
     selectedSessionBlank.current = false
     act(() => { rerenderFrame() })
-    expect(tracks(frame)).toEqual([280, 360])
+    expect(tracks(frame)).toEqual([280, 0])
 
     selectedSession.current = undefined
     act(() => { rerenderFrame() })
@@ -232,7 +236,7 @@ describe('AppFrame', () => {
   it('shows a keyed first-level page without unmounting Conversation and closes Details', () => {
     const { frame, instance, getByTestId } = mountFrame()
     act(() => { instance.actions.openDetails() })
-    expect(tracks(frame)).toEqual([280, 360])
+    expect(tracks(frame)).toEqual([280, DETAILS_DEFAULT])
     act(() => { instance.actions.openPrimaryPage('plugin-center') })
     expect(tracks(frame)).toEqual([280, 0])
     expect(getByTestId('primary-page-content')).toBeTruthy()
@@ -250,14 +254,14 @@ describe('AppFrame', () => {
 
   it('details drag widens leftward (negative dx grows the panel)', () => {
     const { frame, instance } = mountFrame()
-    act(() => { instance.actions.openDetails() })
+    act(() => { instance.actions.setDetails(360) })
     const handles = frame.querySelectorAll('[class*="handle"]')
     drag(handles[1]!, 1560, 1500)
     expect(tracks(frame)[1]).toBe(420)
   })
 
   it('drag base is the rendered (concession-clamped) width, not the preference', () => {
-    frameWidth = 1250 // step-2 squeeze: details renders 330 while preference is 360
+    frameWidth = 1250 // step-2 squeeze: details renders 330 while preference is DETAILS_DEFAULT
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.openDetails() })
     expect(tracks(frame)).toEqual([280, 330])
@@ -317,7 +321,7 @@ describe('AppFrame', () => {
     expect(tracks(frame)).toEqual([280, 330])
     frameWidth = 1920
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
-    expect(tracks(frame)).toEqual([280, 360])
+    expect(tracks(frame)).toEqual([280, DETAILS_DEFAULT])
   })
 
   it('drag handles disappear for collapsed columns', () => {

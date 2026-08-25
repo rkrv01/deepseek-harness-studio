@@ -55,7 +55,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
         rendered.push(
           <MarkdownText
             key={i}
-            text={block.text}
+            text={block.text.replace(/<!-- project-brain:[a-z-]+(?: [A-Za-z0-9%._~-]+)? -->/gu, '')}
             streaming={streaming}
             codeLabels={codeLabels}
             fileMentions={mentions}
