@@ -12,6 +12,8 @@ import {
 import { resolveProjectBrainReply } from './scenario.ts'
 import type { ProjectBrainReply } from './scenario.ts'
 import { createDemoStatusFetch, DemoStatusSynchronizer } from './demo-status.ts'
+import { projectBrainScenario } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
+import type { ProjectBrainScenarioId } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
 
 export { PROJECT_BRAIN_PLAN, resolveProjectBrainReply } from './scenario.ts'
 export type { ProjectBrainPlanData, ProjectBrainReply, ProjectBrainReplyKind } from './scenario.ts'
@@ -25,6 +27,12 @@ export const PROJECT_BRAIN_STREAM_CONFIG = {
   introDelayMs: 1_000,
   chunkChars: 128,
   intervalMs: 300,
+} as const
+/** Faster pacing for the meeting-minutes scene, whose document is already task-detail heavy. */
+export const PROJECT_BRAIN_MEETING_STREAM_CONFIG = {
+  introDelayMs: 700,
+  chunkChars: 192,
+  intervalMs: 220,
 } as const
 
 class ProjectBrainDemoAdapter extends LlmAdapter {
@@ -75,29 +83,9 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
   if (ctx.agent !== undefined) mount(ctx.agent)
   ctx.on('agent/session-start', ({ agent }: { agent: Agent }) => { mount(agent) })
   ctx.on('llm/stream', (options, next) => {
-    // Filter out framework-injected system-reminder and runtime-context texts —
-    // they are not user prompts and their keywords would skew the routing heuristics.
-    const texts = options.messages
-      .filter(message => message.role === 'user')
-      .flatMap(message => message.content.filter(block => block.type === 'text').map(block => block.text))
-      .filter(text => !text.startsWith('<system-reminder>') && !text.startsWith('Current runtime context'))
-    const latest = texts.at(-1) ?? ''
-    // Title generation requests must pass through to the real LLM — the JSON
-    // payload contains user prompt keywords that would falsely match scenario
-    // regexes and return full demo text as the session title.
+    const latest = latestUserText(options)
     if (latest.startsWith('Generate the session title')) return next()
-    const hasLaunch = texts.some(text => /启动|创建|新建|初始化/u.test(text) && /项目/u.test(text))
-    const hasConfirmation = texts.some(text => text.includes('<!-- project-brain:confirm ') || /确认方案，开始执行/u.test(text) || /确认执行会议方案/u.test(text))
-    // Check for meeting analysis FIRST — before the hasLaunch fallback — so a
-    // meeting prompt in a new conversation (or after a launch) routes correctly.
-    const meetingMatch = /会议纪要|开完.*会|整理.*项目会议|帮我把会议纪要里的事项落到项目/u.test(latest)
-    const reply = meetingMatch
-      ? resolveProjectBrainReply(latest)
-      : latest.includes('<!-- project-brain:revision ') || latest.includes('<!-- project-brain:confirm ')
-        ? resolveProjectBrainReply(latest)
-        : hasLaunch && !hasConfirmation
-          ? resolveProjectBrainReply('帮我启动智慧园区建设项目。')
-          : resolveProjectBrainReply(latest)
+    const reply = resolveProjectBrainReply(latest)
     return reply.kind === 'fallback'
       ? next()
       : streamProjectBrainReply(reply, options.signal ?? new AbortController().signal, enabled => synchronizer.ensure(enabled))
@@ -111,7 +99,11 @@ function latestUserText(options: GenerateOptions): string {
   for (let i = options.messages.length - 1; i >= 0; i -= 1) {
     const message = options.messages[i]
     if (message?.role !== 'user') continue
-    return message.content.filter(block => block.type === 'text').map(block => block.text).join('')
+    const texts = message.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .filter(text => !text.startsWith('<system-reminder>') && !text.startsWith('Current runtime context'))
+    if (texts.length > 0) return texts.join('')
   }
   return ''
 }
@@ -146,7 +138,7 @@ async function* streamProjectBrainReply(reply: ProjectBrainReply, signal: AbortS
   if (reply.kind === 'launch-plan') {
     try {
       await synchronizeDemoStatus(false)
-    } catch (error) {
+    } catch {
       yield* streamReply('## 平台模拟数据暂不可用\n\n未能在初始化前关闭平台模拟数据，请确认服务连接后重新发起项目导入。\n\n<!-- project-brain:platform-failed -->', signal)
       return
     }
@@ -169,6 +161,18 @@ async function* streamProjectBrainReply(reply: ProjectBrainReply, signal: AbortS
     yield* streamMeetingExecution(reply.text, signal)
     return
   }
+  if (reply.kind === 'executive-briefing') {
+    yield* streamScenarioWithThinking(reply, 'executive-briefing', signal)
+    return
+  }
+  if (reply.kind === 'briefing-receipt') {
+    yield* streamReply(reply.text, signal)
+    return
+  }
+  if (reply.kind === 'handoff' && reply.scenarioId !== undefined) {
+    yield* streamScenarioWithThinking(reply, reply.scenarioId, signal)
+    return
+  }
   yield* streamReply(reply.text, signal)
 }
 
@@ -185,10 +189,10 @@ async function* streamMeetingAnalysis(text: string, signal: AbortSignal): AsyncI
   // Text block at index 1 (reasoning occupies index 0) — using index 0 here
   // would overwrite the reasoning block and the text would vanish on finish.
   yield { type: 'block-start', index: 1, blockType: 'text' }
-  for (let offset = 0; offset < text.length; offset += PROJECT_BRAIN_STREAM_CONFIG.chunkChars) {
-    await delay(offset === 0 ? PROJECT_BRAIN_STREAM_CONFIG.introDelayMs : PROJECT_BRAIN_STREAM_CONFIG.intervalMs, signal)
+  for (let offset = 0; offset < text.length; offset += PROJECT_BRAIN_MEETING_STREAM_CONFIG.chunkChars) {
+    await delay(offset === 0 ? PROJECT_BRAIN_MEETING_STREAM_CONFIG.introDelayMs : PROJECT_BRAIN_MEETING_STREAM_CONFIG.intervalMs, signal)
     if (signal.aborted) return
-    yield { type: 'text-delta', index: 1, text: text.slice(offset, offset + PROJECT_BRAIN_STREAM_CONFIG.chunkChars) }
+    yield { type: 'text-delta', index: 1, text: text.slice(offset, offset + PROJECT_BRAIN_MEETING_STREAM_CONFIG.chunkChars) }
   }
   if (signal.aborted) return
   yield { type: 'block-end', index: 1, block: { type: 'text', text } }
@@ -197,24 +201,31 @@ async function* streamMeetingAnalysis(text: string, signal: AbortSignal): AsyncI
 }
 
 /** Stream the meeting execution progress with simulated steps. */
-async function* streamMeetingExecution(_text: string, signal: AbortSignal): AsyncIterable<StreamChunk> {
-  const progress = ['收到，开始按会议分析结果执行。', '1. ✓ 已创建 5 项新任务，分配负责人与截止时间', '2. ✓ 已更新 1 项已有任务（安防摄像头采购到货时间调整）', '3. ✓ 已新增 1 项风险（设备采购延期风险升级）', '4. ✓ 已配置任务到期提醒与负责人通知']
-  let output = ''
-  yield { type: 'block-start', index: 0, blockType: 'text' }
-  for (const item of progress) {
-    const delta = `${output === '' ? '' : '\n'}${item}`
-    output += delta
-    await delay(650, signal)
-    if (signal.aborted) return
-    yield { type: 'text-delta', index: 0, text: delta }
-  }
-  await delay(1_000, signal)
+async function* streamMeetingExecution(text: string, signal: AbortSignal): AsyncIterable<StreamChunk> {
+  yield* streamReply(text, signal)
+}
+
+/** Stream a scenario reply with a thinking preamble and per-scenario pacing from the registry. */
+async function* streamScenarioWithThinking(reply: ProjectBrainReply, scenarioId: ProjectBrainScenarioId, signal: AbortSignal): AsyncIterable<StreamChunk> {
+  const scenario = projectBrainScenario(scenarioId)
+  const { introDelayMs, chunkChars, intervalMs } = scenario.stream
+  const thinking = scenario.thinking
+  yield { type: 'block-start', index: 0, blockType: 'reasoning' }
+  await delay(800, signal)
   if (signal.aborted) return
-  const summary = '\n\n**本次会议共处理 7 项行动事项**\n\n- 📋 新建任务：5 项\n- 🔄 更新任务：1 项\n- ⚠️ 新增风险：1 项\n\n> 已创建的任务将在截止日前自动提醒负责人，风险状态已同步至项目风险台账，可在项目智脑平台中查看详情。\n\n<!-- project-brain:meeting-executed -->'
-  output += summary
-  yield { type: 'text-delta', index: 0, text: summary }
-  yield { type: 'block-end', index: 0, block: { type: 'text', text: output } }
-  yield { type: 'usage', usage: { inputTokens: 128, outputTokens: output.length } }
+  yield { type: 'reasoning-delta', index: 0, text: thinking }
+  await delay(1_200, signal)
+  if (signal.aborted) return
+  yield { type: 'block-end', index: 0, block: { type: 'reasoning', text: thinking } }
+  yield { type: 'block-start', index: 1, blockType: 'text' }
+  for (let offset = 0; offset < reply.text.length; offset += chunkChars) {
+    await delay(offset === 0 ? introDelayMs : intervalMs, signal)
+    if (signal.aborted) return
+    yield { type: 'text-delta', index: 1, text: reply.text.slice(offset, offset + chunkChars) }
+  }
+  if (signal.aborted) return
+  yield { type: 'block-end', index: 1, block: { type: 'text', text: reply.text } }
+  yield { type: 'usage', usage: { inputTokens: 128, outputTokens: reply.text.length } }
   yield { type: 'finish', reason: { kind: 'stop' } }
 }
 

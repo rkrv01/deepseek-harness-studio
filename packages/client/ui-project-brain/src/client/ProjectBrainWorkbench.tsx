@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPicker } from 'react-day-picker'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconCalendarOutline16, IconChecklistOutline14, IconFolderOpenOutline16, IconGoalOutline16, IconListPenOutline16, IconWarningOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
-import { MEETING_ANALYSIS_MOCK } from '../project-data.ts'
 import type { ProjectBrainMeetingActionItem, ProjectBrainMeetingSubtask } from '../project-data.ts'
 import type { ProjectBrainLaunchPlan, ProjectBrainRisk, ProjectBrainStage, ProjectBrainState, ProjectBrainTask } from './state.ts'
 import { clonePlan } from './state.ts'
@@ -23,8 +22,8 @@ export function ProjectBrainWorkbench({ useProjectBrain, closeDetails, submitRev
   const [riskIndex, setRiskIndex] = useState(0)
   useEffect(() => { setDraft(source === null ? null : clonePlan(source)); setStageIndex(0); setTaskIndex(0); setRiskIndex(0) }, [source])
   const dirty = useMemo(() => source !== null && draft !== null && JSON.stringify(source) !== JSON.stringify(draft), [source, draft])
-  if (state.phase === 'meeting-plan-ready') return <MeetingTaskEditor closeDetails={closeDetails} submitMeetingRevision={submitMeetingRevision} />
-  if (source === null || draft === null || state.phase === 'generating' || state.phase === 'revising') return null
+  if (state.activeScenario === 'meeting-actions' && state.phase === 'review-ready') return <MeetingTaskEditor source={state.meetingItems} closeDetails={closeDetails} submitMeetingRevision={submitMeetingRevision} />
+  if (source === null || draft === null || state.phase === 'analyzing' || state.phase === 'revising') return null
   const update = (recipe: (plan: ProjectBrainLaunchPlan) => ProjectBrainLaunchPlan): void => { setDraft(current => current === null ? null : recipe(current)) }
   const sections = [
     ['project', '01', '项目基础信息', '目标、周期与预算', IconGoalOutline16],
@@ -33,7 +32,7 @@ export function ProjectBrainWorkbench({ useProjectBrain, closeDetails, submitRev
     ['risks', '04', '风险', `${draft.risks.length} 项关注`, IconWarningOutline16],
     ['folders', '05', '知识目录', `${draft.knowledgeFolders.length} 个目录`, IconFolderOpenOutline16],
   ] as const
-  const activeMeta = sections.find(item => item[0] === active)!
+  const activeMeta = sections.find(item => item[0] === active) ?? sections[0]
   return <div className={css.root}>
     <header className={css.header}><div><div className={css.eyebrow}>项目智脑 · 当前会话方案</div><h2 className={css.title}>编辑项目方案</h2><p className={css.headerHint}>把 AI 生成的启动方案微调为更贴近项目实际的执行基线。</p></div><div className={css.status}><span className={dirty ? css.statusDirty : css.statusClean} />{dirty ? '草稿已修改' : '方案未修改'}</div></header>
     <div className={css.editor}>
@@ -71,9 +70,9 @@ function newStage(index: number): ProjectBrainStage { return { id: `stage-new-${
 function newTask(index: number): ProjectBrainTask { return { id: `TASK-NEW-${index}-${crypto.randomUUID()}`, title: `新任务 ${index}`, owner: '', startDate: '2026-12-01', endDate: '2026-12-07', dependency: '—', progress: 0, deliverable: '', packageId: '' } }
 function newRisk(index: number): ProjectBrainRisk { return { id: `R-NEW-${index}-${crypto.randomUUID()}`, title: '新风险', type: '阻塞', level: '中', owner: '', description: '', impact: '', mitigation: '', relatedTaskId: '' } }
 
-/** Meeting task editor for the meeting-plan-ready phase — single-column list with type tags, add/delete, and subtasks. */
-function MeetingTaskEditor({ closeDetails, submitMeetingRevision }: { readonly closeDetails: () => void; readonly submitMeetingRevision: (items: ProjectBrainMeetingActionItem[]) => Promise<void> }): JSX.Element {
-  const initialItems = useMemo(() => MEETING_ANALYSIS_MOCK.actionItems.map(item => ({ ...item, subtasks: item.subtasks.map(st => ({ ...st })) })), [])
+/** Meeting task editor for the meeting review phase — single-column list with type tags, add/delete, and subtasks. */
+function MeetingTaskEditor({ source, closeDetails, submitMeetingRevision }: { readonly source: readonly ProjectBrainMeetingActionItem[]; readonly closeDetails: () => void; readonly submitMeetingRevision: (items: ProjectBrainMeetingActionItem[]) => Promise<void> }): JSX.Element {
+  const initialItems = useMemo(() => source.map(item => ({ ...item, subtasks: item.subtasks.map(st => ({ ...st })) })), [source])
   const [items, setItems] = useState<ProjectBrainMeetingActionItem[]>(() => initialItems.map(item => ({ ...item, subtasks: item.subtasks.map(st => ({ ...st })) })))
   const dirty = useMemo(() => JSON.stringify(items) !== JSON.stringify(initialItems), [items, initialItems])
   const resetDraft = (): void => { setItems(initialItems.map(item => ({ ...item, subtasks: item.subtasks.map(st => ({ ...st })) }))) }
@@ -109,7 +108,7 @@ function MeetingTaskEditor({ closeDetails, submitMeetingRevision }: { readonly c
     </div>
     <main className={css.meetingEditList}>
       {items.length === 0 && <div className={css.meetingEditEmpty}>暂无任务，点击下方"＋ 新增任务"添加。</div>}
-      {items.map(item => {
+      {items.map((item) => {
         const tag = item.type === 'new-task' ? { label: '新建', cls: css.meetingTagNew } : item.type === 'update-task' ? { label: '更新', cls: css.meetingTagUpdate } : { label: '风险', cls: css.meetingTagRisk }
         return (
           <div key={item.id} className={css.meetingEditCard}>

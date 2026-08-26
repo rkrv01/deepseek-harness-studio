@@ -1,8 +1,9 @@
 import { defineStore, type EngineStoreHandle, type EngineStoreInstance } from '@deepseek-ai/dsh-client-runtime/client'
-import { PROJECT_BRAIN_PLAN } from '../project-data.ts'
-import type { ProjectBrainPlanData, ProjectBrainProjectData, ProjectBrainRiskData, ProjectBrainStageData, ProjectBrainTaskData } from '../project-data.ts'
+import { MEETING_ANALYSIS_MOCK, PROJECT_BRAIN_PLAN } from '../project-data.ts'
+import type { ProjectBrainMeetingActionItem, ProjectBrainPlanData, ProjectBrainProjectData, ProjectBrainRiskData, ProjectBrainStageData, ProjectBrainTaskData } from '../project-data.ts'
+import type { ProjectBrainRunPhase, ProjectBrainScenarioId } from '../scenario-registry.ts'
 
-export type ProjectBrainScenarioId = 'project-launch' | 'meeting-actions' | 'project-copilot' | 'my-day' | 'executive-briefing'
+export type { ProjectBrainScenarioId } from '../scenario-registry.ts'
 export type ProjectBrainProject = ProjectBrainProjectData
 export type ProjectBrainStage = ProjectBrainStageData
 export type ProjectBrainTask = ProjectBrainTaskData
@@ -16,9 +17,10 @@ export interface ProjectBrainMessage { readonly id: string; readonly role: 'user
 export interface ProjectBrainNextAction { readonly id: Exclude<ProjectBrainScenarioId, 'project-launch'>; readonly title: string; readonly description: string; readonly prompt: string }
 export interface ProjectBrainState {
   activeScenario: ProjectBrainScenarioId | null
-  phase: 'idle' | 'generating' | 'plan-ready' | 'revising' | 'executing' | 'syncing-platform' | 'execution-failed' | 'executed' | 'next-action-ready' | 'meeting-analyzing' | 'meeting-plan-ready' | 'meeting-executing' | 'meeting-executed'
+  phase: ProjectBrainRunPhase
   messages: ProjectBrainMessage[]
   plan: ProjectBrainLaunchPlan | null
+  meetingItems: ProjectBrainMeetingActionItem[]
   nextActions: ProjectBrainNextAction[]
   preparedAction: ProjectBrainNextAction | null
 }
@@ -35,7 +37,7 @@ const INITIAL_PROJECT_PLAN = PROJECT_BRAIN_PLAN
 
 /** Create the Project Brain store handle. */
 export function createProjectBrainStore(): EngineStoreHandle<ProjectBrainState, {}> {
-  return defineStore({ init: (): ProjectBrainState => ({ activeScenario: null, phase: 'idle', messages: [], plan: null, nextActions: [], preparedAction: null }), actions: {} })
+  return defineStore({ init: (): ProjectBrainState => ({ activeScenario: null, phase: 'idle', messages: [], plan: null, meetingItems: [], nextActions: [], preparedAction: null }), actions: {} })
 }
 
 /** Start the fixed project-launch scenario when the user's prompt asks for it. */
@@ -43,7 +45,7 @@ export function launchProjectScenario(store: EngineStoreInstance<ProjectBrainSta
   if (!isLaunchPrompt(input.text)) return { kind: 'ignored' }
   store.store.update((draft) => {
     draft.activeScenario = 'project-launch'
-    draft.phase = 'generating'
+    draft.phase = 'analyzing'
     draft.plan = clonePlan({ ...INITIAL_PROJECT_PLAN, documents: input.files })
     draft.nextActions = []
     draft.preparedAction = null
@@ -53,7 +55,7 @@ export function launchProjectScenario(store: EngineStoreInstance<ProjectBrainSta
 
 /** Mark the native assistant response as complete without opening the editor. */
 export function markProjectPlanReady(store: EngineStoreInstance<ProjectBrainState, {}>): void {
-  store.store.update((draft) => { if (draft.phase === 'generating' || draft.phase === 'revising') draft.phase = 'plan-ready' })
+  store.store.update((draft) => { if (draft.activeScenario === 'project-launch' && (draft.phase === 'analyzing' || draft.phase === 'revising')) draft.phase = 'review-ready' })
 }
 
 /** Rehydrate the fixed demo plan when a historical launch response is opened. */
@@ -61,7 +63,7 @@ export function restoreProjectLaunchPlan(store: EngineStoreInstance<ProjectBrain
   store.store.update((draft) => {
     if (draft.plan !== null) return
     draft.activeScenario = 'project-launch'
-    draft.phase = 'plan-ready'
+    draft.phase = 'review-ready'
     draft.plan = clonePlan({ ...INITIAL_PROJECT_PLAN, documents: [] })
   })
 }
@@ -73,22 +75,22 @@ export function submitProjectPlanRevision(store: EngineStoreInstance<ProjectBrai
 
 /** Mark the current confirmed plan as being initialized by the demo agent. */
 export function startProjectExecution(store: EngineStoreInstance<ProjectBrainState, {}>): void {
-  store.store.update((draft) => { if (draft.plan !== null && draft.phase === 'plan-ready') draft.phase = 'executing' })
+  store.store.update((draft) => { if (draft.plan !== null && draft.activeScenario === 'project-launch' && draft.phase === 'review-ready') draft.phase = 'executing' })
 }
 
 /** Mark the deterministic initialization transcript as complete. */
 export function markProjectExecuted(store: EngineStoreInstance<ProjectBrainState, {}>): void {
-  store.store.update((draft) => { if (draft.phase === 'executing' || draft.phase === 'syncing-platform') draft.phase = 'executed' })
+  store.store.update((draft) => { if (draft.activeScenario === 'project-launch' && (draft.phase === 'executing' || draft.phase === 'syncing')) draft.phase = 'completed' })
 }
 
 /** Keep the confirmed plan available when the external platform data did not load. */
 export function markProjectExecutionFailed(store: EngineStoreInstance<ProjectBrainState, {}>): void {
-  store.store.update((draft) => { if (draft.phase === 'executing' || draft.phase === 'syncing-platform') draft.phase = 'execution-failed' })
+  store.store.update((draft) => { if (draft.activeScenario === 'project-launch' && (draft.phase === 'executing' || draft.phase === 'syncing')) draft.phase = 'failed' })
 }
 
 /** Retry only the platform-demo synchronization after a prior execution failure. */
 export function retryProjectPlatformData(store: EngineStoreInstance<ProjectBrainState, {}>): void {
-  store.store.update((draft) => { if (draft.plan !== null && draft.phase === 'execution-failed') draft.phase = 'syncing-platform' })
+  store.store.update((draft) => { if (draft.plan !== null && draft.activeScenario === 'project-launch' && draft.phase === 'failed') draft.phase = 'syncing' })
 }
 
 export interface ProjectBrainRevision { readonly summary: string; readonly details: readonly string[] }
@@ -113,14 +115,18 @@ export function projectPlanRevision(before: ProjectBrainLaunchPlan, after: Proje
   const details: string[] = []
   if (before.project.name !== after.project.name) details.push(`项目名称：${before.project.name} → ${after.project.name}`)
   if (before.project.owner !== after.project.owner) details.push(`项目负责人：${before.project.owner} → ${after.project.owner}`)
-  const stage = after.stages.find((item) => {
+  const updatedStage = after.stages.find((item) => {
     const prior = before.stages.find(candidate => candidate.id === item.id)
     return prior !== undefined && JSON.stringify(prior) !== JSON.stringify(item)
   })
-  if (stage !== undefined) {
-    const prior = before.stages.find(item => item.id === stage.id)!
-    const fields = [prior.owner !== stage.owner ? `负责人 ${prior.owner} → ${stage.owner}` : '', prior.startDate !== stage.startDate || prior.endDate !== stage.endDate ? `周期 ${stage.startDate} 至 ${stage.endDate}` : '', prior.deliverable !== stage.deliverable ? '交付物已更新' : ''].filter(Boolean)
-    details.push(`${stage.name}：${fields.join('；')}`)
+  const priorStage = updatedStage === undefined ? undefined : before.stages.find(item => item.id === updatedStage.id)
+  if (updatedStage !== undefined && priorStage !== undefined) {
+    const fields = [
+      priorStage.owner !== updatedStage.owner ? `负责人 ${priorStage.owner} → ${updatedStage.owner}` : '',
+      priorStage.startDate !== updatedStage.startDate || priorStage.endDate !== updatedStage.endDate ? `周期 ${updatedStage.startDate} 至 ${updatedStage.endDate}` : '',
+      priorStage.deliverable !== updatedStage.deliverable ? '交付物已更新' : '',
+    ].filter(Boolean)
+    details.push(`${updatedStage.name}：${fields.join('；')}`)
   }
   const addedTasks = after.tasks.filter(item => !before.tasks.some(prior => prior.id === item.id)).length
   const removedTasks = before.tasks.filter(item => !after.tasks.some(next => next.id === item.id)).length
@@ -153,10 +159,12 @@ export function prepareNextProjectAction(store: EngineStoreInstance<ProjectBrain
 }
 
 /** Start the meeting-actions scenario when the user prompt asks for meeting minutes. */
-export function launchMeetingScenario(store: EngineStoreInstance<ProjectBrainState, {}>): void {
+export function launchMeetingScenario(store: EngineStoreInstance<ProjectBrainState, {}>, items: readonly ProjectBrainMeetingActionItem[] = MEETING_ANALYSIS_MOCK.actionItems): void {
   store.store.update((draft) => {
     draft.activeScenario = 'meeting-actions'
-    draft.phase = 'meeting-analyzing'
+    draft.phase = 'analyzing'
+    if (draft.plan === null) draft.plan = clonePlan({ ...INITIAL_PROJECT_PLAN, documents: [] })
+    draft.meetingItems = cloneMeetingItems(items)
     draft.nextActions = []
     draft.preparedAction = null
   })
@@ -164,17 +172,66 @@ export function launchMeetingScenario(store: EngineStoreInstance<ProjectBrainSta
 
 /** Mark the meeting analysis as complete and the execution plan as ready. */
 export function markMeetingPlanReady(store: EngineStoreInstance<ProjectBrainState, {}>): void {
-  store.store.update((draft) => { if (draft.phase === 'meeting-analyzing') draft.phase = 'meeting-plan-ready' })
+  store.store.update((draft) => { if (draft.activeScenario === 'meeting-actions' && (draft.phase === 'analyzing' || draft.phase === 'revising')) draft.phase = 'review-ready' })
+}
+
+/** Replace the current meeting draft before the revised response begins. */
+export function submitMeetingRevision(store: EngineStoreInstance<ProjectBrainState, {}>, items: readonly ProjectBrainMeetingActionItem[]): void {
+  store.store.update((draft) => {
+    draft.activeScenario = 'meeting-actions'
+    draft.phase = 'revising'
+    draft.meetingItems = cloneMeetingItems(items)
+  })
+}
+
+/** Restore the meeting review state from a historical assistant response. */
+export function restoreMeetingPlan(store: EngineStoreInstance<ProjectBrainState, {}>, items: readonly ProjectBrainMeetingActionItem[]): void {
+  store.store.update((draft) => {
+    draft.activeScenario = 'meeting-actions'
+    draft.phase = 'review-ready'
+    if (draft.plan === null) draft.plan = clonePlan({ ...INITIAL_PROJECT_PLAN, documents: [] })
+    draft.meetingItems = cloneMeetingItems(items)
+  })
 }
 
 /** Confirm the meeting execution plan and start executing. */
 export function confirmMeetingExecution(store: EngineStoreInstance<ProjectBrainState, {}>): void {
-  store.store.update((draft) => { if (draft.phase === 'meeting-plan-ready') draft.phase = 'meeting-executing' })
+  store.store.update((draft) => { if (draft.activeScenario === 'meeting-actions' && draft.phase === 'review-ready') draft.phase = 'executing' })
 }
 
 /** Mark the meeting execution as complete. */
 export function markMeetingExecuted(store: EngineStoreInstance<ProjectBrainState, {}>): void {
-  store.store.update((draft) => { if (draft.phase === 'meeting-executing') draft.phase = 'meeting-executed' })
+  store.store.update((draft) => {
+    if (draft.activeScenario !== 'meeting-actions' || draft.phase !== 'executing' || draft.plan === null) return
+    draft.plan = applyMeetingItems(draft.plan, draft.meetingItems)
+    draft.phase = 'completed'
+  })
+}
+
+/** Return a mutable-safe meeting action list for cards and editors. */
+export function cloneMeetingItems(items: readonly ProjectBrainMeetingActionItem[]): ProjectBrainMeetingActionItem[] {
+  return items.map(item => ({ ...item, subtasks: item.subtasks.map(subtask => ({ ...subtask })) }))
+}
+
+function applyMeetingItems(plan: ProjectBrainLaunchPlan, items: readonly ProjectBrainMeetingActionItem[]): ProjectBrainLaunchPlan {
+  const tasks = plan.tasks.map(task => ({ ...task }))
+  const risks = plan.risks.map(risk => ({ ...risk }))
+  for (const item of items) {
+    if (item.type === 'new-task') {
+      if (tasks.some(task => task.id === item.id)) continue
+      tasks.push({ id: item.id, title: item.title, owner: item.owner, startDate: '2026-08-22', endDate: item.dueDate, dependency: '—', progress: 0, deliverable: item.description, packageId: 'meeting-actions' })
+      continue
+    }
+    if (item.type === 'update-task') {
+      const task = tasks.find(candidate => candidate.id === item.relatedTaskId)
+      if (task !== undefined) { task.endDate = item.dueDate; task.owner = item.owner }
+      continue
+    }
+    const risk = risks.find(candidate => candidate.relatedTaskId === item.relatedTaskId)
+    if (risk !== undefined) { risk.title = item.title; risk.level = '高'; risk.description = item.description; risk.owner = item.owner }
+    else risks.push({ id: item.id, title: item.title, type: '延期', level: '高', owner: item.owner, description: item.description, impact: '影响关联任务与项目计划。', mitigation: '持续跟踪会议行动项并及时升级。', relatedTaskId: item.relatedTaskId ?? '' })
+  }
+  return { ...plan, tasks, risks }
 }
 
 function isLaunchPrompt(text: string): boolean { return /启动|创建|新建|初始化/u.test(text) && /项目/u.test(text) }

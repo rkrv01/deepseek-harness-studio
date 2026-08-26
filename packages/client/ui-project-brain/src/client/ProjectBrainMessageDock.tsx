@@ -6,6 +6,11 @@ import css from './ProjectBrainMessageDock.module.css'
 
 const LAUNCH_PROMPT = '帮我启动智慧园区建设项目。'
 const MEETING_PROMPT = '帮我整理这个项目的会议纪要'
+const COPILOT_PROMPT = '帮我托管这个项目'
+const MY_DAY_PROMPT = '看看我今天该做什么'
+const BRIEFING_PROMPT = '下周要给集团领导汇报，帮我准备好'
+
+const PROJECT_BRAIN_PROMPTS = [LAUNCH_PROMPT, MEETING_PROMPT, COPILOT_PROMPT, MY_DAY_PROMPT, BRIEFING_PROMPT]
 
 /** Injected face for the Project Brain message strip. */
 export interface ProjectBrainMessageDockInjected {
@@ -28,26 +33,17 @@ export function ProjectBrainMessageDock({ useProjectBrain, useInput, inputAction
       <section className={css.suggestion} aria-label="项目智脑示例输入">
         <span className={css.suggestionLabel}>可以直接开始</span>
         <div className={css.suggestionRow}>
-          <button
+          {PROJECT_BRAIN_PROMPTS.map(prompt => <button
+            key={prompt}
             type="button"
             className={css.suggestionButton}
             onClick={() => {
-              inputActions.setDraft(LAUNCH_PROMPT)
+              inputActions.setDraft(prompt)
               queueMicrotask(inputActions.submit)
             }}
           >
-            {LAUNCH_PROMPT}
-          </button>
-          <button
-            type="button"
-            className={css.suggestionButton}
-            onClick={() => {
-              inputActions.setDraft(MEETING_PROMPT)
-              queueMicrotask(inputActions.submit)
-            }}
-          >
-            {MEETING_PROMPT}
-          </button>
+            {prompt}
+          </button>)}
         </div>
       </section>
     )

@@ -53,7 +53,15 @@ export function projectUserMessageProjection(text: string): ProjectUserMessagePr
   if (detailMatch?.[1] !== undefined) {
     try { const decoded = JSON.parse(decodeURIComponent(detailMatch[1])); if (Array.isArray(decoded) && decoded.every(item => typeof item === 'string')) revisionDetails = decoded } catch { /* private payload is optional UI metadata */ }
   }
-  return { text: text.replace(/\s*<!-- project-brain:(?:revision-summary|revision|confirm) [A-Za-z0-9%._~-]+ -->/gu, '').trimEnd(), revisionDetails }
+  return {
+    text: text
+      .replace(
+        /\s*<!-- project-brain:(?:revision-summary|revision|confirm|scenario|meeting-revision|meeting-confirm|retry-platform) [A-Za-z0-9%._~-]+ -->/gu,
+        '',
+      )
+      .trimEnd(),
+    revisionDetails,
+  }
 }
 
 export function projectUserMessageText(text: string): string {

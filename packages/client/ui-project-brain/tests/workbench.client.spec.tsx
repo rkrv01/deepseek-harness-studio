@@ -11,7 +11,7 @@ describe('ProjectBrainWorkbench', () => {
   it('switches through numbered editor navigation without stacking all forms', () => {
     const brain = createProjectBrainStore().create()
     launchProjectScenario(brain, { text: '帮我启动智慧园区建设项目。', files: [] })
-    brain.store.update((draft) => { draft.phase = 'plan-ready' })
+    brain.store.update((draft) => { draft.phase = 'review-ready' })
     const props = {
       useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()),
       submitRevision: vi.fn(),
@@ -24,14 +24,14 @@ describe('ProjectBrainWorkbench', () => {
     expect(view.queryByText('阶段负责人')).toBeNull()
     fireEvent.click(view.getByRole('button', { name: /02.*阶段规划/u }))
     expect(view.getByText('阶段负责人')).toBeTruthy()
-    expect(view.getAllByRole('button', { name: /项目启动阶段/u })).toHaveLength(1)
+    expect(view.getAllByRole('button', { name: /方案设计/u })).toHaveLength(1)
     expect(view.queryByText('风险等级')).toBeNull()
   })
 
   it('uses standard navigation icons and opens a calendar from project date fields', () => {
     const brain = createProjectBrainStore().create()
     launchProjectScenario(brain, { text: '帮我启动智慧园区建设项目。', files: [] })
-    brain.store.update((draft) => { draft.phase = 'plan-ready' })
+    brain.store.update((draft) => { draft.phase = 'review-ready' })
     const props = {
       useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()),
       submitRevision: vi.fn(),
@@ -47,6 +47,6 @@ describe('ProjectBrainWorkbench', () => {
     const day = view.getAllByRole('button').find(button => button.textContent === '15')
     expect(day).toBeTruthy()
     fireEvent.click(day!)
-    expect(view.getByRole('button', { name: '选择项目开始日期' }).textContent).toContain('2026/09/15')
+    expect(view.getByRole('button', { name: '选择项目开始日期' }).textContent).toContain('2026/03/15')
   })
 })

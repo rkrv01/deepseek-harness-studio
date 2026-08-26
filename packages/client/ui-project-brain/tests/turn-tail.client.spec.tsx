@@ -8,13 +8,14 @@ import { createProjectBrainStore, launchProjectScenario } from '../src/client/st
 import type { ProjectBrainState } from '../src/client/state.ts'
 import { PROJECT_BRAIN_PLAN } from '../src/project-data.ts'
 import { PROJECT_BRAIN_PLATFORM_TARGET, isProjectBrainPlatformUrl } from '../src/client/platform-window.ts'
+import { projectBrainScenarioPayload, projectBrainSurfacePayload } from '../src/scenario-registry.ts'
 
 describe('ProjectBrainTurnTail', () => {
   afterEach(() => { cleanup(); vi.useRealTimers() })
   it('offers confirmation and editing as distinct next actions', () => {
     const brain = createProjectBrainStore().create()
     launchProjectScenario(brain, { text: '帮我启动智慧园区建设项目。', files: [] })
-    brain.store.update((draft) => { draft.phase = 'plan-ready' })
+    brain.store.update((draft) => { draft.phase = 'review-ready' })
     const confirmPlan = vi.fn()
     const props = { useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()), enabled: () => true, openDetails: vi.fn(), confirmPlan } as unknown as ComponentProps<typeof ProjectBrainTurnTail>
     const view = render(<ProjectBrainTurnTail {...props} />)
@@ -28,7 +29,7 @@ describe('ProjectBrainTurnTail', () => {
     vi.useFakeTimers()
     const brain = createProjectBrainStore().create()
     launchProjectScenario(brain, { text: '帮我启动智慧园区建设项目。', files: [] })
-    brain.store.update((draft) => { draft.phase = 'plan-ready' })
+    brain.store.update((draft) => { draft.phase = 'review-ready' })
     const scrollIntoView = HTMLElement.prototype.scrollIntoView
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: undefined })
     const props = { useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()), enabled: () => true, openDetails: vi.fn(), confirmPlan: vi.fn(), markExecuted: vi.fn(), markExecutionFailed: vi.fn() } as unknown as ComponentProps<typeof ProjectBrainTurnTail>
@@ -41,7 +42,7 @@ describe('ProjectBrainTurnTail', () => {
   it('keeps the ready card attached to the execution reply instead of the original plan reply', () => {
     const brain = createProjectBrainStore().create()
     launchProjectScenario(brain, { text: '帮我启动智慧园区建设项目。', files: [] })
-    brain.store.update((draft) => { draft.phase = 'executed' })
+    brain.store.update((draft) => { draft.phase = 'completed' })
     const props = { useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()), enabled: () => true, openDetails: vi.fn(), confirmPlan: vi.fn(), markExecuted: vi.fn(), markExecutionFailed: vi.fn() } as unknown as ComponentProps<typeof ProjectBrainTurnTail>
     const planTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: '项目导入与初始化方案：智慧园区建设项目' }] }]]) }] }
     const executionTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: '收到，开始按当前方案完成项目初始化。<!-- project-brain:platform-ready -->' }] }]]) }] }
@@ -73,5 +74,79 @@ describe('ProjectBrainTurnTail', () => {
     fireEvent.click(view.getByRole('button', { name: /帮我整理项目会议/ }))
     expect(onContinue).toHaveBeenCalledWith('meeting-actions')
     expect(view.getByRole('button', { name: /帮我托管这个项目/ })).toBeTruthy()
+  })
+
+  it('renders an allow-listed interactive surface beneath its owning turn', () => {
+    const brain = createProjectBrainStore().create()
+    const data = { date: '2026 年 8 月 26 日', owner: '张明', focusMinutes: 60, tasks: [{ id: 't1', title: '处理紧急任务', project: '智慧园区建设项目', due: '10:30 前', priority: '紧急', reason: '阻塞关键路径' }] }
+    const turn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:surface ${projectBrainSurfacePayload('my-day', 'my-day-workbench', data)} -->` }] }]]) }] }
+    const props = { useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()), enabled: () => true } as unknown as ComponentProps<typeof ProjectBrainTurnTail>
+    const view = render(<ProjectBrainTurnTail {...props} turn={turn as never} />)
+    expect(view.getByRole('region', { name: '今日工作台' })).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: /标记完成：处理紧急任务/u }))
+    expect(view.getByText('100%')).toBeTruthy()
+  })
+
+  it('renders the project-copilot dashboard surface with local permission switching', () => {
+    const brain = createProjectBrainStore().create()
+    const data = {
+      projectName: PROJECT_BRAIN_PLAN.project.name,
+      progress: PROJECT_BRAIN_PLAN.project.progress,
+      permissionMode: '辅助执行模式',
+      trackingItems: [{ id: 'track-1', title: '设备采购交付', owner: '王刚', status: '高风险', description: '第二批设备交付预计延期 2 周。' }],
+      discoveries: { highRisks: 1, abnormalTasks: 2, dueSoon: 4, coordination: 3 },
+      decisions: [{ id: 'decision-1', title: '是否启用备选供应商', reason: '影响系统集成测试窗口。', owner: '张明', due: '今天 16:00 前' }],
+      nextPlan: ['16:00 跟进备选供应商报价', '明早汇总延期影响'],
+    }
+    const turn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:surface ${projectBrainSurfacePayload('project-copilot', 'project-copilot-dashboard', data)} -->` }] }]]) }] }
+    const props = { useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()), enabled: () => true } as unknown as ComponentProps<typeof ProjectBrainTurnTail>
+    const view = render(<ProjectBrainTurnTail {...props} turn={turn as never} />)
+
+    expect(view.getByRole('region', { name: '项目托管看板' })).toBeTruthy()
+    expect(view.getByText(/AI 正在跟进/u)).toBeTruthy()
+    expect(view.getByText('设备采购交付')).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: '托管模式' }))
+    expect(view.getByText('当前权限：托管模式')).toBeTruthy()
+  })
+
+  it('renders the enriched daily workbench with explanations and local completion', () => {
+    const brain = createProjectBrainStore().create()
+    const data = {
+      date: '2026 年 8 月 26 日',
+      owner: '张明',
+      role: '项目负责人',
+      focusMinutes: 330,
+      summary: { urgent: 2, today: 2, meetings: 1, waiting: 1 },
+      tasks: [
+        { id: 'today-1', title: '确认安防摄像头备选供应商', project: PROJECT_BRAIN_PLAN.project.name, due: '10:30 前', priority: '紧急', group: '紧急处理', reason: '采购延期已影响系统集成关键路径', detail: '排在第一是因为它会直接影响系统集成测试窗口。', primaryAction: '打开任务' },
+        { id: 'today-2', title: '参加供应商协调会', project: PROJECT_BRAIN_PLAN.project.name, due: '14:00', priority: '会议', group: '会议', reason: '需要确认备选供应商交付承诺', detail: '会议结论会影响采购风险处置措施。', primaryAction: '查看会议' },
+      ],
+      waiting: [{ id: 'wait-1', title: '甲方确认能耗模块变更范围', owner: '甲方项目办', since: '2 天前' }],
+    }
+    const turn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:surface ${projectBrainSurfacePayload('my-day', 'my-day-workbench', data)} -->` }] }]]) }] }
+    const props = { useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()), enabled: () => true } as unknown as ComponentProps<typeof ProjectBrainTurnTail>
+    const view = render(<ProjectBrainTurnTail {...props} turn={turn as never} />)
+
+    expect(view.getByRole('region', { name: '今日工作台' })).toBeTruthy()
+    expect(view.getByText('今日会议')).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: /为什么排这里：确认安防摄像头备选供应商/u }))
+    expect(view.getByText(/排在第一/u)).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: /标记完成：确认安防摄像头备选供应商/u }))
+    expect(view.getByText('50%')).toBeTruthy()
+  })
+
+  it('shows executive briefing confirmation and receipt cards under the owning turn', () => {
+    const brain = createProjectBrainStore().create()
+    const confirmBriefing = vi.fn()
+    const reviewTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `# 项目汇报\n\n<!-- project-brain:executive-briefing -->\n<!-- project-brain:scenario ${projectBrainScenarioPayload('executive-briefing', 'confirm', { projectId: PROJECT_BRAIN_PLAN.project.id })} -->` }] }]]) }] }
+    const receiptTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: '<!-- project-brain:executive-briefing-ready -->' }] }]]) }] }
+    const props = { useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()), enabled: () => true, confirmBriefing } as unknown as ComponentProps<typeof ProjectBrainTurnTail>
+
+    const review = render(<ProjectBrainTurnTail {...props} turn={reviewTurn as never} />)
+    fireEvent.click(review.getByRole('button', { name: '确认生成汇报包' }))
+    expect(confirmBriefing).toHaveBeenCalledTimes(1)
+
+    const receipt = render(<ProjectBrainTurnTail {...props} turn={receiptTurn as never} />)
+    expect(receipt.getByRole('region', { name: '汇报包已生成' })).toBeTruthy()
   })
 })

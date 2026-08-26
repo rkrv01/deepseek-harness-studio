@@ -34,6 +34,36 @@ export interface ProjectBrainPlanData {
   readonly knowledgeDocuments: readonly ProjectBrainKnowledgeDocument[]
 }
 
+export interface ProjectBrainCopilotData {
+  readonly projectName: string
+  readonly progress: number
+  readonly permissionMode: string
+  readonly trackingItems: readonly { readonly id: string; readonly title: string; readonly owner: string; readonly status: string; readonly description: string }[]
+  readonly discoveries: { readonly highRisks: number; readonly abnormalTasks: number; readonly dueSoon: number; readonly coordination: number }
+  readonly decisions: readonly { readonly id: string; readonly title: string; readonly reason: string; readonly owner: string; readonly due: string }[]
+  readonly nextPlan: readonly string[]
+}
+
+export interface ProjectBrainMyDayData {
+  readonly date: string
+  readonly owner: string
+  readonly role: string
+  readonly focusMinutes: number
+  readonly summary: { readonly urgent: number; readonly today: number; readonly meetings: number; readonly waiting: number }
+  readonly tasks: readonly {
+    readonly id: string
+    readonly title: string
+    readonly project: string
+    readonly due: string
+    readonly priority: '紧急' | '今日' | '会议' | '等待'
+    readonly group: string
+    readonly reason: string
+    readonly detail: string
+    readonly primaryAction: string
+  }[]
+  readonly waiting: readonly { readonly id: string; readonly title: string; readonly owner: string; readonly since: string }[]
+}
+
 /**
  * Source-aligned demo snapshot from the Project Brain platform fixture.
  * The budget is intentionally retained as a scenario presentation supplement.
@@ -70,6 +100,45 @@ export const PROJECT_BRAIN_PLAN: ProjectBrainPlanData = {
     { id: 'demo-know-002', title: '项目实施方案', category: '项目文档', fileName: '项目实施方案_2026.docx', author: '张明', status: '已发布', summary: '阶段划分、资源安排、里程碑和风险应对策略。' },
     { id: 'demo-know-003', title: '供应商评估报告', category: '评估报告', fileName: '供应商评估报告_2026Q2.pdf', author: '王刚', status: '已发布', summary: '主要设备供应商的资质、能力与报价对比。' },
     { id: 'demo-know-004', title: '设备选型方案', category: '技术方案', fileName: '设备选型方案_草稿.pdf', author: '技术组', status: '草稿', summary: '核心设备参数、兼容性与成本估算。' },
+  ],
+}
+
+/** Visual dashboard data for the AI project-copilot scenario. */
+export const PROJECT_BRAIN_COPILOT_DEMO: ProjectBrainCopilotData = {
+  projectName: PROJECT_BRAIN_PLAN.project.name,
+  progress: PROJECT_BRAIN_PLAN.project.progress,
+  permissionMode: '辅助执行模式',
+  trackingItems: [
+    { id: 'copilot-track-1', title: '设备采购交付', owner: '王刚', status: '高风险', description: '第二批安防摄像头预计延期 2 周，已影响系统集成测试窗口。' },
+    { id: 'copilot-track-2', title: '最小测试环境', owner: '刘洋', status: '需跟进', description: '服务器资源已批复，但机房改造仍需确认现场时间。' },
+    { id: 'copilot-track-3', title: '能耗模块变更', owner: '张明', status: '待决策', description: '甲方新增需求预计带来 15% 工作量，需要确认变更边界。' },
+  ],
+  discoveries: { highRisks: 1, abnormalTasks: 2, dueSoon: 4, coordination: 3 },
+  decisions: [
+    { id: 'copilot-decision-1', title: '是否启用备选供应商', reason: '采购延期是当前最大风险，需在供应商报价到齐后确定切换策略。', owner: '张明', due: '今天 16:00 前' },
+    { id: 'copilot-decision-2', title: '是否压缩集成测试批次', reason: '测试环境延迟会挤压联调窗口，需要决定是否先保障安防链路。', owner: '刘洋', due: '明天 10:00 前' },
+    { id: 'copilot-decision-3', title: '能耗模块是否纳入本期', reason: '新增范围可能影响成本与验收口径，需要甲方与集团统一意见。', owner: '张明', due: '本周五前' },
+  ],
+  nextPlan: ['16:00 跟进备选供应商报价与交期承诺', '明早自动检查 demo-sub-006 集成任务阻塞状态', '周五生成托管周报草稿并标出需协调事项'],
+}
+
+/** Personal workbench data for the "what should I do today" scenario. */
+export const PROJECT_BRAIN_MY_DAY_DEMO: ProjectBrainMyDayData = {
+  date: '2026 年 8 月 26 日',
+  owner: '张明',
+  role: '项目负责人',
+  focusMinutes: 360,
+  summary: { urgent: 2, today: 2, meetings: 1, waiting: 1 },
+  tasks: [
+    { id: 'today-1', title: '确认安防摄像头备选供应商', project: PROJECT_BRAIN_PLAN.project.name, due: '10:30 前', priority: '紧急', group: '紧急处理', reason: '采购延期已影响系统集成关键路径', detail: '排在第一是因为它直接决定第二批设备能否按新计划到货，若今天不确认，系统集成测试窗口会继续被压缩。', primaryAction: '打开任务' },
+    { id: 'today-2', title: '推动最小测试环境今日可用', project: PROJECT_BRAIN_PLAN.project.name, due: '12:00 前', priority: '紧急', group: '紧急处理', reason: '测试环境延迟会放大采购延期影响', detail: '它排在第二，因为服务器资源已批复，只差现场改造时间确认，今天推进能为安防系统对接争取缓冲。', primaryAction: '催办协同' },
+    { id: 'today-3', title: '审阅设备选型方案终稿', project: PROJECT_BRAIN_PLAN.project.name, due: '15:00 前', priority: '今日', group: '今日完成', reason: '明天采购决策会需要明确选型依据', detail: '这项不是最高风险，但会影响供应商评估质量，适合安排在上午阻塞事项处理后完成。', primaryAction: '查看资料' },
+    { id: 'today-4', title: '更新采购延期风险缓解措施', project: PROJECT_BRAIN_PLAN.project.name, due: '下班前', priority: '今日', group: '今日完成', reason: '风险等级已升高，需要同步台账口径', detail: '风险处置措施需要跟随会议结论更新，便于明天自动生成周报和托管提醒。', primaryAction: '更新风险' },
+    { id: 'today-5', title: '参加供应商协调会', project: PROJECT_BRAIN_PLAN.project.name, due: '14:00', priority: '会议', group: '今日会议', reason: '确认备选供应商报价、交期和违约责任', detail: '会议安排在下午，前置工作是先拿到备选供应商基本信息；会议后会自动沉淀行动项。', primaryAction: '查看会议' },
+    { id: 'today-6', title: '等待甲方确认能耗模块变更范围', project: PROJECT_BRAIN_PLAN.project.name, due: '待反馈', priority: '等待', group: '等待反馈', reason: '变更范围未确认前不建议投入详细设计', detail: '这项暂不建议主动开工，只需发送一次提醒并等待甲方明确是否纳入本期验收。', primaryAction: '发送提醒' },
+  ],
+  waiting: [
+    { id: 'wait-1', title: '甲方确认能耗模块变更范围', owner: '甲方项目办', since: '已等待 2 天' },
   ],
 }
 

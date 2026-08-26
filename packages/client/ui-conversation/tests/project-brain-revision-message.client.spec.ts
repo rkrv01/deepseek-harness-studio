@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { projectUserMessageProjection, projectUserMessageText } from '@deepseek-ai/dsh-client-ui-conversation/src/client/chat/MessageItem.tsx'
+import { projectAssistantMessageText } from '@deepseek-ai/dsh-client-ui-conversation/src/client/chat/AssistantMarkdown.tsx'
 
 describe('project brain revision message projection', () => {
   it('keeps the readable revision summary while hiding only its private payload', () => {
@@ -12,6 +13,24 @@ describe('project brain revision message projection', () => {
   it('does not remove ordinary HTML-like user text', () => {
     const text = '请保留 <!-- 用户自己的备注 --> 这段内容。'
     expect(projectUserMessageText(text)).toBe(text)
+  })
+
+  it('hides the generic scenario envelope from rendering and copying', () => {
+    const text = '确认执行会议方案。\n\n<!-- project-brain:scenario %7B%22version%22%3A1%7D -->'
+    expect(projectUserMessageText(text)).toBe('确认执行会议方案。')
+  })
+
+  it('hides legacy meeting envelopes when projecting historical user messages', () => {
+    const text = '已调整会议任务，请重新生成会议任务拆解。\n\n<!-- project-brain:meeting-revision %5B%5D -->'
+
+    expect(projectUserMessageProjection(text)).toEqual({
+      text: '已调整会议任务，请重新生成会议任务拆解。',
+      revisionDetails: [],
+    })
+  })
+
+  it('hides a private marker while its payload is still streaming', () => {
+    expect(projectAssistantMessageText('今日工作已排好。\n\n<!-- project-brain:surface %7B%22version%22%3A1')).toBe('今日工作已排好。\n\n')
   })
 
   it('keeps revision details available for an expandable transcript disclosure', () => {

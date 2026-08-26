@@ -1,12 +1,17 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { PROJECT_BRAIN_STREAM_CONFIG } from '../src/index.ts'
+import { PROJECT_BRAIN_MEETING_STREAM_CONFIG, PROJECT_BRAIN_STREAM_CONFIG } from '../src/index.ts'
 import { PROJECT_BRAIN_PLAN, projectPlanRevisionPayload, resolveProjectBrainReply } from '../src/scenario.ts'
+import { parseProjectBrainSurfacePayload, projectBrainScenarioPayload } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
 
 describe('project brain scripted scenario', () => {
   it('uses the faster presentation stream pacing', () => {
     expect(PROJECT_BRAIN_STREAM_CONFIG).toEqual({ introDelayMs: 1_000, chunkChars: 128, intervalMs: 300 })
+  })
+
+  it('uses a faster stream pace for meeting analysis', () => {
+    expect(PROJECT_BRAIN_MEETING_STREAM_CONFIG).toEqual({ introDelayMs: 700, chunkChars: 192, intervalMs: 220 })
   })
 
   it('returns the rich launch plan with native markdown visual content', () => {
@@ -72,6 +77,74 @@ describe('project brain scripted scenario', () => {
     expect(reply.text).toContain('会议概览')
     expect(reply.text).toContain('project-brain:meeting-analysis')
     expect(reply.text).toContain('project-brain:meeting-plan')
+    expect(reply.text.indexOf('project-brain:meeting-plan')).toBeLessThan(reply.text.indexOf('### 智能去重分析'))
+  })
+
+  it('uses the revised meeting items for confirmation totals', () => {
+    const items = [{
+      id: 'meeting-task-1', type: 'new-task' as const, title: '完成会议行动项', description: '执行会议决议', owner: '王刚', dueDate: '2026-08-30', source: '会议原文', subtasks: [],
+    }]
+    const prompt = `确认执行会议方案。\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('meeting-actions', 'confirm', items)} -->`
+    const reply = resolveProjectBrainReply(prompt)
+    expect(reply.kind).toBe('meeting-receipt')
+    expect(reply.text).toContain('共处理 1 项行动事项')
+    expect(reply.text).toContain('新建任务：1 项')
+    expect(reply.text).toContain('更新任务：0 项')
+  })
+
+  it('accepts an empty revised meeting action list', () => {
+    const prompt = `已调整会议任务。\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('meeting-actions', 'revision', [])} -->`
+    const reply = resolveProjectBrainReply(prompt)
+    expect(reply.kind).toBe('meeting-analysis')
+    expect(reply.text).toContain('新建任务 | 0 项')
+  })
+
+  it('emits a named interactive surface for the daily-work scenario', () => {
+    const reply = resolveProjectBrainReply('基于这个项目，帮我看看我今天到底该干什么。')
+    expect(reply.kind).toBe('handoff')
+    expect(reply.text).toContain('project-brain:surface')
+    const surface = parseProjectBrainSurfacePayload<{
+      readonly tasks: readonly unknown[]
+      readonly summary: { readonly urgent: number; readonly meetings: number; readonly waiting: number }
+    }>(reply.text)
+    expect(surface?.template).toBe('my-day-workbench')
+    expect(surface?.data.tasks).toHaveLength(6)
+    expect(surface?.data.summary).toMatchObject({ urgent: 2, meetings: 1, waiting: 1 })
+  })
+
+  it('emits a named interactive surface for the project-copilot scenario', () => {
+    const reply = resolveProjectBrainReply('帮我托管这个项目')
+    expect(reply.kind).toBe('handoff')
+    const surface = parseProjectBrainSurfacePayload<{
+      readonly discoveries: { readonly highRisks: number; readonly abnormalTasks: number; readonly dueSoon: number; readonly coordination: number }
+      readonly decisions: readonly unknown[]
+    }>(reply.text)
+    expect(surface?.template).toBe('project-copilot-dashboard')
+    expect(surface?.data.discoveries).toEqual({ highRisks: 1, abnormalTasks: 2, dueSoon: 4, coordination: 3 })
+    expect(surface?.data.decisions).toHaveLength(3)
+  })
+
+  it('returns an executive briefing document with a private confirmation payload', () => {
+    const reply = resolveProjectBrainReply('下周要给集团领导汇报，帮我准备好')
+    expect(reply.kind).toBe('executive-briefing')
+    expect(reply.text).toContain('领导摘要')
+    expect(reply.text).toContain('45%')
+    expect(reply.text).toContain('采购延期')
+    expect(reply.text).toContain('需集团协调事项')
+    expect(reply.text).toContain('5 分钟口头稿')
+    expect(reply.text).toContain('PPT 汇报提纲')
+    expect(reply.text).toContain('project-brain:executive-briefing')
+    expect(reply.text).toContain('project-brain:scenario')
+  })
+
+  it('returns a low-noise executive briefing receipt after confirmation', () => {
+    const prompt = `确认生成汇报包。\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('executive-briefing', 'confirm', { projectId: PROJECT_BRAIN_PLAN.project.id })} -->`
+    const reply = resolveProjectBrainReply(prompt)
+    expect(reply.kind).toBe('briefing-receipt')
+    expect(reply.text).toContain('汇报包已生成')
+    expect(reply.text).toContain('领导摘要')
+    expect(reply.text).toContain('PPT 汇报提纲')
+    expect(reply.text).toContain('project-brain:executive-briefing-ready')
   })
 
   it('renders a revised launch plan from the hidden project edit payload', () => {

@@ -31,6 +31,13 @@ export interface AssistantMarkdownProps {
   t: ChatViewSlotProps['t']
 }
 
+/** Remove complete and currently streaming Project Brain protocol markers. */
+export function projectAssistantMessageText(text: string): string {
+  return text
+    .replace(/<!-- project-brain:[a-z-]+(?: [A-Za-z0-9%._~-]+)? -->/gu, '')
+    .replace(/<!-- project-brain[\s\S]*$/u, '')
+}
+
 /** Reasoning block as the Think variant summary row (figma 39:28304). */
 export const AssistantMarkdown = memo(function AssistantMarkdown({
   blocks, streaming, interrupted, renderMessageImages, mentions, t,
@@ -55,7 +62,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
         rendered.push(
           <MarkdownText
             key={i}
-            text={block.text.replace(/<!-- project-brain:[a-z-]+(?: [A-Za-z0-9%._~-]+)? -->/gu, '')}
+            text={projectAssistantMessageText(block.text)}
             streaming={streaming}
             codeLabels={codeLabels}
             fileMentions={mentions}
