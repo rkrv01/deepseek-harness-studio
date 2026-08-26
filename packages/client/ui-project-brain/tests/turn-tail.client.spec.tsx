@@ -92,8 +92,13 @@ describe('ProjectBrainTurnTail', () => {
     const props = tailProps(brain)
     const view = render(<ProjectBrainTurnTail {...props} turn={turn as never} />)
     expect(view.getByRole('region', { name: '今日工作台' })).toBeTruthy()
-    fireEvent.click(view.getByRole('button', { name: /标记完成：处理紧急任务/u }))
+    const todoCheck = view.getByRole('checkbox', { name: '标记完成：处理紧急任务' })
+    expect(todoCheck.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(todoCheck)
+    expect(todoCheck.getAttribute('aria-checked')).toBe('true')
     expect(view.getByText('100%')).toBeTruthy()
+    fireEvent.click(todoCheck)
+    expect(view.getByText('0%')).toBeTruthy()
   })
 
   it('renders the project-copilot dashboard surface with local permission switching', () => {
@@ -138,9 +143,11 @@ describe('ProjectBrainTurnTail', () => {
 
     expect(view.getByRole('region', { name: '今日工作台' })).toBeTruthy()
     expect(view.getByText('今日会议')).toBeTruthy()
+    const todoCheck = view.getByRole('checkbox', { name: '标记完成：确认安防摄像头备选供应商' })
     fireEvent.click(view.getByRole('button', { name: /为什么排这里：确认安防摄像头备选供应商/u }))
     expect(view.getByText(/排在第一/u)).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: /标记完成：确认安防摄像头备选供应商/u }))
+    expect(todoCheck.getAttribute('aria-checked')).toBe('true')
     expect(view.getByText('50%')).toBeTruthy()
   })
 

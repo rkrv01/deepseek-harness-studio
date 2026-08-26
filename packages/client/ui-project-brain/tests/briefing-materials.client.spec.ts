@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { unzipSync } from 'fflate'
+import { unzipSync } from 'fflate/browser'
 import { describe, expect, it } from 'vitest'
 import { BRIEFING_MATERIALS, createBriefingMaterialBlob } from '../src/client/briefing-materials.ts'
 

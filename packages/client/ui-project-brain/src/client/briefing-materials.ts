@@ -1,4 +1,4 @@
-import { strToU8, zipSync } from 'fflate'
+import { strToU8, zipSync } from 'fflate/browser'
 
 /** Demo briefing materials rendered by the receipt card. */
 export interface BriefingMaterial {
