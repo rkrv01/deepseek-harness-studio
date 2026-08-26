@@ -70,7 +70,7 @@ describe('ProjectBrainTurnTail', () => {
   it('presents the follow-up scenarios as keyboard-accessible actions', () => {
     const onContinue = vi.fn()
     const view = render(<ProjectReadyCard plan={{ ...PROJECT_BRAIN_PLAN, documents: [] }} onContinue={onContinue} />)
-    fireEvent.click(view.getByRole('button', { name: /整理一次项目会议/ }))
+    fireEvent.click(view.getByRole('button', { name: /帮我整理项目会议/ }))
     expect(onContinue).toHaveBeenCalledWith('meeting-actions')
     expect(view.getByRole('button', { name: /帮我托管这个项目/ })).toBeTruthy()
   })

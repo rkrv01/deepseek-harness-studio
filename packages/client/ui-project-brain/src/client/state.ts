@@ -16,7 +16,7 @@ export interface ProjectBrainMessage { readonly id: string; readonly role: 'user
 export interface ProjectBrainNextAction { readonly id: Exclude<ProjectBrainScenarioId, 'project-launch'>; readonly title: string; readonly description: string; readonly prompt: string }
 export interface ProjectBrainState {
   activeScenario: ProjectBrainScenarioId | null
-  phase: 'idle' | 'generating' | 'plan-ready' | 'revising' | 'executing' | 'syncing-platform' | 'execution-failed' | 'executed' | 'next-action-ready'
+  phase: 'idle' | 'generating' | 'plan-ready' | 'revising' | 'executing' | 'syncing-platform' | 'execution-failed' | 'executed' | 'next-action-ready' | 'meeting-analyzing' | 'meeting-plan-ready' | 'meeting-executing' | 'meeting-executed'
   messages: ProjectBrainMessage[]
   plan: ProjectBrainLaunchPlan | null
   nextActions: ProjectBrainNextAction[]
@@ -25,7 +25,7 @@ export interface ProjectBrainState {
 export interface ProjectBrainLaunchOutcome { readonly kind: 'success' | 'ignored' }
 
 const NEXT_ACTIONS: readonly ProjectBrainNextAction[] = [
-  { id: 'meeting-actions', title: '整理一次项目会议', description: '上传会议纪要后，把事项、责任人和截止时间落到项目里。', prompt: '我刚开完项目启动会，帮我把会议纪要里的事项落到这个项目里。' },
+  { id: 'meeting-actions', title: '帮我整理项目会议', description: '上传会议纪要后，把事项、责任人和截止时间落到项目里。', prompt: '帮我整理这个项目的会议纪要，把里面的事项落到项目里。' },
   { id: 'project-copilot', title: '帮我托管这个项目', description: '每天自动看进度、风险和阻塞，需要我处理时再提醒。', prompt: '从今天开始帮我托管这个项目，重点盯进度、风险和需要我协调的事项。' },
   { id: 'my-day', title: '看看我今天该做什么', description: '按角色、任务状态和紧急程度，整理今天的个人工作清单。', prompt: '基于这个项目，帮我看看我今天到底该干什么。' },
   { id: 'executive-briefing', title: '准备下一次领导汇报', description: '自动汇总项目进展、风险、决策点和汇报材料草稿。', prompt: '下周要给集团领导汇报，帮我准备这个项目的汇报材料。' },
@@ -150,6 +150,31 @@ export function prepareNextProjectAction(store: EngineStoreInstance<ProjectBrain
   const action = NEXT_ACTIONS.find(candidate => candidate.id === actionId)
   if (action === undefined) return
   store.store.update((draft) => { draft.activeScenario = action.id; draft.phase = 'next-action-ready'; draft.preparedAction = action; draft.nextActions = [...NEXT_ACTIONS] })
+}
+
+/** Start the meeting-actions scenario when the user prompt asks for meeting minutes. */
+export function launchMeetingScenario(store: EngineStoreInstance<ProjectBrainState, {}>): void {
+  store.store.update((draft) => {
+    draft.activeScenario = 'meeting-actions'
+    draft.phase = 'meeting-analyzing'
+    draft.nextActions = []
+    draft.preparedAction = null
+  })
+}
+
+/** Mark the meeting analysis as complete and the execution plan as ready. */
+export function markMeetingPlanReady(store: EngineStoreInstance<ProjectBrainState, {}>): void {
+  store.store.update((draft) => { if (draft.phase === 'meeting-analyzing') draft.phase = 'meeting-plan-ready' })
+}
+
+/** Confirm the meeting execution plan and start executing. */
+export function confirmMeetingExecution(store: EngineStoreInstance<ProjectBrainState, {}>): void {
+  store.store.update((draft) => { if (draft.phase === 'meeting-plan-ready') draft.phase = 'meeting-executing' })
+}
+
+/** Mark the meeting execution as complete. */
+export function markMeetingExecuted(store: EngineStoreInstance<ProjectBrainState, {}>): void {
+  store.store.update((draft) => { if (draft.phase === 'meeting-executing') draft.phase = 'meeting-executed' })
 }
 
 function isLaunchPrompt(text: string): boolean { return /启动|创建|新建|初始化/u.test(text) && /项目/u.test(text) }

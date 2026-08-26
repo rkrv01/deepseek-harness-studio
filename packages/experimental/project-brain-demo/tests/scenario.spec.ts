@@ -66,11 +66,12 @@ describe('project brain scripted scenario', () => {
     expect(reply.text).not.toContain('```mermaid')
   })
 
-  it('returns a daily-use handoff for a follow-up scenario', () => {
+  it('returns a meeting-analysis for the meeting minutes scenario', () => {
     const reply = resolveProjectBrainReply('我刚开完项目启动会，帮我把会议纪要里的事项落到这个项目里。')
-    expect(reply.kind).toBe('handoff')
-    expect(reply.text).toContain('会议纪要')
-    expect(reply.text).not.toContain('project-brain:')
+    expect(reply.kind).toBe('meeting-analysis')
+    expect(reply.text).toContain('会议概览')
+    expect(reply.text).toContain('project-brain:meeting-analysis')
+    expect(reply.text).toContain('project-brain:meeting-plan')
   })
 
   it('renders a revised launch plan from the hidden project edit payload', () => {

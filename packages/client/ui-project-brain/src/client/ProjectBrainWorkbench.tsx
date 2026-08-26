@@ -2,16 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPicker } from 'react-day-picker'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconCalendarOutline16, IconChecklistOutline14, IconFolderOpenOutline16, IconGoalOutline16, IconListPenOutline16, IconWarningOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { MEETING_ANALYSIS_MOCK } from '../project-data.ts'
+import type { ProjectBrainMeetingActionItem, ProjectBrainMeetingSubtask } from '../project-data.ts'
 import type { ProjectBrainLaunchPlan, ProjectBrainRisk, ProjectBrainStage, ProjectBrainState, ProjectBrainTask } from './state.ts'
 import { clonePlan } from './state.ts'
 import css from './ProjectBrainWorkbench.module.css'
 
-export interface ProjectBrainWorkbenchInjected { hooks: { projectBrain: import('@deepseek-ai/dsh-client-runtime/client').ObservableSnapshot<ProjectBrainState> }; submitRevision(plan: ProjectBrainLaunchPlan): Promise<void> }
+export interface ProjectBrainWorkbenchInjected { hooks: { projectBrain: import('@deepseek-ai/dsh-client-runtime/client').ObservableSnapshot<ProjectBrainState> }; closeDetails(): void; submitRevision(plan: ProjectBrainLaunchPlan): Promise<void>; submitMeetingRevision(items: ProjectBrainMeetingActionItem[]): Promise<void> }
 type Section = 'project' | 'stages' | 'tasks' | 'risks' | 'folders'
 type EditorProps = { draft: ProjectBrainLaunchPlan; update(recipe: (plan: ProjectBrainLaunchPlan) => ProjectBrainLaunchPlan): void }
 
 /** Visual draft editor for the Project Brain proposal displayed in this conversation. */
-export function ProjectBrainWorkbench({ useProjectBrain, submitRevision }: PropsRuntime<'conversation.details.workbench'> & InjectFace<ProjectBrainWorkbenchInjected>) {
+export function ProjectBrainWorkbench({ useProjectBrain, closeDetails, submitRevision, submitMeetingRevision }: PropsRuntime<'conversation.details.workbench'> & InjectFace<ProjectBrainWorkbenchInjected>) {
   const state = useProjectBrain(s => s)
   const source = state.plan
   const [draft, setDraft] = useState<ProjectBrainLaunchPlan | null>(source === null ? null : clonePlan(source))
@@ -21,6 +23,7 @@ export function ProjectBrainWorkbench({ useProjectBrain, submitRevision }: Props
   const [riskIndex, setRiskIndex] = useState(0)
   useEffect(() => { setDraft(source === null ? null : clonePlan(source)); setStageIndex(0); setTaskIndex(0); setRiskIndex(0) }, [source])
   const dirty = useMemo(() => source !== null && draft !== null && JSON.stringify(source) !== JSON.stringify(draft), [source, draft])
+  if (state.phase === 'meeting-plan-ready') return <MeetingTaskEditor closeDetails={closeDetails} submitMeetingRevision={submitMeetingRevision} />
   if (source === null || draft === null || state.phase === 'generating' || state.phase === 'revising') return null
   const update = (recipe: (plan: ProjectBrainLaunchPlan) => ProjectBrainLaunchPlan): void => { setDraft(current => current === null ? null : recipe(current)) }
   const sections = [
@@ -43,7 +46,7 @@ export function ProjectBrainWorkbench({ useProjectBrain, submitRevision }: Props
         {active === 'folders' && <Folders draft={draft} update={update} />}
       </main>
     </div>
-    <footer className={css.actions}><span>{dirty ? '修改将在重新生成方案后生效' : '可在任一栏目中调整方案内容'}</span><div><button type="button" className={css.secondary} onClick={() => { setDraft(clonePlan(source)); setStageIndex(0); setTaskIndex(0); setRiskIndex(0) }}>取消修改</button><button type="button" disabled={!dirty} className={css.primary} onClick={() => { void submitRevision(draft) }}>提交修改并重新生成</button></div></footer>
+    <footer className={css.actions}><span>{dirty ? '修改将在重新生成方案后生效' : '可在任一栏目中调整方案内容'}</span><div><button type="button" className={css.secondary} onClick={() => { setDraft(clonePlan(source)); setStageIndex(0); setTaskIndex(0); setRiskIndex(0); closeDetails() }}>取消修改</button><button type="button" disabled={!dirty} className={css.primary} onClick={() => { void submitRevision(draft) }}>提交修改并重新生成</button></div></footer>
   </div>
 }
 
@@ -67,3 +70,77 @@ function hint(section: Section): string { return { project: '统一维护项目�
 function newStage(index: number): ProjectBrainStage { return { id: `stage-new-${crypto.randomUUID()}`, name: `新阶段 ${index}`, owner: '', startDate: '2027-09-01', endDate: '2027-09-30', deliverable: '' } }
 function newTask(index: number): ProjectBrainTask { return { id: `TASK-NEW-${index}-${crypto.randomUUID()}`, title: `新任务 ${index}`, owner: '', startDate: '2026-12-01', endDate: '2026-12-07', dependency: '—', progress: 0, deliverable: '', packageId: '' } }
 function newRisk(index: number): ProjectBrainRisk { return { id: `R-NEW-${index}-${crypto.randomUUID()}`, title: '新风险', type: '阻塞', level: '中', owner: '', description: '', impact: '', mitigation: '', relatedTaskId: '' } }
+
+/** Meeting task editor for the meeting-plan-ready phase — single-column list with type tags, add/delete, and subtasks. */
+function MeetingTaskEditor({ closeDetails, submitMeetingRevision }: { readonly closeDetails: () => void; readonly submitMeetingRevision: (items: ProjectBrainMeetingActionItem[]) => Promise<void> }): JSX.Element {
+  const initialItems = useMemo(() => MEETING_ANALYSIS_MOCK.actionItems.map(item => ({ ...item, subtasks: item.subtasks.map(st => ({ ...st })) })), [])
+  const [items, setItems] = useState<ProjectBrainMeetingActionItem[]>(() => initialItems.map(item => ({ ...item, subtasks: item.subtasks.map(st => ({ ...st })) })))
+  const dirty = useMemo(() => JSON.stringify(items) !== JSON.stringify(initialItems), [items, initialItems])
+  const resetDraft = (): void => { setItems(initialItems.map(item => ({ ...item, subtasks: item.subtasks.map(st => ({ ...st })) }))) }
+  const updateItem = (id: string, patch: Partial<ProjectBrainMeetingActionItem>): void => {
+    setItems(current => current.map(item => item.id === id ? { ...item, ...patch } : item))
+  }
+  const deleteItem = (id: string): void => { setItems(current => current.filter(item => item.id !== id)) }
+  const addItem = (): void => {
+    setItems(current => [...current, {
+      id: `mtg-task-${crypto.randomUUID()}`, type: 'new-task' as const, title: '新任务', description: '', owner: '', dueDate: '2026-09-01', source: '', subtasks: [],
+    }])
+  }
+  const updateSubtask = (itemId: string, subtaskId: string, patch: Partial<ProjectBrainMeetingSubtask>): void => {
+    setItems(current => current.map(item => item.id === itemId ? { ...item, subtasks: item.subtasks.map(st => st.id === subtaskId ? { ...st, ...patch } : st) } : item))
+  }
+  const addSubtask = (itemId: string): void => {
+    setItems(current => current.map(item => item.id === itemId ? { ...item, subtasks: [...item.subtasks, { id: `mtg-sub-${crypto.randomUUID()}`, title: '新子任务', owner: '', dueDate: '2026-09-01' }] } : item))
+  }
+  const deleteSubtask = (itemId: string, subtaskId: string): void => {
+    setItems(current => current.map(item => item.id === itemId ? { ...item, subtasks: item.subtasks.filter(st => st.id !== subtaskId) } : item))
+  }
+  const newCount = items.filter(i => i.type === 'new-task').length
+  const updCount = items.filter(i => i.type === 'update-task').length
+  const riskCount = items.filter(i => i.type === 'new-risk').length
+  return <div className={css.root}>
+    <header className={css.header}><div><div className={css.eyebrow}>项目智脑 · 会议任务拆解</div><h2 className={css.title}>编辑会议任务方案</h2><p className={css.headerHint}>调整每项行动事项的负责人、截止时间、执行说明与子任务。</p></div></header>
+    <div className={css.meetingEditStats}>
+      <span className={css.meetingEditStatNew}>新建任务 <strong>{newCount}</strong> 项</span>
+      <span className={css.meetingEditStatDivider} aria-hidden="true" />
+      <span className={css.meetingEditStatUpdate}>更新任务 <strong>{updCount}</strong> 项</span>
+      <span className={css.meetingEditStatDivider} aria-hidden="true" />
+      <span className={css.meetingEditStatRisk}>新增风险 <strong>{riskCount}</strong> 项</span>
+    </div>
+    <main className={css.meetingEditList}>
+      {items.length === 0 && <div className={css.meetingEditEmpty}>暂无任务，点击下方"＋ 新增任务"添加。</div>}
+      {items.map(item => {
+        const tag = item.type === 'new-task' ? { label: '新建', cls: css.meetingTagNew } : item.type === 'update-task' ? { label: '更新', cls: css.meetingTagUpdate } : { label: '风险', cls: css.meetingTagRisk }
+        return (
+          <div key={item.id} className={css.meetingEditCard}>
+            <div className={css.meetingEditCardHeader}>
+              <span className={`${css.meetingEditTag} ${tag.cls}`}>{tag.label}</span>
+              <input className={css.meetingEditTitleInput} value={item.title} onChange={e => updateItem(item.id, { title: e.target.value })} placeholder="任务名称" />
+              <button type="button" className={css.meetingEditDelete} onClick={() => { deleteItem(item.id) }} aria-label={`删除任务「${item.title}」`}>×</button>
+            </div>
+            <div className={css.grid}>
+              <Field label="负责人" value={item.owner} onChange={v => updateItem(item.id, { owner: v })} />
+              <Field label="截止时间" type="date" value={item.dueDate} onChange={v => updateItem(item.id, { dueDate: v })} />
+              <Field wide multiline label="执行说明" value={item.description} onChange={v => updateItem(item.id, { description: v })} />
+            </div>
+            <div className={css.meetingEditSubtasks}>
+              <span className={css.meetingEditSubtasksTitle}>子任务</span>
+              {item.subtasks.length === 0 && <div className={css.meetingEditSubtasksEmpty}>暂无子任务</div>}
+              {item.subtasks.map(subtask => (
+                <div key={subtask.id} className={css.meetingEditSubtaskRow}>
+                  <input className={css.meetingEditSubtaskTitle} value={subtask.title} onChange={e => updateSubtask(item.id, subtask.id, { title: e.target.value })} placeholder="子任务名称" />
+                  <input className={css.meetingEditSubtaskOwner} value={subtask.owner} onChange={e => updateSubtask(item.id, subtask.id, { owner: e.target.value })} placeholder="负责人" />
+                  <input className={css.meetingEditSubtaskDue} type="date" value={subtask.dueDate} onChange={e => updateSubtask(item.id, subtask.id, { dueDate: e.target.value })} aria-label="子任务截止时间" />
+                  <button type="button" className={css.meetingEditDelete} onClick={() => { deleteSubtask(item.id, subtask.id) }} aria-label={`删除子任务「${subtask.title}」`}>×</button>
+                </div>
+              ))}
+              <button type="button" className={css.meetingEditAddSubtask} onClick={() => { addSubtask(item.id) }}>＋ 添加子任务</button>
+            </div>
+          </div>
+        )
+      })}
+      <button type="button" className={css.meetingEditAddItem} onClick={addItem}>＋ 新增任务</button>
+    </main>
+    <footer className={css.actions}><span>{dirty ? '修改将在重新生成方案后生效' : '可在任一任务中调整内容'}</span><div><button type="button" className={css.secondary} onClick={() => { resetDraft(); closeDetails() }}>取消修改</button><button type="button" disabled={!dirty} className={css.primary} onClick={() => { void submitMeetingRevision(items) }}>提交修改并重新生成</button></div></footer>
+  </div>
+}

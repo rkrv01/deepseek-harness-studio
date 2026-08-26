@@ -3,7 +3,7 @@ import type { ClientContext, ObservableSnapshot, SessionId } from '@deepseek-ai/
 import type { ConversationSubmitHandler, IConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { createProjectBrainStore, launchProjectScenario, markProjectExecuted, markProjectExecutionFailed, markProjectPlanReady, prepareNextProjectAction, projectPlanConfirmationPayload, projectPlanRevision, projectPlanRevisionDetailsPayload, projectPlanRevisionPayload, restoreProjectLaunchPlan, retryProjectPlatformData, startProjectExecution, submitProjectPlanRevision } from './state.ts'
+import { confirmMeetingExecution, createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingExecuted, markMeetingPlanReady, markProjectExecuted, markProjectExecutionFailed, markProjectPlanReady, prepareNextProjectAction, projectPlanConfirmationPayload, projectPlanRevision, projectPlanRevisionDetailsPayload, projectPlanRevisionPayload, restoreProjectLaunchPlan, retryProjectPlatformData, startProjectExecution, submitProjectPlanRevision } from './state.ts'
 import type { ProjectBrainNextAction, ProjectBrainState } from './state.ts'
 import { ProjectBrainMessageDock } from './ProjectBrainMessageDock.tsx'
 import type { ProjectBrainMessageDockInjected } from './ProjectBrainMessageDock.tsx'
@@ -46,6 +46,19 @@ export function apply(ctx: ClientContext): void {
         retryProjectPlatformData(brain)
         return undefined
       }
+      if (request.text.includes('<!-- project-brain:meeting-analysis -->')) {
+        launchMeetingScenario(brain)
+        window.setTimeout(() => { markMeetingPlanReady(brain) }, PROJECT_BRAIN_PLAN_READY_DELAY_MS)
+        return undefined
+      }
+      if (request.text.includes('<!-- project-brain:meeting-confirm -->')) {
+        confirmMeetingExecution(brain)
+        return undefined
+      }
+      if (/会议纪要|开完.*会|整理.*项目会议|帮我把会议纪要里的事项落到项目/u.test(request.text)) {
+        launchMeetingScenario(brain)
+        return undefined
+      }
       const outcome = launchProjectScenario(brain, { text: request.text, files: [] })
       if (outcome.kind === 'ignored') return undefined
       window.setTimeout(() => { markProjectPlanReady(brain) }, PROJECT_BRAIN_PLAN_READY_DELAY_MS)
@@ -70,21 +83,45 @@ export function apply(ctx: ClientContext): void {
 
   const hooks = { projectBrain: source }
 
-  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
-    name: 'conversation.input.dock',
-    id: 'project-brain-messages',
-    order: -20,
-    inject: (sessionId: SessionId): ProjectBrainMessageDockInjected => ({
-      hooks,
-      enabled: () => ctx.sessions.list.getSnapshot().byId[sessionId]?.agentPreset === 'project-brain',
-      openDetails: () => { ctx.layout.openDetails(840, 400) },
-    }),
-  }, ProjectBrainMessageDock))
+  ctx.slots.inject('conversation.input.dock', () => {
+    let lastSessionId: SessionId | null = null
+    return ctx.slots.register({
+      name: 'conversation.input.dock',
+      id: 'project-brain-messages',
+      order: -20,
+      inject: (sessionId: SessionId): ProjectBrainMessageDockInjected => {
+        if (lastSessionId !== sessionId) {
+          brain.store.update((draft) => {
+            draft.activeScenario = null
+            draft.phase = 'idle'
+            draft.messages = []
+            draft.plan = null
+            draft.nextActions = []
+            draft.preparedAction = null
+          })
+          lastSessionId = sessionId
+        }
+        return {
+          hooks,
+          enabled: () => ctx.sessions.list.getSnapshot().byId[sessionId]?.agentPreset === 'project-brain',
+          openDetails: () => { ctx.layout.openDetails(840, 400) },
+        }
+      },
+    }, ProjectBrainMessageDock)
+  })
 
   ctx.slots.inject('conversation.details.workbench', () => ctx.slots.register({
     name: 'conversation.details.workbench',
     inject: (sessionId: SessionId): ProjectBrainWorkbenchInjected => ({
       hooks,
+      closeDetails: () => { ctx.layout.closeDetails() },
+      submitMeetingRevision: async (items) => {
+        ctx.layout.closeDetails()
+        await ctx.sessions.binding(sessionId)?.session.prompt([{
+          type: 'text',
+          text: `已调整会议任务，请重新生成会议任务拆解。\n\n<!-- project-brain:meeting-revision ${encodeURIComponent(JSON.stringify(items))} -->`,
+        }], 'queue')
+      },
       submitRevision: async (plan) => {
         const current = brain.getSnapshot().plan
         if (current === null) return
@@ -129,7 +166,9 @@ export function apply(ctx: ClientContext): void {
       },
       continueProjectAction: (actionId: ProjectBrainNextAction['id']) => {
         const sessionId = ctx.sessions.list.getSnapshot().current
-        if (sessionId === undefined || brain.getSnapshot().phase !== 'executed') return
+        if (sessionId === undefined) return
+        const phase = brain.getSnapshot().phase
+        if (phase !== 'executed' && phase !== 'meeting-executed') return
         prepareNextProjectAction(brain, actionId)
         const action = brain.getSnapshot().preparedAction
         if (action === null) return
@@ -137,6 +176,14 @@ export function apply(ctx: ClientContext): void {
       },
       markExecuted: () => { markProjectExecuted(brain) },
       markExecutionFailed: () => { markProjectExecutionFailed(brain) },
+      confirmMeetingPlan: () => {
+        const sessionId = ctx.sessions.list.getSnapshot().current
+        if (sessionId === undefined || brain.getSnapshot().phase !== 'meeting-plan-ready') return
+        confirmMeetingExecution(brain)
+        void ctx.sessions.binding(sessionId)?.session.prompt([{ type: 'text', text: '确认执行会议方案。' }], 'queue')
+      },
+      markMeetingPlanReady: () => { markMeetingPlanReady(brain) },
+      markMeetingExecuted: () => { markMeetingExecuted(brain) },
     }),
   }, ProjectBrainTurnTail))
 }

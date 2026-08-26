@@ -5,6 +5,7 @@ import { PROJECT_BRAIN_PLATFORM_TARGET } from './platform-window.ts'
 import css from './ProjectBrainMessageDock.module.css'
 
 const LAUNCH_PROMPT = '帮我启动智慧园区建设项目。'
+const MEETING_PROMPT = '帮我整理这个项目的会议纪要'
 
 /** Injected face for the Project Brain message strip. */
 export interface ProjectBrainMessageDockInjected {
@@ -14,25 +15,40 @@ export interface ProjectBrainMessageDockInjected {
 }
 
 /** Chat-like scripted messages and the launch prompt suggestion above the composer. */
-export function ProjectBrainMessageDock({ useProjectBrain, useInput, inputActions, enabled }: PropsRuntime<'conversation.input.dock'> & InjectFace<ProjectBrainMessageDockInjected>) {
+export function ProjectBrainMessageDock({ useProjectBrain, useInput, inputActions, enabled, useSessions }: PropsRuntime<'conversation.input.dock'> & InjectFace<ProjectBrainMessageDockInjected>) {
   const state = useProjectBrain(s => s)
   const draft = useInput(s => s.draft)
+  // Subscribe to session list changes so enabled() re-evaluates when the
+  // new session's agentPreset becomes available (e.g. after "new conversation").
+  useSessions(s => s.current)
   if (!enabled()) return null
   if (state.phase === 'idle') {
     if (draft !== '') return null
     return (
       <section className={css.suggestion} aria-label="项目智脑示例输入">
         <span className={css.suggestionLabel}>可以直接开始</span>
-        <button
-          type="button"
-          className={css.suggestionButton}
-          onClick={() => {
-            inputActions.setDraft(LAUNCH_PROMPT)
-            queueMicrotask(inputActions.submit)
-          }}
-        >
-          {LAUNCH_PROMPT}
-        </button>
+        <div className={css.suggestionRow}>
+          <button
+            type="button"
+            className={css.suggestionButton}
+            onClick={() => {
+              inputActions.setDraft(LAUNCH_PROMPT)
+              queueMicrotask(inputActions.submit)
+            }}
+          >
+            {LAUNCH_PROMPT}
+          </button>
+          <button
+            type="button"
+            className={css.suggestionButton}
+            onClick={() => {
+              inputActions.setDraft(MEETING_PROMPT)
+              queueMicrotask(inputActions.submit)
+            }}
+          >
+            {MEETING_PROMPT}
+          </button>
+        </div>
       </section>
     )
   }
@@ -63,13 +79,13 @@ export function ProjectPlatformSyncProgress() {
 export function ProjectReadyCard({ plan, onContinue }: { readonly plan: ProjectBrainState['plan']; readonly onContinue?: (actionId: ProjectBrainNextAction['id']) => void }) {
   if (plan === null) return null
   const continuations = [
-    ['meeting-actions', '纪', '整理一次项目会议', '上传会议纪要，生成任务并落实责任人'],
+    ['meeting-actions', '纪', '帮我整理项目会议', '上传会议纪要，生成任务并落实责任人'],
     ['project-copilot', '托', '帮我托管这个项目', '持续关注进度、风险和需要协调的事项'],
     ['my-day', '今', '看看我今天该做什么', '按我的角色整理今日行动清单'],
     ['executive-briefing', '报', '准备下一次领导汇报', '汇总进展、成果、问题与关键风险'],
   ]
   return <section className={css.ready} aria-label="项目已准备好">
-    <div className={css.readyHead}><span className={css.readyMark}>✓</span><div><p>项目已准备好</p><h3>{plan.project.name}</h3><small>{plan.project.id} · 已完成初始化</small></div><a href={plan.project.platformUrl ?? 'https://project-brain.local'} target={PROJECT_BRAIN_PLATFORM_TARGET} className={css.platformLink}>进入项目智脑 <span>↗</span></a></div>
+    <div className={css.readyHead}><span className={css.readyMark}>✓</span><div><p>项目已准备好</p><h3>{plan.project.name}</h3><small>已完成初始化</small></div><a href={plan.project.platformUrl ?? 'https://project-brain.local'} target={PROJECT_BRAIN_PLATFORM_TARGET} className={css.platformLink}>进入项目智脑 <span>↗</span></a></div>
     <div className={css.stats}><div><strong>{plan.stages.length}</strong><span>阶段</span></div><div><strong>{plan.tasks.length}</strong><span>任务</span></div><div><strong>{plan.risks.length}</strong><span>风险</span></div><div><strong>{plan.knowledgeFolders.length}</strong><span>知识目录</span></div></div>
     <div className={css.continuation}><div><h4>接下来，可以继续推进</h4><p>选择一个方向继续处理，或直接在输入框告诉我你的需求。</p></div><div className={css.continuationGrid}>{continuations.map(([id, initial, title, description]) => <button key={id} type="button" className={css.continuationItem} onClick={() => { onContinue?.(id as ProjectBrainNextAction['id']) }}><span>{initial}</span><div><strong>{title}</strong><small>{description}</small></div><i>→</i></button>)}</div></div>
   </section>

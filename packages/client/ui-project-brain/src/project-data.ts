@@ -72,3 +72,148 @@ export const PROJECT_BRAIN_PLAN: ProjectBrainPlanData = {
     { id: 'demo-know-004', title: '设备选型方案', category: '技术方案', fileName: '设备选型方案_草稿.pdf', author: '技术组', status: '草稿', summary: '核心设备参数、兼容性与成本估算。' },
   ],
 }
+
+/** Mock meeting minutes text simulating the 5th weekly project meeting. */
+export const MEETING_MINUTES_TEXT = `智慧园区项目第5次周例会会议纪要
+
+会议时间：2026-08-22 14:00-15:30
+会议地点：智算科技 3F 会议室A
+主持人：张明
+参会人员：张明、王刚、赵雪、刘洋、陈涛、李华（供应商代表）
+
+会议内容：
+
+一、上周工作回顾
+1. 设备采购方面：安防摄像头首批设备已完成出厂检测，预计下周到货。门禁系统设备采购已签订合同，正在排产中。
+2. 系统集成方面：安防系统与平台对接已完成接口联调，正在进行数据联调测试，预计本周完成。
+3. 方案设计方面：智能化建设方案评审已完成，实施方案已通过审核确认。
+
+二、重点讨论事项
+
+1. 设备采购延期问题
+王刚汇报：安防摄像头供应商反馈，由于近期原材料价格上涨，第二批设备交付可能延迟2周，预计9月中旬才能到货。
+讨论：张明指出，到货延迟将直接影响系统集成测试进度，需要尽快确定备选方案。
+决定：启动备选供应商评估，由王刚负责，本周内完成至少两家备选供应商的资质审核和报价对比。
+
+2. 测试环境搭建
+刘洋汇报：服务器资源申请已获批，但机房改造尚未完成，预计9月5日才能投入使用。
+讨论：赵雪建议可以先在现有测试服务器上搭建最小可用环境，不影响集成测试进度。
+决定：刘洋负责在本周内搭建最小测试环境，优先保障安防系统对接测试。
+
+3. 能耗监测模块需求变更
+张明反馈：甲方正式提出新增园区能耗监测模块需求，要求纳入本次项目建设范围。
+讨论：经评估，新增模块预计增加15%的工作量，工期延长约1个月。需要启动变更管理流程。
+决定：由张明负责与甲方沟通变更范围、成本和时间影响，下周三前提交变更申请。
+
+4. 供应商资质问题
+王刚补充：在供应商评估过程中发现，备选供应商之一的"华信科技"提供的认证文件不完整，缺少ISO9001认证。
+讨论：建议要求华信科技限期补充，同时启动第三家供应商的评估作为备选。
+决定：王刚负责通知华信科技补充认证材料，期限为8月28日；同时启动对"鼎信科技"的评估。
+
+三、风险更新
+1. 设备采购延期风险：已由中风险升级为高风险，启动备选方案后有望缓解。
+2. 测试环境延迟风险：通过搭建最小环境可降低影响，维持中风险等级。
+3. 新增需求变更风险：评估中，待变更申请确认后更新风险等级。
+
+四、行动事项汇总
+1. 王刚：完成备选供应商评估，提交评估报告 — 截止8月28日
+2. 王刚：通知华信科技补充认证材料 — 截止8月25日
+3. 王刚：启动鼎信科技资质评估 — 截止8月28日
+4. 刘洋：搭建最小测试环境 — 截止8月25日
+5. 张明：拟定变更申请，与甲方沟通 — 截止9月2日
+6. 赵雪：完成设备选型方案终稿 — 截止8月28日
+7. 陈涛：准备验收文档模板 — 截止8月30日`
+
+/** Subtask of a meeting action item. */
+export interface ProjectBrainMeetingSubtask {
+  readonly id: string
+  readonly title: string
+  readonly owner: string
+  readonly dueDate: string
+}
+
+/** Action item identified from meeting minutes. */
+export interface ProjectBrainMeetingActionItem {
+  readonly id: string
+  readonly type: 'new-task' | 'update-task' | 'new-risk'
+  readonly title: string
+  readonly description: string
+  readonly owner: string
+  readonly dueDate: string
+  readonly relatedTaskId?: string
+  /** Source quotation from the meeting minutes. */
+  readonly source: string
+  readonly subtasks: readonly ProjectBrainMeetingSubtask[]
+}
+
+/** AI analysis result for a meeting. */
+export interface ProjectBrainMeetingAnalysis {
+  readonly meetingTitle: string
+  readonly meetingDate: string
+  readonly duration: string
+  readonly location: string
+  readonly host: string
+  readonly attendees: readonly string[]
+  readonly summary: string
+  readonly agendaItems: readonly { readonly topic: string; readonly presenter: string; readonly outcome: string }[]
+  readonly keyDecisions: readonly { readonly decision: string; readonly decidedBy: string; readonly rationale: string }[]
+  readonly actionItems: readonly ProjectBrainMeetingActionItem[]
+  readonly stats: { readonly newTasks: number; readonly updateTasks: number; readonly newRisks: number }
+}
+
+/** Mock meeting analysis result for the 5th weekly meeting. */
+export const MEETING_ANALYSIS_MOCK: ProjectBrainMeetingAnalysis = {
+  meetingTitle: '智慧园区项目第5次周例会',
+  meetingDate: '2026-08-22 14:00',
+  duration: '90 分钟',
+  location: '智算科技 3F 会议室A',
+  host: '张明',
+  attendees: ['张明', '王刚', '赵雪', '刘洋', '陈涛', '李华'],
+  summary: '本次会议重点讨论了设备采购延期、测试环境搭建、能耗监测模块需求变更等核心议题，共识别出 7 项行动事项和 2 项风险更新。',
+  agendaItems: [
+    { topic: '上周工作回顾', presenter: '张明', outcome: '确认各模块进展，设备采购首批已到货，方案设计已完成评审。' },
+    { topic: '设备采购延期问题', presenter: '王刚', outcome: '启动备选供应商评估，要求本周内完成资质审核和报价对比。' },
+    { topic: '测试环境搭建', presenter: '刘洋', outcome: '决定先搭建最小可用环境，优先保障安防系统对接测试。' },
+    { topic: '能耗监测模块需求变更', presenter: '张明', outcome: '启动变更管理流程，下周三前提交变更申请。' },
+    { topic: '供应商资质问题', presenter: '王刚', outcome: '要求华信科技限期补充认证，同时启动鼎信科技评估。' },
+  ],
+  keyDecisions: [
+    { decision: '启动备选供应商评估', decidedBy: '张明', rationale: '原材料价格上涨导致第二批交付延迟2周，需尽快确定备选方案降低风险。' },
+    { decision: '搭建最小测试环境', decidedBy: '张明', rationale: '机房改造未完成，先在现有服务器上搭建最小环境不影响集成测试进度。' },
+    { decision: '启动变更管理流程', decidedBy: '张明', rationale: '甲方正式提出新增能耗监测模块，需评估范围、成本与时间影响后提交变更申请。' },
+    { decision: '启动鼎信科技评估', decidedBy: '张明', rationale: '华信科技认证文件不完整，需引入第三家供应商作为备选。' },
+  ],
+  actionItems: [
+    { id: 'mtg-new-001', type: 'new-task', title: '完成备选供应商评估', description: '对至少两家备选供应商进行资质审核和报价对比，提交评估报告。', owner: '王刚', dueDate: '2026-08-28', source: '启动备选供应商评估，由王刚负责，本周内完成至少两家备选供应商的资质审核和报价对比。', subtasks: [
+      { id: 'mtg-new-001-st-01', title: '收集备选供应商资质文件', owner: '王刚', dueDate: '2026-08-24' },
+      { id: 'mtg-new-001-st-02', title: '开展报价对比分析', owner: '王刚', dueDate: '2026-08-26' },
+      { id: 'mtg-new-001-st-03', title: '提交供应商评估报告', owner: '王刚', dueDate: '2026-08-28' },
+    ] },
+    { id: 'mtg-new-002', type: 'new-task', title: '搭建最小测试环境', description: '在现有测试服务器上搭建最小可用环境，优先保障安防系统对接测试。', owner: '刘洋', dueDate: '2026-08-25', source: '刘洋负责在本周内搭建最小测试环境，优先保障安防系统对接测试。', subtasks: [
+      { id: 'mtg-new-002-st-01', title: '部署测试服务器基础环境', owner: '刘洋', dueDate: '2026-08-23' },
+      { id: 'mtg-new-002-st-02', title: '完成安防系统对接联调', owner: '刘洋', dueDate: '2026-08-25' },
+    ] },
+    { id: 'mtg-new-003', type: 'new-task', title: '拟定变更申请并与甲方沟通', description: '与甲方沟通能耗监测模块变更范围、成本和时间影响，提交变更申请。', owner: '张明', dueDate: '2026-09-02', source: '由张明负责与甲方沟通变更范围、成本和时间影响，下周三前提交变更申请。', subtasks: [
+      { id: 'mtg-new-003-st-01', title: '测算变更成本与工期影响', owner: '张明', dueDate: '2026-08-27' },
+      { id: 'mtg-new-003-st-02', title: '与甲方召开变更沟通会', owner: '张明', dueDate: '2026-08-29' },
+      { id: 'mtg-new-003-st-03', title: '提交正式变更申请单', owner: '张明', dueDate: '2026-09-02' },
+    ] },
+    { id: 'mtg-new-004', type: 'new-task', title: '完成设备选型方案终稿', description: '根据评审意见完成设备选型方案终稿。', owner: '赵雪', dueDate: '2026-08-28', source: '赵雪：完成设备选型方案终稿 — 截止8月28日', subtasks: [
+      { id: 'mtg-new-004-st-01', title: '汇总评审意见并修订方案', owner: '赵雪', dueDate: '2026-08-26' },
+      { id: 'mtg-new-004-st-02', title: '输出设备选型方案终稿', owner: '赵雪', dueDate: '2026-08-28' },
+    ] },
+    { id: 'mtg-new-005', type: 'new-task', title: '准备验收文档模板', description: '启动验收文档编写工作，准备验收文档模板和编写规范。', owner: '陈涛', dueDate: '2026-08-30', source: '陈涛：准备验收文档模板 — 截止8月30日', subtasks: [
+      { id: 'mtg-new-005-st-01', title: '制定验收文档编写规范', owner: '陈涛', dueDate: '2026-08-27' },
+      { id: 'mtg-new-005-st-02', title: '输出验收文档模板', owner: '陈涛', dueDate: '2026-08-30' },
+    ] },
+    { id: 'mtg-upd-001', type: 'update-task', title: '调整安防摄像头采购到货时间', description: '由于供应商产能问题，第二批设备交付时间由原计划9月初调整为9月中旬。', owner: '王刚', dueDate: '2026-09-15', relatedTaskId: 'demo-sub-001', source: '安防摄像头供应商反馈，由于近期原材料价格上涨，第二批设备交付可能延迟2周，预计9月中旬才能到货。', subtasks: [
+      { id: 'mtg-upd-001-st-01', title: '与供应商确认新交付计划', owner: '王刚', dueDate: '2026-08-24' },
+      { id: 'mtg-upd-001-st-02', title: '更新采购任务排期', owner: '王刚', dueDate: '2026-08-25' },
+    ] },
+    { id: 'mtg-risk-001', type: 'new-risk', title: '设备采购延期风险升级', description: '安防摄像头供应商产能不足，第二批交付延迟2周，已由中风险升级为高风险。', owner: '王刚', dueDate: '2026-09-15', relatedTaskId: 'demo-sub-003', source: '设备采购延期风险：已由中风险升级为高风险，启动备选方案后有望缓解。', subtasks: [
+      { id: 'mtg-risk-001-st-01', title: '登记风险升级并通知干系人', owner: '王刚', dueDate: '2026-08-23' },
+      { id: 'mtg-risk-001-st-02', title: '跟踪备选供应商落地情况', owner: '王刚', dueDate: '2026-09-15' },
+    ] },
+  ],
+  stats: { newTasks: 5, updateTasks: 1, newRisks: 1 },
+}

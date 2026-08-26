@@ -29,6 +29,12 @@
   background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent);
 }
 
+.suggestionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .root {
   width: min(var(--dsh-chat-content-width), calc(100% - 32px));
   margin: 0 auto;

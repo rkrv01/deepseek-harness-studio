@@ -26,6 +26,7 @@ describe('ProjectBrainMessageDock', () => {
       enabled: () => true,
       openDetails: vi.fn(),
       prepare: vi.fn(),
+      useSessions: () => undefined,
     } as unknown as ComponentProps<typeof ProjectBrainMessageDock>
     const view = render(
       <ProjectBrainMessageDock {...props} />,
@@ -61,6 +62,7 @@ describe('ProjectBrainMessageDock', () => {
       enabled: () => true,
       openDetails,
       prepare: vi.fn(),
+      useSessions: () => undefined,
     } as unknown as ComponentProps<typeof ProjectBrainMessageDock>
 
     render(<ProjectBrainMessageDock {...props} />)

@@ -15,6 +15,7 @@ describe('ProjectBrainWorkbench', () => {
     const props = {
       useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()),
       submitRevision: vi.fn(),
+      closeDetails: vi.fn(),
     } as unknown as ComponentProps<typeof ProjectBrainWorkbench>
     const view = render(<ProjectBrainWorkbench {...props} />)
 
@@ -34,6 +35,7 @@ describe('ProjectBrainWorkbench', () => {
     const props = {
       useProjectBrain: <S,>(selector: (state: ProjectBrainState) => S): S => selector(brain.getSnapshot()),
       submitRevision: vi.fn(),
+      closeDetails: vi.fn(),
     } as unknown as ComponentProps<typeof ProjectBrainWorkbench>
     const view = render(<ProjectBrainWorkbench {...props} />)
 
