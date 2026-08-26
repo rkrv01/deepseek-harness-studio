@@ -7,6 +7,7 @@ import { parseProjectBrainScenarioPayload, parseProjectBrainSurfacePayload, proj
 import css from './ProjectBrainTurnTail.module.css'
 import { ProjectInitializationProgress, ProjectPlatformSyncProgress, ProjectReadyCard } from './ProjectBrainMessageDock.tsx'
 import { ProjectBrainScenarioSurface } from './ProjectBrainScenarioSurface.tsx'
+import { BRIEFING_MATERIALS, createBriefingMaterialBlob } from './briefing-materials.ts'
 
 export interface ProjectBrainTurnTailInjected {
   hooks: { projectBrain: import('@deepseek-ai/dsh-client-runtime/client').ObservableSnapshot<ProjectBrainState> }
@@ -63,7 +64,16 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
     if (turnText.includes('project-brain:platform-failed')) markExecutionFailed()
     if (meetingPlanTurn && (state.phase === 'analyzing' || state.phase === 'revising')) markMeetingPlanReady()
     if (meetingExecutionTurn && turnText.includes('project-brain:meeting-executed')) markMeetingExecutedCb()
-  }, [markExecuted, markExecutionFailed, markMeetingPlanReady, markMeetingExecutedCb, meetingExecutionTurn, meetingPlanTurn, state.phase, turnText])
+  }, [
+    markExecuted,
+    markExecutionFailed,
+    markMeetingPlanReady,
+    markMeetingExecutedCb,
+    meetingExecutionTurn,
+    meetingPlanTurn,
+    state.phase,
+    turnText,
+  ])
 
   if (!enabled()) return null
   if (surface !== null) return <ProjectBrainScenarioSurface surface={surface} />
@@ -98,15 +108,54 @@ function ExecutiveBriefingReviewCard({ onConfirm }: { readonly onConfirm: () => 
 }
 
 function ExecutiveBriefingReceiptCard(): JSX.Element {
-  return <section className={css.meetingResult} aria-label="汇报包已生成">
-    <div className={css.meetingResultHead}><span className={css.meetingResultMark}>✓</span><div><p>汇报包已生成</p><h3>{PROJECT_BRAIN_PLAN.project.name}</h3><small>已整理为集团领导汇报口径</small></div></div>
-    <div className={css.meetingResultStats}><div><strong>{PROJECT_BRAIN_PLAN.project.progress}%</strong><span>当前进度</span></div><div><strong>5</strong><span>PPT 提纲</span></div><div><strong>3</strong><span>协调事项</span></div></div>
-    <div className={css.meetingResultNote}><p>包含领导摘要、风险说明、需集团协调事项、5 分钟口头稿和 PPT 汇报提纲。</p></div>
+  const downloadMaterial = (name: string): void => {
+    const url = URL.createObjectURL(createBriefingMaterialBlob(name))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = name
+    link.click()
+    window.setTimeout(() => { URL.revokeObjectURL(url) }, 0)
+  }
+
+  return <section className={`${css.meetingResult} ${css.briefingReceipt}`} aria-label="汇报包已生成">
+    <div className={css.meetingResultHead}>
+      <span className={css.meetingResultMark}>✓</span>
+      <div>
+        <p>汇报包已生成</p>
+        <h3>{PROJECT_BRAIN_PLAN.project.name}</h3>
+        <small>已整理为集团领导汇报口径</small>
+      </div>
+    </div>
+    <div className={css.briefingFileList}>
+      {BRIEFING_MATERIALS.map(material => (
+        <div key={material.name} className={css.briefingFileRow}>
+          <span className={css.briefingBadge}>{material.kind}</span>
+          <span className={css.briefingFileName}>{material.name}</span>
+          <span className={css.briefingFileSize}>{material.size}</span>
+          <a
+            href="#download"
+            download={material.name}
+            aria-label={`下载 ${material.name}`}
+            className={css.briefingDownload}
+            onClick={(event) => { event.preventDefault(); downloadMaterial(material.name) }}
+          >下载</a>
+        </div>
+      ))}
+    </div>
+    <p className={css.briefingFootnote}>演示数据 · 仅用于界面演示</p>
   </section>
 }
 
 /** Meeting execution plan confirmation card. */
-function MeetingAnalysisCard({ items, onConfirm, openDetails }: { readonly items: readonly ProjectBrainMeetingActionItem[]; readonly onConfirm: () => void; readonly openDetails: () => void }) {
+function MeetingAnalysisCard({
+  items,
+  onConfirm,
+  openDetails,
+}: {
+  readonly items: readonly ProjectBrainMeetingActionItem[]
+  readonly onConfirm: () => void
+  readonly openDetails: () => void
+}) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const stats = useMemo(() => meetingStats(items), [items])
   return (
@@ -116,11 +165,20 @@ function MeetingAnalysisCard({ items, onConfirm, openDetails }: { readonly items
         <span className={css.meetingCardHint}>请确认以下事项后点击“确认执行”</span>
       </div>
       <div className={css.meetingStats}>
-        <div className={css.meetingStatItem}><span className={css.meetingStatNumber}>{stats.newTasks}</span><span className={css.meetingStatLabel}>新建任务</span></div>
+        <div className={css.meetingStatItem}>
+          <span className={css.meetingStatNumber}>{stats.newTasks}</span>
+          <span className={css.meetingStatLabel}>新建任务</span>
+        </div>
         <div className={css.meetingStatDivider} />
-        <div className={css.meetingStatItem}><span className={css.meetingStatNumber}>{stats.updateTasks}</span><span className={css.meetingStatLabel}>更新任务</span></div>
+        <div className={css.meetingStatItem}>
+          <span className={css.meetingStatNumber}>{stats.updateTasks}</span>
+          <span className={css.meetingStatLabel}>更新任务</span>
+        </div>
         <div className={css.meetingStatDivider} />
-        <div className={css.meetingStatItem}><span className={css.meetingStatNumber}>{stats.newRisks}</span><span className={css.meetingStatLabel}>新增风险</span></div>
+        <div className={css.meetingStatItem}>
+          <span className={css.meetingStatNumber}>{stats.newRisks}</span>
+          <span className={css.meetingStatLabel}>新增风险</span>
+        </div>
       </div>
       <div className={css.meetingItemList}>
         {items.map((item) => {
@@ -162,7 +220,11 @@ function MeetingResultCard({ items, onContinue }: { readonly items: readonly Pro
   return <section className={css.meetingResult} aria-label="会议执行完成"><div className={css.meetingResultHead}><span className={css.meetingResultMark}>✓</span><div><p>会议执行完成</p><h3>{MEETING_ANALYSIS_MOCK.meetingTitle}</h3><small>共处理 {items.length} 项行动事项</small></div></div><div className={css.meetingResultStats}><div><strong>{stats.newTasks}</strong><span>新建任务</span></div><div><strong>{stats.updateTasks}</strong><span>更新任务</span></div><div><strong>{stats.newRisks}</strong><span>新增风险</span></div></div><div className={css.meetingResultNote}><p>已创建的任务将在截止日前自动提醒负责人，风险状态已同步至项目风险台账。</p></div><div className={css.meetingResultActions}><button type="button" className={css.button} onClick={() => { onContinue?.('meeting-actions') }}>继续整理会议</button><button type="button" className={css.primary} onClick={() => { onContinue?.('my-day') }}>看看我今天该做什么</button></div></section>
 }
 
-function meetingStats(items: readonly ProjectBrainMeetingActionItem[]): { readonly newTasks: number; readonly updateTasks: number; readonly newRisks: number } {
+function meetingStats(items: readonly ProjectBrainMeetingActionItem[]): {
+  readonly newTasks: number
+  readonly updateTasks: number
+  readonly newRisks: number
+} {
   return {
     newTasks: items.filter(item => item.type === 'new-task').length,
     updateTasks: items.filter(item => item.type === 'update-task').length,

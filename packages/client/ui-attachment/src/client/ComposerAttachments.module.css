@@ -2,3 +2,59 @@
   min-width: 0;
   padding: 4px 12px 0;
 }
+
+.documentList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px 0;
+}
+
+.documentChip {
+  align-items: center;
+  background: var(--dsw-alias-bg-base);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 7px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 4px 5px 4px 8px;
+}
+
+.documentBadge {
+  background: var(--dsw-alias-bg-inverted);
+  border-radius: 4px;
+  color: var(--dsw-alias-content-inverted);
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  line-height: 1;
+  padding: 4px 5px;
+}
+
+.documentName {
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.documentRemove {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font-size: 14px;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
+  width: 18px;
+}

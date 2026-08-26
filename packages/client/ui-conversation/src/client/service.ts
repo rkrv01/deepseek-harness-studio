@@ -15,7 +15,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ISessions, SessionFace, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SubmitImageAttachment, SubmitOutcome } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
-import type { ComposerAttachment } from './contract/slots.ts'
+import type { ComposerAttachment, ComposerDocumentMeta } from './contract/slots.ts'
 import type { QueueAction, QueueItemId } from './contract/queue.ts'
 import type { ComposerBlocks } from './input/blocks.ts'
 import type { DraftAttachmentId, SessionInputResolver } from './input/contract.ts'
@@ -75,6 +75,10 @@ export interface ConversationSubmitRequest {
   readonly text: string
   /** Ordered browser draft-image ids still owned by the conversation service. */
   readonly imageIds: readonly DraftAttachmentId[]
+  /** Ordered browser draft-document ids still owned by the conversation service. */
+  readonly documentIds: readonly DraftAttachmentId[]
+  /** Display metadata for requested document drafts; file bytes stay in the browser. */
+  readonly documentMetas: readonly ComposerDocumentMeta[]
   /** Queue or steer delivery selected by the composer policy. */
   readonly mode: InputSubmitMode
   /** Cancellation for the complete admission attempt. */
@@ -86,8 +90,8 @@ export type ConversationSubmitHandler = (
   request: ConversationSubmitRequest,
 ) => Promise<SubmitOutcome | undefined> | SubmitOutcome | undefined
 
-/** Create one browser-only draft descriptor; only its id enters input state. */
-function browserDraftAttachment(file: File): ComposerAttachment {
+/** Create one browser-only image draft; only its id enters input state. */
+function browserDraftAttachment(file: File): Extract<ComposerAttachment, { kind: 'image' }> {
   return {
     kind: 'image',
     id: crypto.randomUUID() as DraftAttachmentId,
@@ -100,6 +104,16 @@ interface ImageUrlEntry {
   readonly sessionId: SessionId
   readonly generation: number
   readonly pending: Promise<string>
+}
+
+/** Project only display metadata from a browser-owned document draft. */
+function documentMeta(attachment: Extract<ComposerAttachment, { kind: 'document' }>): ComposerDocumentMeta {
+  return { name: attachment.file.name, type: attachment.file.type, size: attachment.file.size }
+}
+
+/** Narrow the shared draft registry's public attachment union to its document variant. */
+function isDocumentAttachment(attachment: ComposerAttachment): attachment is Extract<ComposerAttachment, { kind: 'document' }> {
+  return attachment.kind === 'document'
 }
 
 /** Unsupported browser-declared image type, localized by the UI boundary. */
@@ -168,6 +182,7 @@ export class ConversationController extends Service implements IConversation {
    * @param imageIds - ordered draft-local attachment ids.
    * @param mode - queue or steer delivery selected by composer policy.
    * @param signal - optional cancellation for the complete Host admission.
+   * @param documentIds - ordered browser-only demo-document ids.
    * @returns the Host admission outcome; local attachment preparation failures reject.
    */
   async sendSession(
@@ -176,18 +191,28 @@ export class ConversationController extends Service implements IConversation {
     imageIds: readonly DraftAttachmentId[],
     mode: InputSubmitMode,
     signal?: AbortSignal,
+    documentIds: readonly DraftAttachmentId[] = [],
   ): Promise<SubmitOutcome> {
     const requestSignal = signal ?? new AbortController().signal
+    const documents = this.draftDocuments(documentIds)
+    if (documents.length !== documentIds.length) {
+      throw new Error('conversation.sendSession: one or more draft documents are no longer available')
+    }
     for (const handler of this.submitHandlers) {
       const outcome = await handler({
         sessionId: session.sessionId,
         text,
         imageIds: [...imageIds],
+        documentIds: [...documentIds],
+        documentMetas: documents.filter(isDocumentAttachment).map(documentMeta),
         mode,
         signal: requestSignal,
       })
       if (outcome === undefined) continue
-      if (outcome.kind === 'success') this.releaseDraftImages(this.draftImages(imageIds))
+      if (outcome.kind === 'success') {
+        this.releaseDraftImages(this.draftImages(imageIds))
+        this.releaseDraftDocuments(documents)
+      }
       return outcome
     }
     const attachments = this.draftImages(imageIds)
@@ -198,6 +223,9 @@ export class ConversationController extends Service implements IConversation {
     const content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
     const result = await session.prompt(content, mode, requestSignal)
     if (!result.ok) return { kind: 'error' }
+    // Document bytes never enter the prompt; successful ordinary admission
+    // consumes their demo registration so stale chips cannot resend later.
+    this.releaseDraftDocuments(documents)
     this.releaseDraftImages(attachments)
     return { kind: 'success' }
   }
@@ -228,6 +256,23 @@ export class ConversationController extends Service implements IConversation {
   }
 
   /**
+   * Create runtime-only draft documents without reading their content.
+   * @param files - browser files to register by metadata alone.
+   * @returns ordered draft descriptors.
+   */
+  createDraftDocuments(files: readonly File[]): readonly ComposerAttachment[] {
+    return files.map((file) => {
+      const attachment: ComposerAttachment = {
+        kind: 'document',
+        id: crypto.randomUUID() as DraftAttachmentId,
+        file,
+      }
+      this.draftAttachments.set(attachment.id, attachment)
+      return attachment
+    })
+  }
+
+  /**
    * Resolve ordered input-state ids to runtime-owned draft images.
    * @param ids - draft attachment ids.
    * @returns descriptors that remain live, in requested order.
@@ -237,6 +282,20 @@ export class ConversationController extends Service implements IConversation {
     for (const id of ids) {
       const attachment = this.draftAttachments.get(id)
       if (attachment !== undefined) attachments.push(attachment)
+    }
+    return attachments
+  }
+
+  /**
+   * Resolve ordered input-state ids to runtime-owned draft documents.
+   * @param ids - draft attachment ids.
+   * @returns descriptors that remain live, in requested order.
+   */
+  draftDocuments(ids: readonly DraftAttachmentId[]): readonly ComposerAttachment[] {
+    const attachments: ComposerAttachment[] = []
+    for (const id of ids) {
+      const attachment = this.draftAttachments.get(id)
+      if (attachment?.kind === 'document') attachments.push(attachment)
     }
     return attachments
   }
@@ -262,10 +321,20 @@ export class ConversationController extends Service implements IConversation {
    */
   releaseDraftImage(id: DraftAttachmentId): void {
     const attachment = this.draftAttachments.get(id)
-    if (attachment === undefined) return
+    if (attachment?.kind !== 'image') return
     this.draftAttachments.delete(id)
     this.createdImageUrls.delete(attachment.previewUrl)
     revokePreview(attachment.previewUrl)
+  }
+
+  /**
+   * Release one browser-owned draft document registration.
+   * @param id - draft attachment id.
+   */
+  releaseDraftDocument(id: DraftAttachmentId): void {
+    const attachment = this.draftAttachments.get(id)
+    if (attachment?.kind !== 'document') return
+    this.draftAttachments.delete(id)
   }
 
   /**
@@ -274,6 +343,14 @@ export class ConversationController extends Service implements IConversation {
    */
   releaseDraftImages(attachments: readonly ComposerAttachment[]): void {
     for (const attachment of attachments) this.releaseDraftImage(attachment.id)
+  }
+
+  /**
+   * Release a set of browser-owned draft documents.
+   * @param attachments - descriptors to release.
+   */
+  releaseDraftDocuments(attachments: readonly ComposerAttachment[]): void {
+    for (const attachment of attachments) this.releaseDraftDocument(attachment.id)
   }
 
   /**

@@ -35,6 +35,20 @@ import css from './InputBar.module.css'
 /** Decoration product of the no-session state (no machine, empty draft). */
 const INERT_DECORATIONS: DraftDecorations = { token: null, chips: [], textRefs: [], hint: null }
 
+/** Browser picker filter for demo document formats accepted beside images. */
+const PROJECT_BRAIN_DOCUMENT_ACCEPT = [
+  '.txt', '.md', '.markdown', '.doc', '.docx', '.xls', '.xlsx', '.pdf',
+].join(',')
+
+/** Whether one non-image file belongs to the Project Brain demo-document set. */
+function isProjectBrainDocument(file: File): boolean {
+  if (['text/plain', 'text/markdown', 'application/pdf'].includes(file.type)) return true
+  if (file.type === 'application/vnd.ms-excel') return true
+  if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return true
+  if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return true
+  return PROJECT_BRAIN_DOCUMENT_ACCEPT.split(',').some(extension => file.name.toLowerCase().endsWith(extension))
+}
+
 /** The selection and edit family a `beforeinput` recorded, with the draft length it applied to. */
 interface PendingEdit {
   readonly start: number
@@ -77,8 +91,9 @@ function editRangeOf(pending: PendingEdit | null, prevLength: number, nextLength
 export type InputBarProps = ComposerBarProps
 
 export function InputBar({
-  useSession, useInput, inputActions, keyboard, addImages, removeImage, draftImages,
-  resolveSubmitMode, toggleCommandMenu, stop, command, t,
+  useSession, useInput, inputActions, keyboard, addImages, addDocuments, removeImage,
+  removeDocument, draftImages, draftDocuments,
+  useSessions, resolveSubmitMode, toggleCommandMenu, stop, command, t,
   renderSlot, useNotices, useLexicon, useMenuLauncher,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
@@ -92,6 +107,8 @@ export function InputBar({
   const running = useSession(s => s.running) ?? false
   const subagent = useSession(s => s.subagent) ?? null
   const removed = useSession(s => s.removed) ?? false
+  const projectBrainSession = useSessions(s =>
+    sessionId !== undefined && s.byId[sessionId]?.agentPreset === 'project-brain')
   // Plan mode swaps the textarea placeholder (the projection is the folded
   // host value; owner-prop placeholders — hero, session-unavailable — win).
   const planActive = useProjection('plan', plan => plan !== undefined && (plan.pending ? !plan.active : plan.active))
@@ -101,10 +118,15 @@ export function InputBar({
   // current; the bar renders the same DOM inert instead of a parallel tree.
   const live = input !== undefined && keyboard !== undefined && inputActions !== undefined
   const draft = input?.draft ?? ''
-  const attachments = useMemo(
+  const imageAttachments = useMemo(
     () => input === undefined || draftImages === undefined ? [] : draftImages(input.imageIds),
     [draftImages, input?.imageIds],
   )
+  const documentAttachments = useMemo(
+    () => input === undefined || draftDocuments === undefined ? [] : draftDocuments(input.documentIds),
+    [draftDocuments, input?.documentIds],
+  )
+  const attachments = [...imageAttachments, ...documentAttachments]
   const empty = draft.trim() === '' && attachments.length === 0
   // Transient error banner (machine notices, image-intake rejections, and
   // prompt failures): the seq keys the Toast so an identical repeated message
@@ -136,6 +158,7 @@ export function InputBar({
     if (notice?.level === 'error') showToast(notice.text)
   }, [notice, showToast])
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const mirrorRef = useRef<HTMLDivElement | null>(null)
@@ -184,10 +207,13 @@ export function InputBar({
 
   useEffect(() => {
     if (input === undefined || inputActions === undefined) return
-    if (attachments.length !== input.imageIds.length) {
-      inputActions.pruneImages(attachments.map(attachment => attachment.id))
+    if (imageAttachments.length !== input.imageIds.length) {
+      inputActions.pruneImages(imageAttachments.map(attachment => attachment.id))
     }
-  }, [attachments, input?.imageIds, inputActions])
+    if (documentAttachments.length !== input.documentIds.length) {
+      inputActions.pruneDocuments(documentAttachments.map(attachment => attachment.id))
+    }
+  }, [documentAttachments, imageAttachments, input?.documentIds, input?.imageIds, inputActions])
 
   // A native Safari edit that shortens the draft may leave the previous
   // soft-wrap layout behind after the mirror shrinks. The native-change signal
@@ -483,7 +509,8 @@ export function InputBar({
       .filter(item => item.kind === 'file')
       .map(item => item.getAsFile())
       .filter((file): file is File => file !== null)
-    if (files.length > 0) intakeImages(files)
+    if (files.length > 0 && projectBrainSession) intakeAttachments(files)
+    else if (files.length > 0) intakeImages(files)
     const text = e.clipboardData.getData('text/plain')
     if (text === '') {
       if (files.length > 0) e.preventDefault()
@@ -532,9 +559,25 @@ export function InputBar({
       return addImages(files)
     })()
     if (rejected !== null) showToast(rejected)
-  }, [addImages, attachments, imageLimits, showToast, t])
+  }, [addImages, imageAttachments, imageLimits, showToast, t])
 
-  const canAcceptDrop = !locked && !machineBusy && addImages !== undefined
+  // Project Brain documents are browser-only demo inputs: metadata enters the
+  // submit request; bytes stay local and no parser inspects their contents.
+  const intakeAttachments = useCallback((files: readonly File[]): void => {
+    if (files.length === 0) return
+    const images = files.filter(file => file.type.startsWith('image/'))
+    const documents = files.filter(file => !file.type.startsWith('image/'))
+    if (!documents.every(isProjectBrainDocument)) {
+      showToast(t('input.unsupportedFile'))
+      return
+    }
+    if (images.length > 0) intakeImages(images)
+    if (documents.length === 0 || addDocuments === undefined) return
+    const rejected = addDocuments(documents)
+    if (rejected !== null) showToast(rejected)
+  }, [addDocuments, intakeImages, showToast, t])
+
+  const canAcceptDrop = !locked && !machineBusy && (addImages !== undefined || addDocuments !== undefined)
 
   const onSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>): void => {
     // Any caret/selection gesture ends a live paste attempt (the machine
@@ -710,8 +753,9 @@ export function InputBar({
         {renderSlot('conversation.input.attachments', {
           attachments,
           canAcceptDrop,
-          onAddImages: intakeImages,
+          onAddImages: projectBrainSession ? intakeAttachments : intakeImages,
           onRemoveImage: (id) => { removeImage?.(id) },
+          onRemoveDocument: (id) => { removeDocument?.(id) },
           dropLimits: imageLimits === undefined ? undefined : {
             count: imageLimits.maxImagesPerMessage,
             size: imageSizeText(imageLimits.maxImageBytes),
@@ -783,6 +827,35 @@ export function InputBar({
                 <IconPlusOutline16 size={14} />
               </button>
             </Tooltip>
+            {projectBrainSession && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={`image/png,image/jpeg,image/webp,image/gif,${PROJECT_BRAIN_DOCUMENT_ACCEPT}`}
+                  className={css.hiddenInput}
+                  onChange={(event) => {
+                    intakeAttachments([...event.target.files ?? []])
+                    event.target.value = ''
+                  }}
+                />
+                <Tooltip label={t('input.uploadFile')} side="top" delayMs={500}>
+                  <button
+                    type="button"
+                    className={css.add}
+                    aria-label={t('input.uploadFile')}
+                    disabled={locked || addDocuments === undefined}
+                    onMouseDown={keepFocus}
+                    onClick={() => { fileInputRef.current?.click() }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+                      <path d="M10.7 4.2a3.6 3.6 0 0 0-5.1 0L2.5 7.3a3.6 3.6 0 1 0 5.1 5.1l3.8-3.8a1.8 1.8 0 0 0-2.5-2.5L5.7 9.3" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </Tooltip>
+              </>
+            )}
             <div className={css.modes}>
               {accessSelect}
               {renderSlot('conversation.input.plan', { locked })}

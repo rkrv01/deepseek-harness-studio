@@ -6,7 +6,7 @@ import { AttachmentRail } from '../AttachmentRail.tsx'
 import type { AttachmentRailItem } from '../AttachmentRail.tsx'
 import { DropOverlay } from '../DropOverlay.tsx'
 import { ImageLightbox } from '../ImageLightbox.tsx'
-import { attachmentRailLabels, dropOverlayLabels, lightboxLabels } from './labels.ts'
+import { attachmentRailLabels, documentChipLabels, dropOverlayLabels, lightboxLabels } from './labels.ts'
 import css from './ComposerAttachments.module.css'
 
 /** Rail item retaining its browser-owned attachment for callbacks. */
@@ -14,9 +14,27 @@ interface ComposerRailItem extends AttachmentRailItem {
   attachment: ComposerAttachment
 }
 
+/** Document chip retaining its browser-owned attachment for callbacks. */
+interface ComposerDocumentItem {
+  id: ComposerAttachment['id']
+  name: string
+  badge: string
+}
+
+/** Resolve a compact type badge for one demo-document extension. */
+function documentBadge(name: string): string {
+  const extension = name.split('.').at(-1)?.toLowerCase()
+  if (extension === 'txt') return 'TXT'
+  if (extension === 'md' || extension === 'markdown') return 'MD'
+  if (extension === 'doc' || extension === 'docx') return 'DOC'
+  if (extension === 'xls' || extension === 'xlsx') return 'XLS'
+  if (extension === 'pdf') return 'PDF'
+  return 'FILE'
+}
+
 /** Draft-image rail, document drop target, and original-image preview slot entry. */
 export function ComposerAttachments({
-  attachments, canAcceptDrop, onAddImages, onRemoveImage, dropLimits, t,
+  attachments, canAcceptDrop, onAddImages, onRemoveImage, onRemoveDocument, dropLimits, t,
 }: ComposerAttachmentsProps) {
   const [preview, setPreview] = useState<ComposerAttachment | null>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -78,13 +96,22 @@ export function ComposerAttachments({
     }
   }, [canAcceptDrop, onAddImages])
 
-  const railItems = useMemo<ComposerRailItem[]>(() => attachments.map(attachment => ({
+  const railItems = useMemo<ComposerRailItem[]>(() => attachments.flatMap(attachment => attachment.kind === 'image' ? [{
     id: attachment.id,
     previewUrl: attachment.previewUrl,
     alt: attachment.file.name || t('image.pending'),
     removeLabel: t('image.remove', { name: attachment.file.name }),
     attachment,
+  }] : []), [attachments, t])
+
+  const documentItems = useMemo<ComposerDocumentItem[]>(() => attachments.filter(
+    attachment => attachment.kind === 'document',
+  ).map(attachment => ({
+    id: attachment.id,
+    name: attachment.file.name || t('document.unnamed'),
+    badge: documentBadge(attachment.file.name),
   })), [attachments, t])
+  const documentStrings = useMemo(() => documentChipLabels(t), [t])
 
   return (
     <>
@@ -93,6 +120,24 @@ export function ComposerAttachments({
           disabled={!canAcceptDrop}
           labels={dropOverlayLabels(t, canAcceptDrop, dropLimits)}
         />
+      )}
+      {documentItems.length > 0 && (
+        <div className={css.documentList}>
+          {documentItems.map(item => (
+            <span className={css.documentChip} key={item.id}>
+              <span className={css.documentBadge}>{item.badge}</span>
+              <span className={css.documentName}>{item.name}</span>
+              <button
+                aria-label={documentStrings.remove(item.name)}
+                className={css.documentRemove}
+                onClick={() => { onRemoveDocument(item.id) }}
+                type="button"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
       )}
       {railItems.length > 0 && (
         <div className={css.rail}>
@@ -104,7 +149,7 @@ export function ComposerAttachments({
           />
         </div>
       )}
-      {preview !== null && (
+      {preview !== null && preview.kind === 'image' && (
         <ImageLightbox
           src={preview.previewUrl}
           alt={preview.file.name || t('image.original')}

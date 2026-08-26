@@ -39,7 +39,11 @@ export function apply(ctx: ClientContext): void {
     stores.set(sessionId, created)
     return created
   }
-  const hooksFor = (sessionId: SessionId): { projectBrain: ObservableSnapshot<ProjectBrainState> } => ({ projectBrain: brainFor(sessionId).store })
+  const hooksFor = (
+    sessionId: SessionId,
+  ): { projectBrain: ObservableSnapshot<ProjectBrainState> } => ({
+    projectBrain: brainFor(sessionId).store,
+  })
   const enabled = (sessionId: SessionId): boolean => ctx.sessions.list.getSnapshot().byId[sessionId]?.agentPreset === 'project-brain'
 
   const registerSubmit = (): (() => void) => {
@@ -75,7 +79,10 @@ export function apply(ctx: ClientContext): void {
         return undefined
       }
       if (scenario?.id === 'project-launch') {
-        const outcome = launchProjectScenario(brain, { text: request.text, files: [] })
+        const outcome = launchProjectScenario(brain, {
+          text: request.text,
+          files: request.documentMetas.map(document => ({ ...document })),
+        })
         if (outcome.kind === 'success') window.setTimeout(() => { markProjectPlanReady(brain) }, PROJECT_BRAIN_PLAN_READY_DELAY_MS)
       }
       return undefined

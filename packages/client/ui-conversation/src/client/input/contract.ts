@@ -35,10 +35,16 @@ export interface SessionInput extends InputTarget {
   setDraft(text: string): void
   /** Append ordered browser-owned image ids; busy admission phases refuse. */
   addImages(ids: readonly DraftAttachmentId[]): boolean
+  /** Append ordered browser-only document ids; busy admission phases refuse. */
+  addDocuments(ids: readonly DraftAttachmentId[]): boolean
   /** Remove one browser-owned image id; busy admission phases refuse. */
   removeImage(id: DraftAttachmentId): void
+  /** Remove one browser-only document id; busy admission phases refuse. */
+  removeDocument(id: DraftAttachmentId): void
   /** Drop ids whose browser-owned objects no longer exist. */
   pruneImages(ids: readonly DraftAttachmentId[]): void
+  /** Drop document ids whose browser-owned objects no longer exist. */
+  pruneDocuments(ids: readonly DraftAttachmentId[]): void
   /**
    * THE complexity sink: enter adjudication, submit transaction, and the default sink live inside.
    * @param mode - delivery intent retained through asynchronous adjudication and serialization.
@@ -75,10 +81,16 @@ export interface InputActions {
   setDraft(text: string): void
   /** Append ordered browser-owned image ids; busy admission phases refuse. */
   addImages(ids: readonly DraftAttachmentId[]): boolean
+  /** Append ordered browser-only document ids; busy admission phases refuse. */
+  addDocuments(ids: readonly DraftAttachmentId[]): boolean
   /** Remove one browser-owned image id; busy admission phases refuse. */
   removeImage(id: DraftAttachmentId): void
+  /** Remove one browser-only document id; busy admission phases refuse. */
+  removeDocument(id: DraftAttachmentId): void
   /** Drop ids whose browser-owned objects no longer exist. */
   pruneImages(ids: readonly DraftAttachmentId[]): void
+  /** Drop document ids whose browser-owned objects no longer exist. */
+  pruneDocuments(ids: readonly DraftAttachmentId[]): void
   /** Enter submission (adjudication / claim transaction / default sink inside). */
   submit(): void
 }
@@ -214,6 +226,8 @@ export interface InputState {
   readonly draft: string
   /** Ordered runtime-only image ids; bytes and URLs stay in ConversationController. */
   readonly imageIds: readonly DraftAttachmentId[]
+  /** Ordered runtime-only document ids; bytes stay in the browser and metadata alone reaches handlers. */
+  readonly documentIds: readonly DraftAttachmentId[]
   /** Monotonic draft revision (span CAS compares against this). */
   readonly draftRev: number
   readonly phase: 'plain' | 'adjudicating' | 'claimed' | 'submitting'

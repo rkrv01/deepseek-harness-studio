@@ -218,14 +218,19 @@ export function apply(ctx: Context): void {
           const from = inputHub.shell(sessionId)
           const draft = from.snapshot.draft
           const imageIds = from.snapshot.imageIds
+          const documentIds = from.snapshot.documentIds
           const next = inputHub.shell(nextId)
-          if (imageIds.length === 0 || next.addImages(imageIds)) {
+          if ((imageIds.length === 0 || next.addImages(imageIds))
+            && (documentIds.length === 0 || next.addDocuments(documentIds))) {
             if (draft !== '') {
               next.setDraft(draft)
               from.setDraft('')
             }
             if (imageIds.length > 0) {
               for (const id of imageIds) from.removeImage(id)
+            }
+            if (documentIds.length > 0) {
+              for (const id of documentIds) from.removeDocument(id)
             }
           }
         }
@@ -293,8 +298,11 @@ export function apply(ctx: Context): void {
         return {
           keyboard: undefined,
           addImages: undefined,
+          addDocuments: undefined,
           removeImage: undefined,
+          removeDocument: undefined,
           draftImages: undefined,
+          draftDocuments: undefined,
           resolveSubmitMode: (running, gesture, steeringAvailable) =>
             submissionPolicy.resolve(running, gesture, steeringAvailable),
           toggleCommandMenu: undefined,
@@ -328,7 +336,23 @@ export function apply(ctx: Context): void {
           conversation.releaseDraftImage(id)
           shell.removeImage(id)
         },
+        addDocuments: (files) => {
+          try {
+            const documents = conversation.createDraftDocuments(files)
+            if (!shell.addDocuments(documents.map(document => document.id))) {
+              conversation.releaseDraftDocuments(documents)
+            }
+            return null
+          } catch (error: unknown) {
+            return error instanceof Error ? error.message : String(error)
+          }
+        },
+        removeDocument: (id) => {
+          conversation.releaseDraftDocument(id)
+          shell.removeDocument(id)
+        },
         draftImages: ids => conversation.draftImages(ids),
+        draftDocuments: ids => conversation.draftDocuments(ids),
         resolveSubmitMode: (running, gesture, steeringAvailable) =>
           submissionPolicy.resolve(running, gesture, steeringAvailable),
         toggleCommandMenu: inputTriggers === undefined

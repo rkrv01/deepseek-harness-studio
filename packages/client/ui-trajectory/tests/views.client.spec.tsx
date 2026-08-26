@@ -225,10 +225,11 @@ function mount(slots: SlotRegistry, nodes: ConversationSnapshot['nodes'] = NODES
     version: () => slots.getVersion('conversation.view'),
   }
   const useInput = bindSnapshotSelector(createSnapshotStore({
-    draft: '', imageIds: [], draftRev: 0, phase: 'plain', occurrences: [], queue: [],
+    draft: '', imageIds: [], documentIds: [], draftRev: 0, phase: 'plain', occurrences: [], queue: [],
   })) as never
   const inputActions = {
-    setDraft: vi.fn(), addImages: vi.fn(), removeImage: vi.fn(), pruneImages: vi.fn(), submit: vi.fn(),
+    setDraft: vi.fn(), addImages: vi.fn(), addDocuments: vi.fn(), removeImage: vi.fn(),
+    removeDocument: vi.fn(), pruneImages: vi.fn(), pruneDocuments: vi.fn(), submit: vi.fn(),
   }
   // Minimal outlet twin: resolve the ring entry by the `only` filter and
   // render it with the session standard kit (what SlotOutlet does for a

@@ -272,8 +272,11 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
     inputActions: {
       setDraft: () => {},
       addImages: () => true,
+      addDocuments: () => true,
       removeImage: () => {},
+      removeDocument: () => {},
       pruneImages: () => {},
+      pruneDocuments: () => {},
       submit: () => {},
     },
     useStore: bindSnapshotSelector(chat),

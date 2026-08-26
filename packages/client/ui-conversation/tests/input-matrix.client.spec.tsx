@@ -52,13 +52,16 @@ function mountBar(shell: SessionInputShell, over?: { running?: boolean; disabled
     inputActions: shell.actions,
     keyboard: shell,
     addImages: () => null,
+    addDocuments: () => null,
     removeImage: () => {},
+    removeDocument: () => {},
     // Every id resolves so the bar's registry prune never drops a test image.
     draftImages: ids => ids.map(id => ({
       kind: 'image' as const, id,
       file: new File([Uint8Array.of(1)], `${id}.png`, { type: 'image/png' }),
       previewUrl: `blob:${id}`,
     })),
+    draftDocuments: () => [],
     resolveSubmitMode: () => 'queue',
     toggleCommandMenu: vi.fn(),
     useNotices: bindSnapshotSelector(shell.notices),
@@ -109,7 +112,7 @@ describe('matrix row: plain', () => {
     fireEvent.change(textarea, { target: { value: '普通消息' } })
     expect(shell.snapshot.claim).toBeUndefined()
     fireEvent.keyDown(textarea, { key: 'Enter' })
-    expect(sink).toHaveBeenCalledWith('普通消息', [], 'queue', expect.any(AbortSignal))
+    expect(sink).toHaveBeenCalledWith('普通消息', [], [], 'queue', expect.any(AbortSignal))
     expect(shell.snapshot.phase).toBe('submitting')
     await vi.waitFor(() => { expect(shell.snapshot.phase).toBe('plain') })
     expect(shell.snapshot.claim).toBeUndefined()
@@ -301,7 +304,7 @@ describe('matrix row: locked (session disabled)', () => {
     expect((textarea).disabled).toBe(false)
     fireEvent.change(textarea, { target: { value: '排队' } })
     fireEvent.keyDown(textarea, { key: 'Enter' })
-    expect(sink).toHaveBeenCalledWith('排队', [], 'queue', expect.any(AbortSignal))
+    expect(sink).toHaveBeenCalledWith('排队', [], [], 'queue', expect.any(AbortSignal))
   })
 })
 

@@ -61,3 +61,14 @@ export function attachmentRailLabels(t: TranslateNS<'conversation'>): Attachment
     scrollRight: t('image.scrollRight'),
   }
 }
+
+/**
+ * Resolve removable draft-document chip strings from the conversation namespace.
+ * @param t - conversation namespace translator.
+ * @returns translated document-chip labels.
+ */
+export function documentChipLabels(t: TranslateNS<'conversation'>): {
+  remove: (name: string) => string
+} {
+  return { remove: name => t('document.remove', { name }) }
+}

@@ -22,6 +22,7 @@ afterEach(() => {
 
 const t = ((key: string, params?: Readonly<Record<string, unknown>>): string => {
   const messages: Record<string, string> = {
+    'document.remove': '移除文件 {name}',
     'image.pending': '待发送图片',
     'image.original': '原图',
     'image.preview': '原图预览',
@@ -31,6 +32,10 @@ const t = ((key: string, params?: Readonly<Record<string, unknown>>): string => 
     'image.scrollRight': '向右滚动图片',
     'image.dropBlocked': '当前无法添加图片',
     'image.dropTitle': '图片拖动到此处即可添加',
+  }
+  if (key === 'document.remove') {
+    const name = params?.name
+    return `移除文件 ${typeof name === 'string' ? name : ''}`
   }
   if (key === 'image.remove') {
     const name = params?.name
@@ -44,12 +49,20 @@ const t = ((key: string, params?: Readonly<Record<string, unknown>>): string => 
   return messages[key] ?? key
 }) as ComposerAttachmentsProps['t']
 
-function attachment(id: string, name = `${id}.png`): ComposerAttachment {
+function imageAttachment(id: string, name = `${id}.png`): ComposerAttachment {
   return {
     kind: 'image',
     id: id as ComposerAttachment['id'],
     file: new File([Uint8Array.of(1)], name, { type: 'image/png' }),
     previewUrl: `blob:${id}`,
+  }
+}
+
+function documentAttachment(id: string, name = `${id}.pdf`): ComposerAttachment {
+  return {
+    kind: 'document',
+    id: id as ComposerAttachment['id'],
+    file: new File([Uint8Array.of(1, 2, 3, 4)], name, { type: 'application/pdf' }),
   }
 }
 
@@ -79,7 +92,7 @@ describe('ComposerAttachments', () => {
     expect(fireEvent.drop(document.body, { dataTransfer: textTransfer })).toBe(true)
     expect(view.queryByRole('status')).toBeNull()
 
-    const image = attachment('dropped').file
+    const image = imageAttachment('dropped').file
     const dataTransfer = { types: ['Files'], files: [image], dropEffect: 'none' }
     expect(fireEvent.dragEnter(document.body, { dataTransfer })).toBe(false)
     expect(view.getByRole('status').textContent).toContain('图片拖动到此处即可添加')
@@ -120,7 +133,7 @@ describe('ComposerAttachments', () => {
   it('shows a blocked drop without forwarding its files', () => {
     const onAddImages = vi.fn()
     const view = render(<ComposerAttachments {...props({ canAcceptDrop: false, onAddImages })} />)
-    const image = attachment('blocked').file
+    const image = imageAttachment('blocked').file
     const dataTransfer = { types: ['Files'], files: [image], dropEffect: 'copy' }
     fireEvent.dragEnter(document.body, { dataTransfer })
     expect(view.getByRole('status').textContent).toBe('当前无法添加图片')
@@ -133,7 +146,7 @@ describe('ComposerAttachments', () => {
 
   it('routes rail removal and closes previews on Escape or attachment removal', () => {
     const onRemoveImage = vi.fn()
-    const image = attachment('draft-1', 'pixel.png')
+    const image = imageAttachment('draft-1', 'pixel.png')
     const initial = props({ attachments: [image], onRemoveImage })
     const view = render(<ComposerAttachments {...initial} />)
 
@@ -151,10 +164,29 @@ describe('ComposerAttachments', () => {
   })
 
   it('labels an unnamed attachment and its original-image preview', () => {
-    const image = attachment('unnamed', '')
+    const image = imageAttachment('unnamed', '')
     const view = render(<ComposerAttachments {...props({ attachments: [image] })} />)
     expect(view.getByAltText('待发送图片')).toBeTruthy()
     fireEvent.click(view.getByTitle('查看原图'))
     expect(view.getByAltText('原图')).toBeTruthy()
+  })
+
+  it('shows removable demo documents without treating them as image previews', () => {
+    const onRemoveDocument = vi.fn()
+    const briefing = documentAttachment('briefing', '集团汇报.pdf')
+    const minutes = documentAttachment('minutes', '项目纪要.txt')
+    const view = render(<ComposerAttachments {...props({
+      attachments: [briefing, minutes],
+      onRemoveDocument,
+    })} />)
+
+    expect(view.getByText('PDF')).toBeTruthy()
+    expect(view.getByText('TXT')).toBeTruthy()
+    expect(view.getByText('集团汇报.pdf')).toBeTruthy()
+    expect(view.getByText('项目纪要.txt')).toBeTruthy()
+    expect(view.queryByTitle('查看原图')).toBeNull()
+
+    fireEvent.click(view.getByRole('button', { name: '移除文件 项目纪要.txt' }))
+    expect(onRemoveDocument).toHaveBeenCalledWith(minutes.id)
   })
 })

@@ -67,6 +67,8 @@ describe('ConversationController', () => {
       sessionId: 's1',
       text: '帮我启动智慧园区建设项目',
       imageIds: [],
+      documentIds: [],
+      documentMetas: [],
       mode: 'queue',
       signal: expect.any(AbortSignal),
     })
@@ -80,6 +82,33 @@ describe('ConversationController', () => {
       'queue',
     )
     expect(b.prompt).toHaveBeenCalledOnce()
+    await b.runtime.dispose()
+  })
+
+  it('passes document metadata to submit handlers and clears consumed browser documents', async () => {
+    const b = await bench()
+    const file = new File([new Uint8Array(4)], '项目纪要.pdf', { type: 'application/pdf' })
+    const [document] = b.root.createDraftDocuments([file])
+    if (document === undefined) throw new Error('draft document missing')
+    expect(document).toMatchObject({ kind: 'document', file })
+    b.root.input.for(b.runtime.sessions.scope('s1')!).addDocuments([document.id])
+    const handler = vi.fn(async () => ({ kind: 'success' as const }))
+    b.root.registerSubmitHandler(handler)
+
+    await expect(b.scoped.sendSession(
+      b.runtime.sessions.binding('s1')!.session,
+      '帮我启动智慧园区建设项目',
+      [],
+      'queue',
+      undefined,
+      [document.id],
+    )).resolves.toEqual({ kind: 'success' })
+
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+      documentMetas: [{ name: '项目纪要.pdf', type: 'application/pdf', size: 4 }],
+    }))
+    expect(b.prompt).not.toHaveBeenCalled()
+    expect(b.root.draftDocuments([document.id])).toEqual([])
     await b.runtime.dispose()
   })
 

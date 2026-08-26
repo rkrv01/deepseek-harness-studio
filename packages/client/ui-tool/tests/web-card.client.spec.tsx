@@ -231,8 +231,11 @@ describe('DetailsPanel web Output section', () => {
         inputActions={{
           setDraft: () => {},
           addImages: () => true,
+          addDocuments: () => true,
           removeImage: () => {},
+          removeDocument: () => {},
           pruneImages: () => {},
+          pruneDocuments: () => {},
           submit: () => {},
         }}
         useProjection={(() => undefined)}
