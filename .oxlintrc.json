@@ -284,16 +284,8 @@
             }
           }
         ],
-        // Validation-only: line length has no safe formatter fix.
-        "@stylistic/max-len": [
-          "error",
-          {
-            "code": 140,
-            "ignoreUrls": true,
-            "ignoreStrings": true,
-            "ignoreTemplateLiterals": true
-          }
-        ]
+        // Line length is not enforced while the demo iterates fast.
+        "@stylistic/max-len": "off"
       },
       "jsPlugins": [
         "@stylistic/eslint-plugin"

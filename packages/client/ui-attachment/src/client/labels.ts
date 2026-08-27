@@ -34,14 +34,23 @@ export function messageImageLabels(t: TranslateNS<'conversation'>): MessageImage
  * @param t - conversation namespace translator.
  * @param accepting - whether the composer can accept dropped files.
  * @param limits - optional translated count and size values.
+ * @param options - session drop capabilities; `documents` switches the
+ * invitation to the mixed image-and-document copy used by project-brain sessions.
  * @returns translated drop-overlay labels.
  */
 export function dropOverlayLabels(
   t: TranslateNS<'conversation'>,
   accepting: boolean,
   limits?: { readonly count: number; readonly size: string },
+  options?: { readonly documents?: boolean | undefined },
 ): DropOverlayLabels {
   if (!accepting) return { title: t('image.dropBlocked') }
+  if (options?.documents === true) {
+    return {
+      title: t('image.dropTitle.mixed'),
+      desc: limits === undefined ? undefined : t('image.dropDesc.mixed', limits),
+    }
+  }
   return {
     title: t('image.dropTitle'),
     desc: limits === undefined ? undefined : t('image.dropDesc', limits),

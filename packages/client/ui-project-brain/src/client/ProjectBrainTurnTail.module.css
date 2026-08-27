@@ -91,7 +91,7 @@
 .meetingResultNote { font-size:12px; color:var(--dsw-alias-label-tertiary); line-height:1.5; margin:10px 0; }
 .meetingResultActions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
 
-.briefingCard { display:flex; align-items:center; justify-content:space-between; gap:14px; margin:16px 0 4px; padding:14px 16px; border:1px solid color-mix(in srgb,var(--dsw-alias-state-business-primary) 25%,var(--dsw-alias-border-l2)); border-radius:12px; background:linear-gradient(110deg,color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,var(--dsw-alias-bg-elevated)),var(--dsw-alias-bg-elevated) 62%); box-shadow:0 10px 24px rgb(24 53 89 / 6%); }
+.briefingCard { display:flex; flex-direction:column; align-items:stretch; margin:16px 0 4px; padding:14px 16px; border:1px solid color-mix(in srgb,var(--dsw-alias-state-business-primary) 25%,var(--dsw-alias-border-l2)); border-radius:12px; background:linear-gradient(110deg,color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,var(--dsw-alias-bg-elevated)),var(--dsw-alias-bg-elevated) 62%); box-shadow:0 10px 24px rgb(24 53 89 / 6%); }
 .briefingCard span { display:block; color:var(--dsw-alias-label-primary); font-size:14px; font-weight:650; }
 .briefingCard p { margin:4px 0 0; color:var(--dsw-alias-label-tertiary); font-size:12px; line-height:18px; }
 .briefingReceipt .meetingResultHead { margin-bottom:12px; }
@@ -102,9 +102,8 @@
 .briefingFileSize { flex:none; color:var(--dsw-alias-label-tertiary); font-size:11px; white-space:nowrap; }
 .briefingDownload { display:inline-flex; align-items:center; justify-content:center; min-width:46px; padding:5px 9px; border:1px solid var(--dsw-alias-state-business-primary); border-radius:6px; color:var(--dsw-alias-state-business-primary); background:var(--dsw-alias-bg-elevated); font-size:12px; font-weight:600; text-decoration:none; cursor:pointer; }
 .briefingDownload:hover { background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,var(--dsw-alias-bg-elevated)); }
-.briefingFootnote { margin:10px 0 0; color:var(--dsw-alias-label-tertiary); font-size:11px; text-align:right; }
 
-@media (max-width: 560px) {
+@media (max-width: 760px) {
   .briefingCard { align-items:stretch; flex-direction:column; }
   .briefingCard .primary { width:100%; }
   .briefingFileRow { grid-template-columns:auto minmax(0,1fr) auto; row-gap:4px; }
@@ -112,4 +111,63 @@
   .briefingDownload { grid-row:1 / span 2; grid-column:3; align-self:center; }
   .meetingResultStats { flex-wrap:wrap; }
   .meetingResultStats div { min-width:90px; }
+}
+
+.briefingFooter {
+  align-items: center;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+
+.briefingCardHead {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.briefingCardHead .primary {
+  flex: none;
+}
+
+.briefingChoices {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.briefingChoice {
+  align-items: center;
+  background: var(--dsw-alias-bg-base);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  display: flex;
+  gap: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.briefingChoice:hover {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 30%, transparent);
+}
+
+.briefingChoice input[type="checkbox"] {
+  accent-color: var(--dsw-alias-state-business-primary);
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.briefingChoice span {
+  flex: 1;
+  font-size: 13px;
+}
+
+.briefingChoice small {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
 }

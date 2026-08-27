@@ -58,6 +58,8 @@ export interface ComposerAttachmentsOwnerProps {
   onRemoveDocument: (id: DraftAttachmentId) => void
   /** Display-ready limits for the drop invitation. */
   dropLimits?: { readonly count: number; readonly size: string } | undefined
+  /** Whether this session's drop path also accepts demo documents (project-brain preset). */
+  documentDrop?: boolean | undefined
 }
 
 /** Historical image group handed to the optional attachment presentation plugin. */

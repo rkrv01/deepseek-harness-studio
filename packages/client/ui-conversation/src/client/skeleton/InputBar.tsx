@@ -760,6 +760,7 @@ export function InputBar({
             count: imageLimits.maxImagesPerMessage,
             size: imageSizeText(imageLimits.maxImageBytes),
           },
+          documentDrop: projectBrainSession,
         })}
         {/* One scrollport, two text layers. The hidden mirror renders draft+'\n' and stretches the
             stack to the draft's FULL height (counting rows by '\n' cannot see soft wraps); the

@@ -11,7 +11,7 @@
       ],
       "thinking": "正在识别项目目标与建设范围，梳理阶段、关键路径和初始风险…",
       "presentation": { "mode": "document", "template": "project-launch" },
-      "stream": { "introDelayMs": 1000, "chunkChars": 128, "intervalMs": 300 },
+      "stream": { "introDelayMs": 1200, "chunkChars": 112, "intervalMs": 350 },
       "review": {
         "title": "方案已就绪",
         "summary": "确认后将按当前方案完成项目初始化",
@@ -35,7 +35,7 @@
       ],
       "thinking": "正在阅读会议纪要，识别关键讨论、决策与行动事项…",
       "presentation": { "mode": "document", "template": "meeting-analysis" },
-      "stream": { "introDelayMs": 1000, "chunkChars": 128, "intervalMs": 300 },
+      "stream": { "introDelayMs": 900, "chunkChars": 160, "intervalMs": 320 },
       "review": {
         "title": "会议任务拆解",
         "summary": "请确认以下事项后开始执行",
@@ -50,13 +50,13 @@
     {
       "id": "project-copilot",
       "priority": 10,
-      "title": "AI 项目托管",
-      "suggestion": "帮我托管这个项目",
-      "triggers": [{ "any": ["托管", "盯项目", "跟踪项目"] }],
-      "thinking": "正在识别需要持续跟踪的进度、风险和阻塞事项…",
+      "title": "智慧园区建设项目现状怎么样",
+      "suggestion": "智慧园区建设项目现状怎么样？",
+      "triggers": [{ "all": ["项目"], "any": ["现状怎么样", "什么情况", "进展如何", "有没有问题", "需要我关注"] }],
+      "thinking": "正在汇总托管期间的检查结果、已执行的跟进动作和待决策事项…",
       "presentation": { "mode": "surface", "template": "project-copilot-dashboard" },
-      "stream": { "introDelayMs": 800, "chunkChars": 128, "intervalMs": 260 },
-      "review": { "title": "托管方案已就绪", "summary": "确认后将持续监测项目变化", "confirmLabel": "开始托管", "editLabel": "调整托管规则" },
+      "stream": { "introDelayMs": 800, "chunkChars": 112, "intervalMs": 350 },
+      "review": { "title": "现状汇报已就绪", "summary": "确认后将持续监测项目变化", "confirmLabel": "开始托管", "editLabel": "调整托管规则" },
       "execution": { "title": "正在启用项目托管", "steps": ["建立进度监测", "配置风险阈值", "设置协调提醒"] }
     },
     {
@@ -67,7 +67,7 @@
       "triggers": [{ "any": ["今天该做什么", "今天到底该干什么", "今日事项"] }],
       "thinking": "正在结合你的角色、截止时间、任务依赖和项目风险安排今日工作…",
       "presentation": { "mode": "surface", "template": "my-day-workbench" },
-      "stream": { "introDelayMs": 800, "chunkChars": 128, "intervalMs": 240 },
+      "stream": { "introDelayMs": 800, "chunkChars": 112, "intervalMs": 350 },
       "review": { "title": "今日工作已排好", "summary": "按优先级从上到下推进", "confirmLabel": "开始今日工作", "editLabel": "调整优先级" },
       "execution": { "title": "今日工作进行中", "steps": ["处理紧急阻塞", "完成今日任务", "回传进度与成果"] }
     },
@@ -79,7 +79,7 @@
       "triggers": [{ "all": ["汇报"], "any": ["领导", "集团"] }],
       "thinking": "正在汇总项目进展、成果、关键风险和待决策事项…",
       "presentation": { "mode": "document", "template": "executive-briefing" },
-      "stream": { "introDelayMs": 900, "chunkChars": 128, "intervalMs": 280 },
+      "stream": { "introDelayMs": 1000, "chunkChars": 96, "intervalMs": 420 },
       "review": { "title": "汇报材料已就绪", "summary": "可继续调整口径与详细程度", "confirmLabel": "确认汇报材料", "editLabel": "调整汇报重点" },
       "execution": { "title": "正在生成汇报包", "steps": ["整理领导摘要", "生成数据图表", "归集待决策事项"] }
     }

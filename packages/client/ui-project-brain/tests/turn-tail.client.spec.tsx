@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { ProjectBrainTurnTail } from '../src/client/ProjectBrainTurnTail.tsx'
 import { ProjectReadyCard } from '../src/client/ProjectBrainMessageDock.tsx'
-import { createProjectBrainStore, launchProjectScenario } from '../src/client/state.ts'
+import { createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingPlanReady as applyMeetingPlanReady, markProjectPlanReady as applyProjectPlanReady } from '../src/client/state.ts'
 import type { ProjectBrainState } from '../src/client/state.ts'
 import { PROJECT_BRAIN_PLAN } from '../src/project-data.ts'
 import { PROJECT_BRAIN_PLATFORM_TARGET, isProjectBrainPlatformUrl } from '../src/client/platform-window.ts'
@@ -32,6 +32,46 @@ describe('ProjectBrainTurnTail', () => {
     fireEvent.click(view.getByRole('button', { name: '确认方案，开始执行' }))
     expect(confirmPlan).toHaveBeenCalledTimes(1)
     expect(view.getByRole('button', { name: '编辑项目方案' })).toBeTruthy()
+  })
+
+  it('marks the launch analysis ready as soon as its reply turn mounts, with no submit-time timer', () => {
+    const brain = createProjectBrainStore().create()
+    launchProjectScenario(brain, { text: '帮我启动智慧园区建设项目。', files: [] })
+    expect(brain.getSnapshot().phase).toBe('analyzing')
+    const planTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: '已识别到一个正在推进的园区建设项目。\n\n<!-- project-brain:launch-plan -->\n# 项目导入与初始化方案：智慧园区建设项目' }] }]]) }] }
+    const props = tailProps(brain, {
+      openDetails: vi.fn(),
+      confirmPlan: vi.fn(),
+      markPlanReady: () => applyProjectPlanReady(brain),
+      markExecuted: vi.fn(),
+      markExecutionFailed: vi.fn(),
+    })
+
+    const view = render(<ProjectBrainTurnTail {...props} turn={planTurn as never} />)
+    expect(brain.getSnapshot().phase).toBe('review-ready')
+    // The fixture store hook is not reactive, so one rerender reflects the flipped phase.
+    view.rerender(<ProjectBrainTurnTail {...props} turn={planTurn as never} />)
+    expect(view.getByRole('button', { name: '确认方案，开始执行' })).toBeTruthy()
+  })
+
+  it('marks the meeting analysis ready on mount so the breakdown card shows right after the reply', () => {
+    const brain = createProjectBrainStore().create()
+    launchMeetingScenario(brain)
+    expect(brain.getSnapshot().phase).toBe('analyzing')
+    const meetingTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: '<!-- project-brain:meeting-analysis -->\n## 会议纪要分析报告\n\n<!-- project-brain:meeting-plan -->\n### 行动事项识别结果' }] }]]) }] }
+    const props = tailProps(brain, {
+      openDetails: vi.fn(),
+      confirmMeetingPlan: vi.fn(),
+      markPlanReady: vi.fn(),
+      markMeetingPlanReady: () => applyMeetingPlanReady(brain),
+      markExecuted: vi.fn(),
+      markExecutionFailed: vi.fn(),
+    })
+
+    const view = render(<ProjectBrainTurnTail {...props} turn={meetingTurn as never} />)
+    expect(brain.getSnapshot().phase).toBe('review-ready')
+    view.rerender(<ProjectBrainTurnTail {...props} turn={meetingTurn as never} />)
+    expect(view.getByRole('region', { name: '会议任务拆解' })).toBeTruthy()
   })
 
   it('does not require scrollIntoView for the plan-ready card', () => {
@@ -82,23 +122,34 @@ describe('ProjectBrainTurnTail', () => {
     const view = render(<ProjectReadyCard plan={{ ...PROJECT_BRAIN_PLAN, documents: [] }} onContinue={onContinue} />)
     fireEvent.click(view.getByRole('button', { name: /帮我整理项目会议/ }))
     expect(onContinue).toHaveBeenCalledWith('meeting-actions')
-    expect(view.getByRole('button', { name: /帮我托管这个项目/ })).toBeTruthy()
+    expect(view.getByRole('button', { name: /智慧园区建设项目现状怎么样/ })).toBeTruthy()
   })
 
   it('renders an allow-listed interactive surface beneath its owning turn', () => {
     const brain = createProjectBrainStore().create()
-    const data = { date: '2026 年 8 月 26 日', owner: '张明', focusMinutes: 60, tasks: [{ id: 't1', title: '处理紧急任务', project: '智慧园区建设项目', due: '10:30 前', priority: '紧急', reason: '阻塞关键路径' }] }
+    const data = {
+      date: '2026 年 8 月 26 日', owner: '张明', role: '项目负责人',
+      headline: '今天先处理这 6 件事', subtitle: '已结合截止时间、项目风险、任务依赖和协作等待情况自动排序',
+      summary: { priority: 1, today: 1, meetings: 0, waiting: 0, projects: 2 },
+      groups: [{ id: 'priority', title: '优先处理', tone: 'risk', tasks: [
+        { id: 't1', title: '处理紧急任务', tags: ['紧急', '关键路径'], project: '智慧园区建设项目', due: '今天到期', reason: '阻塞关键路径', detail: ['它在关键路径上。'], primaryAction: '打开任务' },
+        { id: 't2', title: '跟进后续事项', tags: ['紧急'], project: '智慧园区建设项目', due: '今天到期', reason: '承接第一项的结果', detail: ['紧跟第一项推进。'], primaryAction: '催办协同' },
+      ] }],
+      deferred: [], doneToday: [], reorderNoticeTemplate: '已处理。剩余事项已经重新排序，「{title}」现在是你最需要优先处理的事项。',
+    }
     const turn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:surface ${projectBrainSurfacePayload('my-day', 'my-day-workbench', data)} -->` }] }]]) }] }
     const props = tailProps(brain)
     const view = render(<ProjectBrainTurnTail {...props} turn={turn as never} />)
     expect(view.getByRole('region', { name: '今日工作台' })).toBeTruthy()
-    const todoCheck = view.getByRole('checkbox', { name: '标记完成：处理紧急任务' })
-    expect(todoCheck.getAttribute('aria-checked')).toBe('false')
-    fireEvent.click(todoCheck)
-    expect(todoCheck.getAttribute('aria-checked')).toBe('true')
-    expect(view.getByText('100%')).toBeTruthy()
-    fireEvent.click(todoCheck)
-    expect(view.getByText('0%')).toBeTruthy()
+    expect(view.getByText('今天先处理这 6 件事')).toBeTruthy()
+    expect(view.getByText('①')).toBeTruthy()
+    fireEvent.click(view.getAllByRole('button', { name: '标记完成' })[0]!)
+    // 完成后任务移入今天已处理，看板出现重排提示
+    expect(view.getByText(/已处理。剩余事项已经重新排序/u)).toBeTruthy()
+    expect(view.getByText('今天已处理 · 1')).toBeTruthy()
+    // 完成后该任务卡（含打开任务动作）从分组消失，仅剩承接项
+    expect(view.queryByRole('button', { name: /打开任务/ })).toBeNull()
+    expect(view.getByText('跟进后续事项')).toBeTruthy()
   })
 
   it('renders the project-copilot dashboard surface with local permission switching', () => {
@@ -107,18 +158,40 @@ describe('ProjectBrainTurnTail', () => {
       projectName: PROJECT_BRAIN_PLAN.project.name,
       progress: PROJECT_BRAIN_PLAN.project.progress,
       permissionMode: '辅助执行模式',
-      trackingItems: [{ id: 'track-1', title: '设备采购交付', owner: '王刚', status: '高风险', description: '第二批设备交付预计延期 2 周。' }],
-      discoveries: { highRisks: 1, abnormalTasks: 2, dueSoon: 4, coordination: 3 },
-      decisions: [{ id: 'decision-1', title: '是否启用备选供应商', reason: '影响系统集成测试窗口。', owner: '张明', due: '今天 16:00 前' }],
-      nextPlan: ['16:00 跟进备选供应商报价', '明早汇总延期影响'],
+      agentStatus: { scope: '已检查 28 项任务 / 5 项风险 / 4 条会议待办', lastCheckAt: '刚刚完成项目检查', nextCheckAt: '下次自动检查 16:00' },
+      metrics: [
+        { id: 'progress', label: '项目进度', value: '45%', hint: '综合进度', tone: 'blue' },
+        { id: 'tracking', label: 'AI 跟进中', value: '3', hint: '2 项等待反馈', tone: 'green' },
+        { id: 'risks', label: '风险事项', value: '5', hint: '1 项高风险', tone: 'risk' },
+        { id: 'decisions', label: '需要你确认', value: '1', hint: '涉及采购方案', tone: 'warn' },
+      ],
+      tracking: [{ id: 'track-1', title: '设备采购交付', status: '高风险 · 等待供应商反馈', aiActions: ['AI 已催办：2 次'], latestFeedback: '供应商预计 8 月 28 日确认发货', nextStep: '明日上午再次确认交付时间' }],
+      findings: [{ id: 'find-1', label: '1 项高风险' }, { id: 'find-2', label: '2 项延期任务' }],
+      findingsNote: '采购风险等级由中风险上升为高风险。',
+      decisions: [{ id: 'decision-1', title: '设备采购是否升级处理？', context: '供应商仍未确认最终交期。', advice: '若明日仍无法确认交期，启动备选供应商。' }],
+      aiNarrative: { focus: ['设备采购延期影响设备安装节点。'], executed: ['已连续 2 次跟进设备采购负责人。'], needDecision: '若明天仍无法确认交期，建议启动备选供应商。', next: '明日上午再次确认交期。' },
+      overview: {
+        packages: [{ id: 'pkg-1', name: '设备采购包', done: 0, total: 3, status: '滞后' }],
+        taskStates: [{ label: '滞后', count: 1 }],
+        riskLevels: [{ level: '高风险', count: 1 }],
+        attention: [{ id: 'att-1', title: '确定备选供应商方案', owner: '王刚', delay: '延期 3 天', aiNote: 'AI 已催办 2 次' }],
+      },
+      nextPlan: ['明日上午再次确认设备采购交期'],
     }
     const turn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:surface ${projectBrainSurfacePayload('project-copilot', 'project-copilot-dashboard', data)} -->` }] }]]) }] }
     const props = tailProps(brain)
     const view = render(<ProjectBrainTurnTail {...props} turn={turn as never} />)
 
     expect(view.getByRole('region', { name: '项目托管看板' })).toBeTruthy()
-    expect(view.getByText(/AI 正在跟进/u)).toBeTruthy()
+    expect(view.getByText('AI 托管中')).toBeTruthy()
+    expect(view.getByRole('region', { name: 'AI 正在跟进' })).toBeTruthy()
     expect(view.getByText('设备采购交付')).toBeTruthy()
+    expect(view.getByText('AI 已催办：2 次')).toBeTruthy()
+    expect(view.getByRole('region', { name: '需要你处理' })).toBeTruthy()
+    // The AI wrap-up streams as reply text now; the surface renders only the board.
+    expect(view.queryByRole('complementary', { name: 'AI 项目经理小结' })).toBeNull()
+    fireEvent.click(view.getByRole('button', { name: '采用建议' }))
+    expect(view.getByText(/当前没有需要你立即处理的事项/u)).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: '托管模式' }))
     expect(view.getByText('当前权限：托管模式')).toBeTruthy()
   })
@@ -129,49 +202,59 @@ describe('ProjectBrainTurnTail', () => {
       date: '2026 年 8 月 26 日',
       owner: '张明',
       role: '项目负责人',
-      focusMinutes: 330,
-      summary: { urgent: 2, today: 2, meetings: 1, waiting: 1 },
-      tasks: [
-        { id: 'today-1', title: '确认安防摄像头备选供应商', project: PROJECT_BRAIN_PLAN.project.name, due: '10:30 前', priority: '紧急', group: '紧急处理', reason: '采购延期已影响系统集成关键路径', detail: '排在第一是因为它会直接影响系统集成测试窗口。', primaryAction: '打开任务' },
-        { id: 'today-2', title: '参加供应商协调会', project: PROJECT_BRAIN_PLAN.project.name, due: '14:00', priority: '会议', group: '会议', reason: '需要确认备选供应商交付承诺', detail: '会议结论会影响采购风险处置措施。', primaryAction: '查看会议' },
+      headline: '今天先处理这 6 件事',
+      subtitle: '已结合截止时间、项目风险、任务依赖和协作等待情况自动排序',
+      summary: { priority: 2, today: 1, meetings: 0, waiting: 0, projects: 3 },
+      groups: [
+        { id: 'priority', title: '优先处理', tone: 'risk', tasks: [
+          { id: 'today-1', title: '确认安防摄像头备选供应商', tags: ['紧急', '关键路径'], project: PROJECT_BRAIN_PLAN.project.name, due: '今天到期', reason: '采购延期已影响系统集成关键路径', detail: ['这项任务排在第一，主要有 3 个原因：', '· 采购延期已经影响项目关键路径。'], primaryAction: '打开任务' },
+          { id: 'today-2', title: '推动最小测试环境今日可用', tags: ['紧急'], project: '数据中心迁移项目', due: '今天到期', reason: '正在阻塞后续测试任务', detail: ['两件事都紧急，但它阻塞面更集中。'], primaryAction: '催办协同' },
+        ] },
+        { id: 'today', title: '今天完成', tone: 'blue', tasks: [
+          { id: 'today-3', title: '审阅设备选型方案终稿', tags: ['会议前置'], project: PROJECT_BRAIN_PLAN.project.name, due: '今天完成', reason: '评审会的重要依据', detail: ['属于会议前置材料。'], primaryAction: '查看资料' },
+        ] },
       ],
-      waiting: [{ id: 'wait-1', title: '甲方确认能耗模块变更范围', owner: '甲方项目办', since: '2 天前' }],
+      deferred: [{ id: 'deferred-1', title: '整理供应商历史资料', project: PROJECT_BRAIN_PLAN.project.name, reason: '不会影响今天的关键节点' }],
+      doneToday: [{ id: 'done-1', title: '回复测试账号权限申请' }],
+      reorderNoticeTemplate: '已处理。剩余事项已经重新排序，「{title}」现在是你最需要优先处理的事项。',
     }
     const turn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:surface ${projectBrainSurfacePayload('my-day', 'my-day-workbench', data)} -->` }] }]]) }] }
     const props = tailProps(brain)
     const view = render(<ProjectBrainTurnTail {...props} turn={turn as never} />)
 
     expect(view.getByRole('region', { name: '今日工作台' })).toBeTruthy()
-    expect(view.getByText('今日会议')).toBeTruthy()
-    const todoCheck = view.getByRole('checkbox', { name: '标记完成：确认安防摄像头备选供应商' })
+    expect(view.getByText('可以暂时放一放')).toBeTruthy()
+    expect(view.getByText('今天已处理 · 1')).toBeTruthy()
+    expect(view.getByText('①')).toBeTruthy()
+    expect(view.getByText('②')).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: /为什么排这里：确认安防摄像头备选供应商/u }))
-    expect(view.getByText(/排在第一/u)).toBeTruthy()
-    fireEvent.click(view.getByRole('button', { name: /标记完成：确认安防摄像头备选供应商/u }))
-    expect(todoCheck.getAttribute('aria-checked')).toBe('true')
-    expect(view.getByText('50%')).toBeTruthy()
+    expect(view.getByText(/这项任务排在第一/u)).toBeTruthy()
+    // 标记第一项完成后：任务移入已处理、提示剩余事项重排且第二项成为当前第一
+    fireEvent.click(view.getAllByRole('button', { name: '标记完成' })[0]!)
+    expect(view.getByText(/「推动最小测试环境今日可用」现在是你最需要优先处理的事项/u)).toBeTruthy()
+    expect(view.getByText('今天已处理 · 2')).toBeTruthy()
   })
 
-  it('shows executive briefing confirmation and receipt cards under the owning turn', () => {
+  it('shows the briefing material picker and a selected-materials receipt under the owning turn', () => {
     const brain = createProjectBrainStore().create()
     const confirmBriefing = vi.fn()
     const reviewTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `# 项目汇报\n\n<!-- project-brain:executive-briefing -->\n<!-- project-brain:scenario ${projectBrainScenarioPayload('executive-briefing', 'confirm', { projectId: PROJECT_BRAIN_PLAN.project.id })} -->` }] }]]) }] }
-    const receiptTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: '<!-- project-brain:executive-briefing-ready -->' }] }]]) }] }
+    const receiptTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:executive-briefing-ready -->\n<!-- project-brain:scenario ${projectBrainScenarioPayload('executive-briefing', 'confirm', { projectId: PROJECT_BRAIN_PLAN.project.id, materials: ['集团领导汇报_风险与协调事项.xlsx'] })} -->` }] }]]) }] }
     const props = tailProps(brain, { confirmBriefing })
 
     const review = render(<ProjectBrainTurnTail {...props} turn={reviewTurn as never} />)
-    fireEvent.click(review.getByRole('button', { name: '确认生成汇报包' }))
-    expect(confirmBriefing).toHaveBeenCalledTimes(1)
+    expect(review.getByRole('region', { name: '选择汇报材料' })).toBeTruthy()
+    expect(review.getAllByRole('checkbox')).toHaveLength(3)
+    expect((review.getByRole('checkbox', { name: '口头稿 Markdown' }) as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(review.getByRole('checkbox', { name: 'PPT提纲 PPT' }))
+    fireEvent.click(review.getByRole('button', { name: '生成所选材料' }))
+    expect(confirmBriefing).toHaveBeenCalledWith(['集团领导汇报_口头稿.md', '集团领导汇报_风险与协调事项.xlsx'])
 
     const receipt = render(<ProjectBrainTurnTail {...props} turn={receiptTurn as never} />)
-    expect(receipt.getByRole('region', { name: '汇报包已生成' })).toBeTruthy()
-    expect(receipt.getByText('集团领导汇报_项目进展.docx')).toBeTruthy()
-    expect(receipt.getByText('集团领导汇报_PPT提纲.pptx')).toBeTruthy()
+    expect(receipt.getByRole('region', { name: '所选材料已生成' })).toBeTruthy()
     expect(receipt.getByText('集团领导汇报_风险与协调事项.xlsx')).toBeTruthy()
-    expect(receipt.getByText('集团领导汇报_口头稿.md')).toBeTruthy()
-    expect(receipt.getByRole('link', { name: '下载 集团领导汇报_项目进展.docx' })).toBeTruthy()
-    expect(receipt.getByRole('link', { name: '下载 集团领导汇报_PPT提纲.pptx' })).toBeTruthy()
+    expect(receipt.queryByText('集团领导汇报_PPT提纲.pptx')).toBeNull()
     expect(receipt.getByRole('link', { name: '下载 集团领导汇报_风险与协调事项.xlsx' })).toBeTruthy()
-    expect(receipt.getByRole('link', { name: '下载 集团领导汇报_口头稿.md' })).toBeTruthy()
-    expect(receipt.getByText('演示数据 · 仅用于界面演示')).toBeTruthy()
+    expect(receipt.getByRole('button', { name: '一键全部下载' })).toBeTruthy()
   })
 })

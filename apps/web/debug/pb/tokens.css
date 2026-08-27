@@ -1,0 +1,16 @@
+/* 独立调试页用的主题近似 token。正式环境由主题插件注入，
+   这里给出一组接近默认值的基线；改动组件样式时以此为基准即可。 */
+:root {
+  --dsh-chat-content-width: 880px;
+  --dsw-alias-bg-base: #ffffff;
+  --dsw-alias-bg-elevated: #ffffff;
+  --dsw-alias-border-l2: #dfe7f1;
+  --dsw-alias-interactive-bg-hover: #eef3fa;
+  --dsw-alias-label-primary: #1c2733;
+  --dsw-alias-label-secondary: #4d5b6c;
+  --dsw-alias-label-tertiary: #8490a2;
+  --dsw-alias-state-business-primary: #2f6fed;
+  --dsw-alias-state-danger: #c9372c;
+  --dsw-alias-state-danger-primary: #cf3c42;
+  --dsw-alias-state-success: #22a06b;
+}

@@ -48,7 +48,7 @@
   "triggers": [{ "all": ["汇报"], "any": ["领导", "集团"] }],
   "thinking": "正在汇总项目进展、成果、关键风险和待决策事项…",
   "presentation": { "mode": "document", "template": "executive-briefing" },
-  "stream": { "introDelayMs": 900, "chunkChars": 128, "intervalMs": 280 },
+  "stream": { "introDelayMs": 900, "chunkChars": 112, "intervalMs": 350 },
   "review": {
     "title": "汇报材料已就绪",
     "summary": "可继续调整口径与详细程度",

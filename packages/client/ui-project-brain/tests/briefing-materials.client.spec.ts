@@ -1,31 +1,34 @@
 // @vitest-environment jsdom
 
-import { unzipSync } from 'fflate/browser'
 import { describe, expect, it } from 'vitest'
 import { BRIEFING_MATERIALS, createBriefingMaterialBlob } from '../src/client/briefing-materials.ts'
 
 describe('briefing materials', () => {
-  it('creates downloadable demo documents with valid Office or Markdown contents', async () => {
-    const expectedTypes = new Map([
-      ['集团领导汇报_项目进展.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-      ['集团领导汇报_PPT提纲.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
-      ['集团领导汇报_风险与协调事项.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-      ['集团领导汇报_口头稿.md', 'text/markdown;charset=utf-8'],
+  it('offers the three fixed presentation files, all preselected', () => {
+    expect(BRIEFING_MATERIALS).toHaveLength(3)
+    expect(BRIEFING_MATERIALS.map(material => material.name)).toEqual([
+      '集团领导汇报_口头稿.md',
+      '集团领导汇报_风险与协调事项.xlsx',
+      '集团领导汇报_PPT提纲.pptx',
+    ])
+    expect(BRIEFING_MATERIALS.every(material => material.defaultChecked)).toBe(true)
+  })
+
+  it('creates downloadable blobs from the embedded real files', async () => {
+    expect(BRIEFING_MATERIALS.map(material => createBriefingMaterialBlob(material.name).type)).toEqual([
+      'text/markdown;charset=utf-8',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     ])
 
     for (const material of BRIEFING_MATERIALS) {
-      const blob = createBriefingMaterialBlob(material.name)
-      expect(blob.type).toBe(expectedTypes.get(material.name))
-
-      const bytes = new Uint8Array(await blob.arrayBuffer())
+      const bytes = new Uint8Array(await createBriefingMaterialBlob(material.name).arrayBuffer())
       if (material.name.endsWith('.md')) {
-        expect(new TextDecoder().decode(bytes)).toContain('# 集团领导汇报口头稿')
+        expect(new TextDecoder().decode(bytes)).toContain('整体进度为 45%')
         continue
       }
-
-      const entries = Object.keys(unzipSync(bytes))
-      expect(entries).toContain('[Content_Types].xml')
-      expect(entries).toContain('_rels/.rels')
+      // Zip magic of the fixed Office files.
+      expect([bytes[0], bytes[1], bytes[2], bytes[3]]).toEqual([0x50, 0x4b, 0x03, 0x04])
     }
   })
 })

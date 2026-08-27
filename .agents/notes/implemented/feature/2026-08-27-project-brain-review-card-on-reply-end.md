@@ -1,0 +1,73 @@
+# Agent Note: Project Brain review cards appear when the reply ends
+
+Status: implemented
+
+English | [中文](2026-08-27-project-brain-review-card-on-reply-end.zh.md)
+
+## Problem
+
+The launch and meeting scenario review cards became visible only through submit-time timers (`14_000` ms and `7_000` ms measured from the moment the user message was sent). The timers raced the deterministic streams instead of following them: whenever a document streamed longer than its timer, the confirmation card appeared only after the text had already finished — the exact wait the demonstration was tuned to avoid — and slowing the streams would have made the mismatch worse because nothing flipped the phase once an over-long reply settled.
+
+Pacing lived in two disagreeing places at the same time. The scenario registry declared `{128 chars / 300 ms}` for every document while the demo adapter secretly streamed meeting analysis on a separate hardcoded `{192 chars / 220 ms}` track (~870 chars/s), so the registered meeting row was dead configuration and could not be tuned from the registry.
+
+## Decision
+
+Review readiness is event-driven. The analysis replies carry their private markers in the step data, so when the owning assistant turn ends and its `ProjectBrainTurnTail` mounts, one effect flips `analyzing`/`revising` to `review-ready` for both the project-launch and meeting-actions scenarios; the store actions keep their existing phase guards, which also prevents stale turns from dragging a completed session backwards. The two submit-time constants, their five `setTimeout` call sites, and the workbench revision timer are deleted.
+
+Stream pacing has one source: `scenarios.json`. The adapter resolves each reply kind to its owning scenario definition (new exported pure helper `replyStreamScenario`) and runs a single chunked-text generator that optionally opens with the scenario's thinking preamble; the bespoke execution-receipt and platform-retry presentations are unchanged. All five scenarios now stream visibly slower (~320 chars/s, meeting ~500) so long documents stay readable during the leadership demo.
+
+## Verification
+
+Focused Vitest suites for the demo adapter and browser plugin cover kind-to-scenario pacing resolution, the slowed registry values, and new TurnTail cases asserting that mounting an analysis turn flips the phase and renders the confirmation card without any timer. TypeScript builds of `ui-conversation`, `ui-project-brain`, and `project-brain-demo` pass together. A real-browser flow remains the checkpoint for perceived pacing before each demonstration.
+
+## Alternatives considered
+
+**Rebalance the fixed timers against stream duration.** Rejected because it reintroduces the race with every content or pacing edit, which is how the 7 s / 14 s values drifted in the first place.
+
+**Expose stream completion through the turn data.** Rejected because the turn tail only exists after the turn ends, so mount time already is the completion signal; plumbing a new flag would add protocol surface without changing observable behavior.
+
+## Consequences
+
+Confirmation cards now appear directly under the analysis text as soon as the stream settles, history restore keeps working because it reuses the same marker-based ownership rules, and future pacing changes are one `scenarios.json` row away. In exchange, runtime pacing depends solely on registry values, so deleting a scenario id must update the kind-mapping table alongside the registry.
+
+## Follow-up: trailing payloads also streamed at visible pace (2026-08-27, same day)
+
+The event-driven flip exposed a second delay source that had been hidden inside the old numbers: the meeting analysis document ends with a ~10 KB percent-encoded `project-brain:scenario` payload, and `streamScenarioText` was chunking the whole text — so after the last visible character the adapter kept crawling through kilobytes of invisible marker for several more seconds before finishing the turn. End to end the meeting flow took ~28 s with a ~20 s silent tail.
+
+`streamScenarioText` now splits off any trailing run of `<!-- project-brain:* -->` markers (`splitTrailingPrivateMarkers`) and attaches them in one unpaced delta, so the turn finishes right after the last visible character while every delta still concatenates to the original byte-for-byte stream. Measured on the live demo: reply wall time dropped from ~28 s to ~8 s and the confirmation card mounts immediately. The first regex attempt failed silently because real markers embed a keyword plus a space before the encoded payload (`scenario %7B...`), which the value charset rejected; the pattern now models `<keyword> [space payload]` explicitly, and a fake-clock regression test pins both delta fidelity and the post-visible-char budget. A practical restart lesson from verifying this fix: always confirm the listening PID's start time after a port-bound server "restart", because a short-circuited shell chain can leave the old process serving stale code with no error anywhere.
+
+## Follow-up 2: demo content pass per scenario briefs (2026-08-27, same day)
+
+A second demo-tuning round reshaped the input area and three scenario surfaces. Shortcuts now render permanently above the composer (guarded only by preset and empty draft) so one scenario flows into the next; the composer placeholder and the drag overlay gained project-brain-specific copy describing mixed image-and-document intake; document chips cap at 280px so long names ellipsize. Meeting revisions now send a `projectPlanRevision`-style readable summary with a `revision-summary` payload, reusing the existing collapsible details projection. The copilot scenario answers 「现状怎么样」 with an agent-manager dashboard (status strip, AI-tracking list with executed actions, findings-only anomalies, condensed decisions, low-emphasis overview), and the my-day workbench became a cross-project orchestration panel (numbered ordering across three projects, deferred area, done-today area, completion-driven reorder notice). The briefing review card now presents six selectable materials with four defaults and generates only the chosen set; the receipt restores the selection from its persisted confirm payload. Registry pacing for the briefing scenario slowed to ~230 chars/s.
+
+## Follow-up 3: real presentation files embedded for downloads (2026-08-27, same day)
+
+The briefing downloads were switched from client-generated placeholders to the three fixed presentation files (口头稿.md, 风险与协调事项.xlsx, PPT提纲.pptx), embedded verbatim into `src/briefing-assets.ts` as base64 constants generated from the presentation folder. `createBriefingMaterialBlob` now decodes those bytes (actual file content, correct MIME types) instead of fabricating minimal OOXML; the card offers all three preselected, generates only the chosen ones, and the receipt adds a one-click download of the whole selection. Regeneration note lives in the generated file header.
+
+## Follow-up 4: seven demo-polish fixes (2026-08-27, same day)
+
+- Drag overlay copy: the mixed image-and-document text was wired but its package bundle (`ui-attachment`) had not been rebuilt after the label change — rebuilt together with a unit test pinning the documents branch.
+- Workbench date picker popover now renders an opaque white background (the elevated token carries alpha, letting the editor beneath bleed through).
+- Copilot dashboard is narrowed to the chat column (no more whole-width bleed) and its 项目全貌 area gained proper inner padding, a fixed three-column grid, and vertical attention rows.
+- Ordering flip: the copilot handoff text carries only the surface marker, and the AI verdict/actions/decision/next narrative render as a conversation-style 小结 bubble below the dashboard.
+- My-day右栏 deferred/done blocks got their missing horizontal margins.
+- The briefing material picker gained real checkbox row styling (previously referenced CSS classes that did not exist).
+
+## Follow-up 5: configurable platform origin + interaction polish (2026-08-27, same day)
+
+- A settings namespace `project-brain` (host-registered with a schemastery schema) now owns `platformBaseUrl`; 设置 gains a 智脑平台 section (settings.section slot) bound through `ctx.settingsScope`. Every platform link (进入项目智脑, launch receipt link, my-day 打开任务, origin matching in the tab-reuse interceptor) and the demo-status connector now derive from this one configured origin; connector URL = config override or `${base}/demo-control/`.
+- Briefing picker button moved to the card header top-right; the receipt dropped its 演示数据 footnote.
+- My-day primary actions became a single 打开任务 link that opens the platform workbench route.
+- The copilot AI wrap-up moved OUT of the dashboard and renders as its own conversation-style block beneath the board.
+- The composer placeholder mentions drag-upload in every state.
+- Cordis hardened: both host and client plugins declare `settings`/`settingsScope` in `inject` (an undeclared access fails load), and settings namespaces must be kebab-case — two boot crashes caught and fixed.
+
+## Follow-up 6: round-three demo fixes (2026-08-27, same day)
+
+- Briefing picker card is a column now: header (title left, 生成所选材料 right) sits on top and the material list spans the full width below — the card had been a flex row that put header and list side by side.
+- The receipt dropped its remaining 固定演示文件 span (footer keeps only 一键全部下载, right-aligned). The older 演示数据 line the user still reported was a stale bundle, cleared by rebuild + restart.
+- The demo-status URL is config-only and resolved live. `DemoStatusSynchronizer` takes `string | (() => string)` and re-resolves per call: plugin `demoStatusApiUrl` config wins, otherwise `${智脑平台 platformBaseUrl}/demo-control/`. The real root cause of "the configured address does not take effect" was a hardcoded `demoStatusApiUrl` in `packages/bundle/web-app/cordis.patch.yml` overriding the settings value at every boot — removed; keep the override only for a genuinely separate endpoint. Every call logs `[project-brain-demo] demo-status: <endpoint> enabled=` server-side, and the client logs the resolved endpoint when an initialization turn mounts, so DevTools shows the address being used.
+- The copilot AI wrap-up is real reply text: `projectCopilotSurface()` streams a markdown 小结 (same four sections as the old card) as the assistant message, and the board mounts beneath it from the surface marker; the HTML narrative card and its CSS are deleted.
+- The copilot board container gains `padding: 20px` plus a staggered block reveal (nth-child delays, ~1.5 s total, zeroed under reduced motion), and the 今日发现 panel body shares a `.panelBody` padding with the other panels.
+- The my-day 打开任务 link now shares the button styling (radius 10px, no underline) after the switch to an `<a>`.
+- My-day and the copilot board both use `.surfaceNarrow`, so the two boards render at the same width.

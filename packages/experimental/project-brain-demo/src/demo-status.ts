@@ -32,11 +32,13 @@ export function createDemoStatusFetch(allowSelfSignedCertificate = false): DemoS
 export class DemoStatusSynchronizer {
   private tail: Promise<void> = Promise.resolve()
 
-  constructor(private readonly baseUrl: string, private readonly fetchImpl: DemoStatusFetch = fetch) {}
+  constructor(private readonly baseUrl: string | (() => string), private readonly fetchImpl: DemoStatusFetch = fetch) {}
 
   /** Queue one exact desired state behind any in-flight synchronization. */
   ensure(enabled: boolean): Promise<void> {
-    const operation = this.tail.then(() => ensureDemoStatus(this.baseUrl, enabled, this.fetchImpl))
+    const base = typeof this.baseUrl === 'function' ? this.baseUrl() : this.baseUrl
+    console.info('[project-brain-demo] demo-status:', demoStatusEndpoint(base), `enabled=${enabled}`)
+    const operation = this.tail.then(() => ensureDemoStatus(base, enabled, this.fetchImpl))
     this.tail = operation.catch(() => {})
     return operation
   }

@@ -1,6 +1,9 @@
 /** Canonical Project Brain demo data shared by the deterministic model and browser UI. */
 
-export const PROJECT_BRAIN_PLATFORM_URL = 'https://7koxhpk4.ipyingshe.net:54928/business-xmzn/#/projectAdmin'
+import { DEFAULT_PLATFORM_BASE_URL } from './client/platform-config.ts'
+
+/** Default business-app URL used by fixtures and tests; runtime links resolve the configured base instead. */
+export const PROJECT_BRAIN_PLATFORM_URL = `${DEFAULT_PLATFORM_BASE_URL}/business-xmzn/#/projectAdmin`
 
 export interface ProjectBrainProjectData {
   readonly id: string
@@ -19,10 +22,45 @@ export interface ProjectBrainProjectData {
   readonly platformUrl: string
 }
 
-export interface ProjectBrainStageData { readonly id: string; readonly name: string; readonly owner: string; readonly startDate: string; readonly endDate: string; readonly deliverable: string }
-export interface ProjectBrainTaskData { readonly id: string; readonly title: string; readonly owner: string; readonly startDate: string; readonly endDate: string; readonly dependency: string; readonly progress: number; readonly deliverable: string; readonly packageId: string }
-export interface ProjectBrainRiskData { readonly id: string; readonly title: string; readonly type: string; readonly level: string; readonly owner: string; readonly description: string; readonly impact: string; readonly mitigation: string; readonly relatedTaskId: string }
-export interface ProjectBrainMeetingData { readonly id: string; readonly title: string; readonly date: string; readonly host: string; readonly location: string; readonly summary: string; readonly actions: readonly { readonly title: string; readonly owner: string; readonly dueDate: string }[] }
+export interface ProjectBrainStageData {
+  readonly id: string
+  readonly name: string
+  readonly owner: string
+  readonly startDate: string
+  readonly endDate: string
+  readonly deliverable: string
+}
+export interface ProjectBrainTaskData {
+  readonly id: string
+  readonly title: string
+  readonly owner: string
+  readonly startDate: string
+  readonly endDate: string
+  readonly dependency: string
+  readonly progress: number
+  readonly deliverable: string
+  readonly packageId: string
+}
+export interface ProjectBrainRiskData {
+  readonly id: string
+  readonly title: string
+  readonly type: string
+  readonly level: string
+  readonly owner: string
+  readonly description: string
+  readonly impact: string
+  readonly mitigation: string
+  readonly relatedTaskId: string
+}
+export interface ProjectBrainMeetingData {
+  readonly id: string
+  readonly title: string
+  readonly date: string
+  readonly host: string
+  readonly location: string
+  readonly summary: string
+  readonly actions: readonly { readonly title: string; readonly owner: string; readonly dueDate: string }[]
+}
 export interface ProjectBrainKnowledgeDocument { readonly id: string; readonly title: string; readonly category: string; readonly fileName: string; readonly author: string; readonly status: '已发布' | '草稿'; readonly summary: string }
 export interface ProjectBrainPlanData {
   readonly project: ProjectBrainProjectData
@@ -34,34 +72,106 @@ export interface ProjectBrainPlanData {
   readonly knowledgeDocuments: readonly ProjectBrainKnowledgeDocument[]
 }
 
+/** One follow-up item the copilot agent is actively managing. */
+export interface ProjectBrainCopilotTrackingItem {
+  readonly id: string
+  readonly title: string
+  /** Short human status line, e.g. 「高风险 · 等待供应商反馈」. */
+  readonly status: string
+  /** Management actions the agent has already taken. */
+  readonly aiActions: readonly string[]
+  readonly latestFeedback?: string
+  readonly nextStep: string
+}
+
+/** One condensed decision surfaced to the owner. */
+export interface ProjectBrainCopilotDecision {
+  readonly id: string
+  readonly title: string
+  readonly context: string
+  readonly advice: string
+}
+
+/** Conversation-style wrap-up shown after the dashboard. */
+export interface ProjectBrainCopilotNarrative {
+  readonly focus: readonly string[]
+  readonly executed: readonly string[]
+  readonly needDecision: string
+  readonly next: string
+}
+
 export interface ProjectBrainCopilotData {
   readonly projectName: string
   readonly progress: number
   readonly permissionMode: string
-  readonly trackingItems: readonly { readonly id: string; readonly title: string; readonly owner: string; readonly status: string; readonly description: string }[]
-  readonly discoveries: { readonly highRisks: number; readonly abnormalTasks: number; readonly dueSoon: number; readonly coordination: number }
-  readonly decisions: readonly { readonly id: string; readonly title: string; readonly reason: string; readonly owner: string; readonly due: string }[]
+  /** Agent status strip shown above everything else. */
+  readonly agentStatus: { readonly scope: string; readonly lastCheckAt: string; readonly nextCheckAt: string }
+  /** Four hero metrics rendered in order: 进度 / AI 跟进中 / 风险 / 需要你确认. */
+  readonly metrics: readonly { readonly id: string; readonly label: string; readonly value: string; readonly hint: string; readonly tone: 'blue' | 'risk' | 'warn' | 'green' }[]
+  readonly tracking: readonly ProjectBrainCopilotTrackingItem[]
+  /** Today's anomalies and changes only, never the full dataset. */
+  readonly findings: readonly { readonly id: string; readonly label: string }[]
+  readonly findingsNote: string
+  readonly decisions: readonly ProjectBrainCopilotDecision[]
+  /** Post-dashboard conversation bubbles. */
+  readonly aiNarrative: ProjectBrainCopilotNarrative
+  /** Low-emphasis project-wide facts. */
+  readonly overview: {
+    readonly packages: readonly {
+      readonly id: string
+      readonly name: string
+      readonly done: number
+      readonly total: number
+      readonly status: string
+    }[]
+    readonly taskStates: readonly { readonly label: string; readonly count: number }[]
+    readonly riskLevels: readonly { readonly level: string; readonly count: number }[]
+    readonly attention: readonly { readonly id: string; readonly title: string; readonly owner: string; readonly delay: string; readonly aiNote: string }[]
+  }
   readonly nextPlan: readonly string[]
+}
+
+/** One orchestrated item on the personal workbench. */
+export interface ProjectBrainMyDayTask {
+  readonly id: string
+  readonly title: string
+  /** Status chips rendered before the project chip, e.g. 紧急 / 关键路径. */
+  readonly tags: readonly string[]
+  readonly project: string
+  readonly due: string
+  readonly reason: string
+  /** Multi-line explanation shown behind 「为什么排这里」, one bullet per line. */
+  readonly detail: readonly string[]
+  readonly primaryAction: string
+}
+
+/** A titled cluster of workbench tasks, e.g. 优先处理 / 今天完成. */
+export interface ProjectBrainMyDayGroup {
+  readonly id: string
+  readonly title: string
+  readonly tone: 'risk' | 'blue' | 'warn' | 'green'
+  readonly tasks: readonly ProjectBrainMyDayTask[]
 }
 
 export interface ProjectBrainMyDayData {
   readonly date: string
   readonly owner: string
   readonly role: string
-  readonly focusMinutes: number
-  readonly summary: { readonly urgent: number; readonly today: number; readonly meetings: number; readonly waiting: number }
-  readonly tasks: readonly {
-    readonly id: string
-    readonly title: string
-    readonly project: string
-    readonly due: string
-    readonly priority: '紧急' | '今日' | '会议' | '等待'
-    readonly group: string
-    readonly reason: string
-    readonly detail: string
-    readonly primaryAction: string
-  }[]
-  readonly waiting: readonly { readonly id: string; readonly title: string; readonly owner: string; readonly since: string }[]
+  readonly headline: string
+  readonly subtitle: string
+  readonly summary: {
+    readonly priority: number
+    readonly today: number
+    readonly meetings: number
+    readonly waiting: number
+    readonly projects: number
+  }
+  readonly groups: readonly ProjectBrainMyDayGroup[]
+  /** Items explicitly deprioritized for today. */
+  readonly deferred: readonly { readonly id: string; readonly title: string; readonly project: string; readonly reason: string }[]
+  readonly doneToday: readonly { readonly id: string; readonly title: string }[]
+  /** Demo-local reorder notice shown once a task is marked complete. */
+  readonly reorderNoticeTemplate: string
 }
 
 /**
@@ -103,43 +213,138 @@ export const PROJECT_BRAIN_PLAN: ProjectBrainPlanData = {
   ],
 }
 
-/** Visual dashboard data for the AI project-copilot scenario. */
+/** Visual dashboard data for the AI project-copilot scenario (doc 03: 托管 Agent 汇报). */
 export const PROJECT_BRAIN_COPILOT_DEMO: ProjectBrainCopilotData = {
   projectName: PROJECT_BRAIN_PLAN.project.name,
   progress: PROJECT_BRAIN_PLAN.project.progress,
   permissionMode: '辅助执行模式',
-  trackingItems: [
-    { id: 'copilot-track-1', title: '设备采购交付', owner: '王刚', status: '高风险', description: '第二批安防摄像头预计延期 2 周，已影响系统集成测试窗口。' },
-    { id: 'copilot-track-2', title: '最小测试环境', owner: '刘洋', status: '需跟进', description: '服务器资源已批复，但机房改造仍需确认现场时间。' },
-    { id: 'copilot-track-3', title: '能耗模块变更', owner: '张明', status: '待决策', description: '甲方新增需求预计带来 15% 工作量，需要确认变更边界。' },
+  agentStatus: { scope: '已检查 28 项任务 / 5 项风险 / 4 条会议待办', lastCheckAt: '刚刚完成项目检查', nextCheckAt: '下次自动检查 16:00' },
+  metrics: [
+    { id: 'progress', label: '项目进度', value: '45%', hint: '综合进度', tone: 'blue' },
+    { id: 'tracking', label: 'AI 跟进中', value: '3', hint: '2 项等待反馈', tone: 'green' },
+    { id: 'risks', label: '风险事项', value: '5', hint: '1 项高风险', tone: 'risk' },
+    { id: 'decisions', label: '需要你确认', value: '1', hint: '涉及采购方案', tone: 'warn' },
   ],
-  discoveries: { highRisks: 1, abnormalTasks: 2, dueSoon: 4, coordination: 3 },
+  tracking: [
+    { id: 'track-1', title: '设备采购交付', status: '高风险 · 等待供应商反馈', aiActions: ['AI 已催办：2 次'], latestFeedback: '供应商预计 8 月 28 日确认发货', nextStep: '明日上午再次确认交付时间' },
+    { id: 'track-2', title: '测试环境搭建', status: '延期 5 天', aiActions: ['AI 已提醒负责人'], latestFeedback: '等待新的完成时间', nextStep: '今日 17:00 自动再次跟进' },
+    { id: 'track-3', title: '备选供应商方案', status: '延期 3 天', aiActions: ['AI 已提升优先级', '当前负责人：王刚'], nextStep: '若明日仍未完成，建议升级处理' },
+  ],
+  findings: [
+    { id: 'find-1', label: '1 项高风险' },
+    { id: 'find-2', label: '2 项延期任务' },
+    { id: 'find-3', label: '1 个关键节点可能受影响' },
+    { id: 'find-4', label: '2 项事项仍在等待反馈' },
+  ],
+  findingsNote: '采购风险等级由中风险上升为高风险。',
   decisions: [
-    { id: 'copilot-decision-1', title: '是否启用备选供应商', reason: '采购延期是当前最大风险，需在供应商报价到齐后确定切换策略。', owner: '张明', due: '今天 16:00 前' },
-    { id: 'copilot-decision-2', title: '是否压缩集成测试批次', reason: '测试环境延迟会挤压联调窗口，需要决定是否先保障安防链路。', owner: '刘洋', due: '明天 10:00 前' },
-    { id: 'copilot-decision-3', title: '能耗模块是否纳入本期', reason: '新增范围可能影响成本与验收口径，需要甲方与集团统一意见。', owner: '张明', due: '本周五前' },
+    { id: 'decision-1', title: '设备采购是否升级处理？', context: '供应商仍未确认最终交期，若继续延期可能影响设备安装节点。', advice: '若明日仍无法确认交期，启动备选供应商。' },
   ],
-  nextPlan: ['16:00 跟进备选供应商报价与交期承诺', '明早自动检查 demo-sub-006 集成任务阻塞状态', '周五生成托管周报草稿并标出需协调事项'],
+  aiNarrative: {
+    focus: ['设备采购延期风险：供应商预计延迟约 2 周，可能影响设备安装节点。', '测试环境搭建延期 5 天：已经开始压缩后续集成测试时间。', '备选供应商方案延期 3 天：如主供应商继续延期，备用方案准备不足。'],
+    executed: ['已连续 2 次跟进设备采购负责人，并获取供应商最新反馈。', '已提醒测试环境负责人更新完成时间，明日 17:00 将自动再次跟进。', '已将备选供应商方案提升为优先跟进事项，其他普通任务无需你介入。'],
+    needDecision: '如果供应商明天仍无法确认最终交期，我建议启动备选供应商方案。',
+    next: '我会在明日上午再次确认设备采购交期，并在今天 17:00 检查测试环境负责人反馈。采购风险继续扩大或关键节点受影响时，我会第一时间提醒你。',
+  },
+  overview: {
+    packages: [
+      { id: 'pkg-1', name: '方案设计包', done: 2, total: 2, status: '已完成' },
+      { id: 'pkg-2', name: '设备采购包', done: 0, total: 3, status: '滞后' },
+      { id: 'pkg-3', name: '系统集成包', done: 1, total: 3, status: '进行中' },
+      { id: 'pkg-4', name: '验收交付包', done: 0, total: 1, status: '准备中' },
+    ],
+    taskStates: [{ label: '完成', count: 2 }, { label: '正常', count: 5 }, { label: '临期', count: 0 }, { label: '滞后', count: 1 }],
+    riskLevels: [{ level: '高风险', count: 1 }, { level: '中风险', count: 2 }, { level: '低风险', count: 2 }],
+    attention: [
+      { id: 'att-1', title: '确定备选供应商方案', owner: '王刚', delay: '延期 3 天', aiNote: 'AI 已催办 2 次 · 最新反馈：今日下班前提交' },
+      { id: 'att-2', title: '安防摄像头采购（第二批）', owner: '王刚', delay: '预计延期 2 周', aiNote: 'AI 已要求分批交货承诺，并启动备选评估' },
+    ],
+  },
+  nextPlan: ['明日上午再次确认设备采购交期', '今日 17:00 检查测试环境负责人反馈', '采购风险继续扩大或关键节点受影响时立即提醒'],
 }
 
-/** Personal workbench data for the "what should I do today" scenario. */
+/** Cross-project workbench for the personal-assistant scenario (doc 04). */
 export const PROJECT_BRAIN_MY_DAY_DEMO: ProjectBrainMyDayData = {
   date: '2026 年 8 月 26 日',
   owner: '张明',
   role: '项目负责人',
-  focusMinutes: 360,
-  summary: { urgent: 2, today: 2, meetings: 1, waiting: 1 },
-  tasks: [
-    { id: 'today-1', title: '确认安防摄像头备选供应商', project: PROJECT_BRAIN_PLAN.project.name, due: '10:30 前', priority: '紧急', group: '紧急处理', reason: '采购延期已影响系统集成关键路径', detail: '排在第一是因为它直接决定第二批设备能否按新计划到货，若今天不确认，系统集成测试窗口会继续被压缩。', primaryAction: '打开任务' },
-    { id: 'today-2', title: '推动最小测试环境今日可用', project: PROJECT_BRAIN_PLAN.project.name, due: '12:00 前', priority: '紧急', group: '紧急处理', reason: '测试环境延迟会放大采购延期影响', detail: '它排在第二，因为服务器资源已批复，只差现场改造时间确认，今天推进能为安防系统对接争取缓冲。', primaryAction: '催办协同' },
-    { id: 'today-3', title: '审阅设备选型方案终稿', project: PROJECT_BRAIN_PLAN.project.name, due: '15:00 前', priority: '今日', group: '今日完成', reason: '明天采购决策会需要明确选型依据', detail: '这项不是最高风险，但会影响供应商评估质量，适合安排在上午阻塞事项处理后完成。', primaryAction: '查看资料' },
-    { id: 'today-4', title: '更新采购延期风险缓解措施', project: PROJECT_BRAIN_PLAN.project.name, due: '下班前', priority: '今日', group: '今日完成', reason: '风险等级已升高，需要同步台账口径', detail: '风险处置措施需要跟随会议结论更新，便于明天自动生成周报和托管提醒。', primaryAction: '更新风险' },
-    { id: 'today-5', title: '参加供应商协调会', project: PROJECT_BRAIN_PLAN.project.name, due: '14:00', priority: '会议', group: '今日会议', reason: '确认备选供应商报价、交期和违约责任', detail: '会议安排在下午，前置工作是先拿到备选供应商基本信息；会议后会自动沉淀行动项。', primaryAction: '查看会议' },
-    { id: 'today-6', title: '等待甲方确认能耗模块变更范围', project: PROJECT_BRAIN_PLAN.project.name, due: '待反馈', priority: '等待', group: '等待反馈', reason: '变更范围未确认前不建议投入详细设计', detail: '这项暂不建议主动开工，只需发送一次提醒并等待甲方明确是否纳入本期验收。', primaryAction: '发送提醒' },
+  headline: '今天先处理这 6 件事',
+  subtitle: '已结合截止时间、项目风险、任务依赖和协作等待情况自动排序',
+  summary: { priority: 2, today: 2, meetings: 1, waiting: 1, projects: 3 },
+  groups: [
+    {
+      id: 'priority',
+      title: '优先处理',
+      tone: 'risk',
+      tasks: [
+        {
+          id: 'today-1', title: '确认安防摄像头备选供应商', tags: ['紧急', '关键路径'], project: PROJECT_BRAIN_PLAN.project.name, due: '今天到期',
+          reason: '采购延期已影响系统集成关键路径，后续 2 项任务正在等待该结果。',
+          detail: ['这项任务排在第一，主要有 3 个原因：', '· 采购延期已经影响项目关键路径；', '· 后续 2 项任务正在等待供应商确认；', '· 该事项今天需要完成。', '综合影响范围和紧急程度，它是当前最值得优先处理的事项。'],
+          primaryAction: '打开任务',
+        },
+        {
+          id: 'today-2', title: '推动最小测试环境今日可用', tags: ['紧急', '任务阻塞'], project: '数据中心迁移项目', due: '今天到期',
+          reason: '测试环境已经延期，当前正在阻塞后续测试任务。',
+          detail: ['这项排在第二：两件事都紧急，但当前它阻塞的是后续测试任务本身。', '· 供应商确认影响的是更长的关键链路；', '· 测试环境的阻塞面集中在本周集成计划内。', '因此它紧随第一项之后推进。'],
+          primaryAction: '催办协同',
+        },
+      ],
+    },
+    {
+      id: 'today',
+      title: '今天完成',
+      tone: 'blue',
+      tasks: [
+        {
+          id: 'today-3', title: '审阅设备选型方案终稿', tags: ['会议前置'], project: PROJECT_BRAIN_PLAN.project.name, due: '今天完成',
+          reason: '项目评审会将讨论设备选型，该方案是会议决策的重要依据。',
+          detail: ['它在今天完成区：不立即阻塞他人，但属于明天采购决策会的前置材料。', '错过今天，会议决策质量会受影响。'],
+          primaryAction: '查看资料',
+        },
+        {
+          id: 'today-4', title: '更新采购延期风险缓解措施', tags: ['风险更新'], project: PROJECT_BRAIN_PLAN.project.name, due: '今天完成',
+          reason: '风险等级已经升高，需要同步更新处置方案。',
+          detail: ['该风险的应对措施需跟随最新会议结论更新，便于自动生成周报和托管提醒。'],
+          primaryAction: '更新风险',
+        },
+      ],
+    },
+    {
+      id: 'meeting',
+      title: '今日会议',
+      tone: 'warn',
+      tasks: [
+        {
+          id: 'today-5', title: '参加供应商协调会', tags: ['会议'], project: PROJECT_BRAIN_PLAN.project.name, due: '今日 14:00',
+          reason: '需要确认备选供应商报价、交期以及风险责任。',
+          detail: ['AI 已整理 3 个与你相关的会议议题：', '· 备选供应商报价对比结论；', '· 分批交货承诺与违约责任条款；', '· 原供应商产能恢复可能性。', '议题整理与今天上午的催办结果直接相关。'],
+          primaryAction: '查看会议准备',
+        },
+      ],
+    },
+    {
+      id: 'waiting',
+      title: '别人正在等你',
+      tone: 'green',
+      tasks: [
+        {
+          id: 'today-6', title: '确认能耗模块变更范围', tags: ['等待反馈'], project: '能源管理升级项目', due: '已等待 2 天',
+          reason: '变更范围尚未确认，对方暂时无法进入后续详细设计。',
+          detail: ['这是唯一一项别人因为你而等待的事项：', '· 甲方项目办已等待 2 天；', '· 确认后才能进入详细设计排期。', '不是最高优先级，但建议今天完成。'],
+          primaryAction: '发送反馈',
+        },
+      ],
+    },
   ],
-  waiting: [
-    { id: 'wait-1', title: '甲方确认能耗模块变更范围', owner: '甲方项目办', since: '已等待 2 天' },
+  deferred: [
+    { id: 'deferred-1', title: '整理供应商历史资料', project: PROJECT_BRAIN_PLAN.project.name, reason: '当前没有任务依赖，也不会影响今天的关键节点，因此没有进入今日重点事项。' },
   ],
+  doneToday: [
+    { id: 'done-1', title: '回复测试账号权限申请' },
+    { id: 'done-2', title: '确认供应商初步报价' },
+  ],
+  reorderNoticeTemplate: '已处理。剩余事项已经重新排序，「{title}」现在是你最需要优先处理的事项。',
 }
 
 /** Mock meeting minutes text simulating the 5th weekly project meeting. */

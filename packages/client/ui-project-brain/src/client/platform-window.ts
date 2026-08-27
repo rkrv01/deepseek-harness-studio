@@ -1,15 +1,16 @@
-import { PROJECT_BRAIN_PLATFORM_URL } from '../project-data.ts'
+import { platformBaseUrl } from './platform-config.ts'
 
 /** Stable window name that lets Project Brain return to its already-open platform page. */
 export const PROJECT_BRAIN_PLATFORM_TARGET = 'project-brain-platform'
 
-const platformUrl = new URL(PROJECT_BRAIN_PLATFORM_URL)
+/** Business-app route prefix the link matcher recognises under any configured platform origin. */
+const PLATFORM_APP_PATHNAME = '/business-xmzn/'
 
 /** Match platform routes while allowing its hash-based child pages and query parameters to vary. */
 export function isProjectBrainPlatformUrl(value: string): boolean {
   try {
     const url = new URL(value)
-    return url.origin === platformUrl.origin && url.pathname.startsWith('/business-xmzn/')
+    return url.origin === new URL(platformBaseUrl()).origin && url.pathname.startsWith(PLATFORM_APP_PATHNAME)
   } catch {
     return false
   }

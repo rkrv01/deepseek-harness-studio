@@ -15,6 +15,7 @@ export interface ProjectBrainTurnTailInjected {
   openDetails: () => void
   restorePlan: () => void
   restoreMeetingPlan: (items: readonly ProjectBrainMeetingActionItem[]) => void
+  markPlanReady: () => void
   confirmPlan: () => void
   retryPlatformData: () => void
   continueProjectAction: (actionId: ProjectBrainNextAction['id']) => void
@@ -23,11 +24,11 @@ export interface ProjectBrainTurnTailInjected {
   confirmMeetingPlan: () => void
   markMeetingPlanReady: () => void
   markMeetingExecuted: () => void
-  confirmBriefing: () => void
+  confirmBriefing: (materials: readonly string[]) => void
 }
 
 /** Render scenario controls only beneath the assistant turn that owns them. */
-export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetails, restorePlan, restoreMeetingPlan, confirmPlan, retryPlatformData, continueProjectAction, markExecuted, markExecutionFailed, confirmMeetingPlan, markMeetingPlanReady, markMeetingExecuted: markMeetingExecutedCb, confirmBriefing }: PropsRuntime<'conversation.chat.turnTail'> & InjectFace<ProjectBrainTurnTailInjected>) {
+export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetails, restorePlan, restoreMeetingPlan, markPlanReady, confirmPlan, retryPlatformData, continueProjectAction, markExecuted, markExecutionFailed, confirmMeetingPlan, markMeetingPlanReady, markMeetingExecuted: markMeetingExecutedCb, confirmBriefing }: PropsRuntime<'conversation.chat.turnTail'> & InjectFace<ProjectBrainTurnTailInjected>) {
   const state = useProjectBrain(s => s)
   const cardRef = useRef<HTMLDivElement>(null)
   const turnText = turn?.steps.flatMap(step => step.data.get('assistant-step')?.blocks ?? []).filter(block => block.kind === 'text').map(block => block.text).join('') ?? ''
@@ -41,6 +42,8 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
   const meetingExecutionTurn = turnText.includes('project-brain:meeting-executed') || envelope?.scenarioId === 'meeting-actions' && envelope.action === 'confirm'
   const briefingReviewTurn = turnText.includes('project-brain:executive-briefing') || envelope?.scenarioId === 'executive-briefing' && envelope.action === 'confirm'
   const briefingReadyTurn = turnText.includes('project-brain:executive-briefing-ready')
+  const briefingEnvelope = briefingReadyTurn ? envelope : null
+  const briefingMaterialNames = extractBriefingMaterialNames(briefingEnvelope?.payload)
   const meetingPayload = envelope?.scenarioId === 'meeting-actions' && Array.isArray(envelope.payload)
     ? envelope.payload as readonly ProjectBrainMeetingActionItem[]
     : MEETING_ANALYSIS_MOCK.actionItems
@@ -62,6 +65,9 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
   useEffect(() => {
     if (turnText.includes('project-brain:platform-ready')) markExecuted()
     if (turnText.includes('project-brain:platform-failed')) markExecutionFailed()
+    // The analysis reply is fully streamed once its turn tail mounts, so the review
+    // phase flips here instead of on a submit-time timer that races the stream.
+    if (projectPlanTurn && (state.phase === 'analyzing' || state.phase === 'revising')) markPlanReady()
     if (meetingPlanTurn && (state.phase === 'analyzing' || state.phase === 'revising')) markMeetingPlanReady()
     if (meetingExecutionTurn && turnText.includes('project-brain:meeting-executed')) markMeetingExecutedCb()
   }, [
@@ -69,16 +75,18 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
     markExecutionFailed,
     markMeetingPlanReady,
     markMeetingExecutedCb,
+    markPlanReady,
     meetingExecutionTurn,
     meetingPlanTurn,
+    projectPlanTurn,
     state.phase,
     turnText,
   ])
 
   if (!enabled()) return null
   if (surface !== null) return <ProjectBrainScenarioSurface surface={surface} />
-  if (briefingReadyTurn) return <ExecutiveBriefingReceiptCard />
-  if (briefingReviewTurn) return <ExecutiveBriefingReviewCard onConfirm={confirmBriefing} />
+  if (briefingReadyTurn) return <ExecutiveBriefingReceiptCard materials={briefingMaterialNames} />
+  if (briefingReviewTurn) return <BriefingMaterialPickerCard onConfirm={confirmBriefing} />
   if (state.activeScenario === 'project-launch' && state.phase === 'review-ready' && projectPlanTurn) {
     const scenario = projectBrainScenario('project-launch')
     return (
@@ -100,14 +108,57 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
   return null
 }
 
-function ExecutiveBriefingReviewCard({ onConfirm }: { readonly onConfirm: () => void }): JSX.Element {
-  return <section className={css.briefingCard} aria-label="汇报材料确认">
-    <div><span>汇报材料已就绪</span><p>确认后生成领导摘要、口头稿和 PPT 提纲演示包。</p></div>
-    <button type="button" className={css.primary} onClick={onConfirm}>确认生成汇报包</button>
+/** Material-choice card: pick this round's deliverables instead of a blind confirm. */
+function BriefingMaterialPickerCard({ onConfirm }: { readonly onConfirm: (materials: readonly string[]) => void }): JSX.Element {
+  const [selected, setSelected] = useState<ReadonlySet<string>>(
+    () => new Set(BRIEFING_MATERIALS.filter(material => material.defaultChecked).map(material => material.name)),
+  )
+  return <section className={css.briefingCard} aria-label="选择汇报材料">
+    <div className={css.briefingCardHead}>
+      <div>
+        <span>汇报材料已就绪</span>
+        <p>选择本次需要生成的材料</p>
+      </div>
+      <button type="button" className={css.primary} disabled={selected.size === 0} onClick={() => { onConfirm([...selected]) }}>生成所选材料</button>
+    </div>
+    <div className={css.briefingChoices}>
+      {BRIEFING_MATERIALS.map((material) => {
+        const checked = selected.has(material.name)
+        return (
+          <label key={material.name} className={css.briefingChoice}>
+            <input
+              type="checkbox"
+              checked={checked}
+              aria-label={`${material.name.replace(/^集团领导汇报_/, '').replace(/\.[^.]+$/u, '')} ${material.kind}`}
+              onChange={() => { setSelected(current => toggleNameSet(current, material.name)) }}
+            />
+            <span>{material.name.replace(/^集团领导汇报_/, '').replace(/\.[^.]+$/u, '')}</span>
+            <small>{material.kind}</small>
+          </label>
+        )
+      })}
+    </div>
   </section>
 }
 
-function ExecutiveBriefingReceiptCard(): JSX.Element {
+/** Extract the confirmed material names from a receipt-turn confirm envelope, defaulting to the full package. */
+function extractBriefingMaterialNames(payload: unknown): readonly string[] {
+  if (typeof payload !== 'object' || payload === null) return BRIEFING_MATERIALS.map(material => material.name)
+  const materials = (payload as { readonly materials?: unknown }).materials
+  if (!Array.isArray(materials)) return BRIEFING_MATERIALS.map(material => material.name)
+  const known = new Set(BRIEFING_MATERIALS.map(material => material.name))
+  const selected = materials.filter((name): name is string => typeof name === 'string' && known.has(name))
+  return selected.length > 0 ? selected : BRIEFING_MATERIALS.map(material => material.name)
+}
+
+function toggleNameSet(current: ReadonlySet<string>, name: string): ReadonlySet<string> {
+  const next = new Set(current)
+  if (next.has(name)) next.delete(name)
+  else next.add(name)
+  return next
+}
+
+function ExecutiveBriefingReceiptCard({ materials }: { readonly materials: readonly string[] }): JSX.Element {
   const downloadMaterial = (name: string): void => {
     const url = URL.createObjectURL(createBriefingMaterialBlob(name))
     const link = document.createElement('a')
@@ -117,17 +168,22 @@ function ExecutiveBriefingReceiptCard(): JSX.Element {
     window.setTimeout(() => { URL.revokeObjectURL(url) }, 0)
   }
 
-  return <section className={`${css.meetingResult} ${css.briefingReceipt}`} aria-label="汇报包已生成">
+  /** One-click download of every material generated this round. */
+  const downloadAll = (): void => {
+    for (const name of materials) downloadMaterial(name)
+  }
+
+  return <section className={`${css.meetingResult} ${css.briefingReceipt}`} aria-label="所选材料已生成">
     <div className={css.meetingResultHead}>
       <span className={css.meetingResultMark}>✓</span>
       <div>
-        <p>汇报包已生成</p>
+        <p>所选材料已生成</p>
         <h3>{PROJECT_BRAIN_PLAN.project.name}</h3>
-        <small>已整理为集团领导汇报口径</small>
+        <small>报告文件已就绪，可单个下载或一键全部下载</small>
       </div>
     </div>
     <div className={css.briefingFileList}>
-      {BRIEFING_MATERIALS.map(material => (
+      {BRIEFING_MATERIALS.filter(material => materials.includes(material.name)).map(material => (
         <div key={material.name} className={css.briefingFileRow}>
           <span className={css.briefingBadge}>{material.kind}</span>
           <span className={css.briefingFileName}>{material.name}</span>
@@ -142,7 +198,9 @@ function ExecutiveBriefingReceiptCard(): JSX.Element {
         </div>
       ))}
     </div>
-    <p className={css.briefingFootnote}>演示数据 · 仅用于界面演示</p>
+    <div className={css.briefingFooter}>
+      <button type="button" className={css.primary} onClick={downloadAll}>一键全部下载</button>
+    </div>
   </section>
 }
 

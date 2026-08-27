@@ -3,7 +3,7 @@ import type { ClientContext, EngineStoreInstance, ObservableSnapshot, SessionId 
 import type { ConversationSubmitHandler, IConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { confirmMeetingExecution, createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingExecuted, markMeetingPlanReady, markProjectExecuted, markProjectExecutionFailed, markProjectPlanReady, prepareNextProjectAction, projectPlanRevision, projectPlanRevisionDetailsPayload, restoreMeetingPlan, restoreProjectLaunchPlan, retryProjectPlatformData, startProjectExecution, submitMeetingRevision, submitProjectPlanRevision } from './state.ts'
+import { confirmMeetingExecution, createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingExecuted, markMeetingPlanReady, markProjectExecuted, markProjectExecutionFailed, markProjectPlanReady, meetingRevision, prepareNextProjectAction, projectPlanRevision, projectPlanRevisionDetailsPayload, restoreMeetingPlan, restoreProjectLaunchPlan, retryProjectPlatformData, startProjectExecution, submitMeetingRevision, submitProjectPlanRevision } from './state.ts'
 import type { ProjectBrainNextAction, ProjectBrainState } from './state.ts'
 import { PROJECT_BRAIN_PLAN } from '../project-data.ts'
 import type { ProjectBrainMeetingActionItem } from '../project-data.ts'
@@ -14,11 +14,12 @@ import { ProjectBrainWorkbench } from './ProjectBrainWorkbench.tsx'
 import type { ProjectBrainWorkbenchInjected } from './ProjectBrainWorkbench.tsx'
 import { ProjectBrainTurnTail } from './ProjectBrainTurnTail.tsx'
 import { isProjectBrainPlatformUrl, openProjectBrainPlatform } from './platform-window.ts'
+import { setPlatformBaseProvider, DEFAULT_PLATFORM_BASE_URL } from './platform-config.ts'
+import { PlatformSettingsSection } from './PlatformSettingsSection.tsx'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 
-/** Mirrors the deterministic launch response's presentation duration. */
-export const PROJECT_BRAIN_PLAN_READY_DELAY_MS = 14_000
-/** Meeting analysis is shorter than launch planning and should not hold the confirmation card after the text settles. */
-export const PROJECT_BRAIN_MEETING_READY_DELAY_MS = 7_000
+/** Settings namespace mirroring the host demo adapter's `projectBrain` namespace. */
+const PROJECT_BRAIN_SETTINGS_NS = 'project-brain'
 
 export type {
   ProjectBrainFileMeta, ProjectBrainLaunchPlan, ProjectBrainMessage,
@@ -27,11 +28,20 @@ export type {
 } from './state.ts'
 
 /** Services required by the browser plugin. */
-export const inject = ['slots', 'sessions', 'layout', 'conversation']
+export const inject = ['slots', 'sessions', 'layout', 'conversation', 'settingsScope']
 
 /** Register Project Brain demo surfaces and the deterministic submit handler. */
 export function apply(ctx: ClientContext): void {
   const stores = new Map<SessionId, EngineStoreInstance<ProjectBrainState, {}>>()
+  const platformScope = ctx.settingsScope?.bind({
+    namespace: PROJECT_BRAIN_SETTINGS_NS,
+    decode: (value: unknown) => (
+      typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? value as { readonly platformBaseUrl?: string }
+        : undefined
+    ),
+  })
+  setPlatformBaseProvider(() => platformScope?.getSnapshot().value?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL)
   const brainFor = (sessionId: SessionId): EngineStoreInstance<ProjectBrainState, {}> => {
     const existing = stores.get(sessionId)
     if (existing !== undefined) return existing
@@ -52,18 +62,12 @@ export function apply(ctx: ClientContext): void {
       if (!enabled(request.sessionId)) return undefined
       const brain = brainFor(request.sessionId)
       const envelope = parseProjectBrainScenarioPayload(request.text)
-      if (envelope?.scenarioId === 'project-launch' && envelope.action === 'revision') {
-        window.setTimeout(() => { markProjectPlanReady(brain) }, PROJECT_BRAIN_PLAN_READY_DELAY_MS)
-        return undefined
-      }
+      if (envelope?.scenarioId === 'project-launch' && envelope.action === 'revision') return undefined
       if (envelope?.scenarioId === 'project-launch' && envelope.action === 'confirm') {
         startProjectExecution(brain)
         return undefined
       }
-      if (envelope?.scenarioId === 'meeting-actions' && envelope.action === 'revision') {
-        window.setTimeout(() => { markMeetingPlanReady(brain) }, PROJECT_BRAIN_MEETING_READY_DELAY_MS)
-        return undefined
-      }
+      if (envelope?.scenarioId === 'meeting-actions' && envelope.action === 'revision') return undefined
       if (envelope?.scenarioId === 'meeting-actions' && envelope.action === 'confirm') {
         confirmMeetingExecution(brain)
         return undefined
@@ -73,18 +77,8 @@ export function apply(ctx: ClientContext): void {
         return undefined
       }
       const scenario = matchProjectBrainScenario(request.text)
-      if (scenario?.id === 'meeting-actions') {
-        launchMeetingScenario(brain)
-        window.setTimeout(() => { markMeetingPlanReady(brain) }, PROJECT_BRAIN_MEETING_READY_DELAY_MS)
-        return undefined
-      }
-      if (scenario?.id === 'project-launch') {
-        const outcome = launchProjectScenario(brain, {
-          text: request.text,
-          files: request.documentMetas.map(document => ({ ...document })),
-        })
-        if (outcome.kind === 'success') window.setTimeout(() => { markProjectPlanReady(brain) }, PROJECT_BRAIN_PLAN_READY_DELAY_MS)
-      }
+      if (scenario?.id === 'meeting-actions') launchMeetingScenario(brain)
+      if (scenario?.id === 'project-launch') launchProjectScenario(brain, { text: request.text, files: request.documentMetas.map(document => ({ ...document })) })
       return undefined
     }
     return conversation.registerSubmitHandler(handler)
@@ -123,11 +117,13 @@ export function apply(ctx: ClientContext): void {
         hooks: hooksFor(sessionId),
         closeDetails: () => { ctx.layout.closeDetails() },
         submitMeetingRevision: async (items) => {
+          const before = brain.getSnapshot().meetingItems
+          const revision = meetingRevision(before, items)
           submitMeetingRevision(brain, items)
           ctx.layout.closeDetails()
           await ctx.sessions.binding(sessionId)?.session.prompt([{
             type: 'text',
-            text: `已调整会议任务，请重新生成会议任务拆解。\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('meeting-actions', 'revision', items)} -->`,
+            text: `${revision.summary}\n\n<!-- project-brain:revision-summary ${projectPlanRevisionDetailsPayload(revision.details)} -->\n<!-- project-brain:scenario ${projectBrainScenarioPayload('meeting-actions', 'revision', items)} -->`,
           }], 'queue')
         },
         submitRevision: async (plan) => {
@@ -136,7 +132,6 @@ export function apply(ctx: ClientContext): void {
           const revision = projectPlanRevision(current, plan)
           submitProjectPlanRevision(brain, plan)
           ctx.layout.closeDetails()
-          window.setTimeout(() => { markProjectPlanReady(brain) }, PROJECT_BRAIN_PLAN_READY_DELAY_MS)
           await ctx.sessions.binding(sessionId)?.session.prompt([{
             type: 'text',
             text: `${revision.summary}\n\n<!-- project-brain:revision-summary ${projectPlanRevisionDetailsPayload(revision.details)} -->\n<!-- project-brain:scenario ${projectBrainScenarioPayload('project-launch', 'revision', plan)} -->`,
@@ -158,6 +153,7 @@ export function apply(ctx: ClientContext): void {
         openDetails: () => { ctx.layout.openDetails(840, 400) },
         restorePlan: () => { restoreProjectLaunchPlan(brain) },
         restoreMeetingPlan: (items: readonly ProjectBrainMeetingActionItem[]) => { restoreMeetingPlan(brain, items) },
+        markPlanReady: () => { markProjectPlanReady(brain) },
         confirmPlan: () => {
           const snapshot = brain.getSnapshot()
           if (snapshot.plan === null || snapshot.phase !== 'review-ready' || snapshot.activeScenario !== 'project-launch') return
@@ -189,12 +185,20 @@ export function apply(ctx: ClientContext): void {
         },
         markMeetingPlanReady: () => { markMeetingPlanReady(brain) },
         markMeetingExecuted: () => { markMeetingExecuted(brain) },
-        confirmBriefing: () => {
+        confirmBriefing: (materials: readonly string[]) => {
           void ctx.sessions.binding(sessionId)?.session.prompt([{
-            type: 'text', text: `确认生成汇报包。\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('executive-briefing', 'confirm', { projectId: PROJECT_BRAIN_PLAN.project.id, projectName: PROJECT_BRAIN_PLAN.project.name, progress: PROJECT_BRAIN_PLAN.project.progress })} -->`,
+            type: 'text', text: `确认生成所选汇报材料（${materials.length} 项）。\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('executive-briefing', 'confirm', { projectId: PROJECT_BRAIN_PLAN.project.id, projectName: PROJECT_BRAIN_PLAN.project.name, progress: PROJECT_BRAIN_PLAN.project.progress, materials })} -->`,
           }], 'queue')
         },
       }
     },
   }, ProjectBrainTurnTail))
+
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'project-brain-platform',
+    order: 80,
+    label: () => '智脑平台',
+    inject: (): { readonly scope: typeof platformScope } => ({ scope: platformScope }),
+  }, PlatformSettingsSection))
 }

@@ -57,7 +57,8 @@
     - id: project-brain-demo
       name: '@deepseek-ai/dsh-experimental-project-brain-demo'
       config:
-        demoStatusApiUrl: 'https://7koxhpk4.ipyingshe.net:54928/demo-control/'
+        # demo-status 地址不在此硬编码：默认取 设置 → 智脑平台 的 platformBaseUrl；
+        # 如需独立端点，可在此显式配置 demoStatusApiUrl 覆盖。
         demoStatusAllowSelfSignedCertificate: true
 
     - id: code-runtime

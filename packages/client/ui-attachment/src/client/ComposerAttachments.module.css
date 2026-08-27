@@ -18,7 +18,8 @@
   border-radius: 999px;
   display: inline-flex;
   gap: 7px;
-  max-width: 100%;
+  /* Cap one chip so long names ellipsize instead of pushing siblings to new rows. */
+  max-width: 280px;
   min-width: 0;
   padding: 4px 5px 4px 8px;
 }

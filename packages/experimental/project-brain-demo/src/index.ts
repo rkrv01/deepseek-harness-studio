@@ -9,31 +9,25 @@ import {
   type LlmResolvedModelInfo,
   type StreamChunk,
 } from '@deepseek-ai/dsh-llm'
-import { resolveProjectBrainReply } from './scenario.ts'
-import type { ProjectBrainReply } from './scenario.ts'
+import { resolveProjectBrainReply, setDemoPlatformBase } from './scenario.ts'
+import type { ProjectBrainReply, ProjectBrainReplyKind } from './scenario.ts'
 import { createDemoStatusFetch, DemoStatusSynchronizer } from './demo-status.ts'
 import { projectBrainScenario } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
-import type { ProjectBrainScenarioId } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
+import type { ProjectBrainScenarioDefinition, ProjectBrainScenarioId } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
+import { DEFAULT_PLATFORM_BASE_URL, PROJECT_BRAIN_DEMO_STATUS_BASE_PATH } from '@deepseek-ai/dsh-client-ui-project-brain/src/client/platform-config.ts'
+import z from '@deepseek-ai/schemastery'
+import { settingsNamespace } from '@deepseek-ai/dsh-settings'
+import '@deepseek-ai/dsh-settings'
 
 export { PROJECT_BRAIN_PLAN, resolveProjectBrainReply } from './scenario.ts'
 export type { ProjectBrainPlanData, ProjectBrainReply, ProjectBrainReplyKind } from './scenario.ts'
 
 const PROVIDER = 'project-brain-demo'
 const MODEL = 'project-brain-demo'
-const DEFAULT_DEMO_STATUS_API_URL = 'https://7koxhpk4.ipyingshe.net:54928/demo-control/'
 const PROJECT_EXECUTION_SYNC_DELAY_MS = 4_000
-/** Presentation pacing for the scripted project launch response. */
-export const PROJECT_BRAIN_STREAM_CONFIG = {
-  introDelayMs: 1_000,
-  chunkChars: 128,
-  intervalMs: 300,
-} as const
-/** Faster pacing for the meeting-minutes scene, whose document is already task-detail heavy. */
-export const PROJECT_BRAIN_MEETING_STREAM_CONFIG = {
-  introDelayMs: 700,
-  chunkChars: 192,
-  intervalMs: 220,
-} as const
+
+/** Settings namespace owning the configurable platform origin. */
+export const PROJECT_BRAIN_SETTINGS_NS = 'project-brain'
 
 class ProjectBrainDemoAdapter extends LlmAdapter {
   constructor(private readonly synchronizeDemoStatus: (enabled: boolean) => Promise<void>) { super() }
@@ -65,8 +59,32 @@ export interface ProjectBrainDemoConfig {
 
 /** Register the deterministic adapter with the platform demo-status endpoint. */
 export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
-  const demoStatusApiUrl = config.demoStatusApiUrl ?? DEFAULT_DEMO_STATUS_API_URL
-  const synchronizer = new DemoStatusSynchronizer(demoStatusApiUrl, createDemoStatusFetch(config.demoStatusAllowSelfSignedCertificate ?? true))
+  // The platform origin is user-configurable through 设置 → 智脑平台. Without a
+  // mounted settings provider the demo keeps resolving its default origin.
+  const platformScope = ctx.settings?.register(settingsNamespace(PROJECT_BRAIN_SETTINGS_NS), z.object({
+    platformBaseUrl: z.string().default(DEFAULT_PLATFORM_BASE_URL),
+  }))
+  // Server-side sync of the scripted-reply links; the demo-status getter reads the scope live below.
+  const syncPlatformBase = (): void => {
+    const configured = platformScope?.get()?.platformBaseUrl
+    console.info('[project-brain-demo] platform base:', configured)
+    setDemoPlatformBase(configured)
+  }
+  ctx.effect(() => {
+    syncPlatformBase()
+    const off = platformScope?.watch(() => { syncPlatformBase() })
+    return () => { off?.() }
+  }, 'project-brain: platform base sync')
+
+  // Resolved per call from the settings scope so a 智脑平台 change repoints synchronization without a restart.
+  const demoStatusBase = (): string => {
+    const origin = platformScope?.get()?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL
+    return config.demoStatusApiUrl ?? `${origin}${PROJECT_BRAIN_DEMO_STATUS_BASE_PATH}`
+  }
+  const synchronizer = new DemoStatusSynchronizer(
+    demoStatusBase,
+    createDemoStatusFetch(config.demoStatusAllowSelfSignedCertificate ?? true),
+  )
   const registration = ctx.llm.registerAdapter([PROVIDER], new ProjectBrainDemoAdapter(enabled => synchronizer.ensure(enabled)))
   ctx.effect(() => registration, 'project-brain-demo: adapter')
   const mounted = new WeakSet<Agent>()
@@ -93,7 +111,7 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
 }
 
 export const name = 'project-brain-demo'
-export const inject = ['llm']
+export const inject = ['llm', 'settings']
 
 function latestUserText(options: GenerateOptions): string {
   for (let i = options.messages.length - 1; i >= 0; i -= 1) {
@@ -108,43 +126,85 @@ function latestUserText(options: GenerateOptions): string {
   return ''
 }
 
-async function* streamReply(text: string, signal: AbortSignal, showLaunchThinking = false): AsyncIterable<StreamChunk> {
-  if (signal.aborted) return
-  if (showLaunchThinking) {
-    const thinking = '正在识别项目目标与建设范围，梳理阶段、关键路径和初始风险…'
+/** Replies whose scripted presentation opens with the scenario's thinking preamble. */
+const THINKING_REPLY_KINDS: ReadonlySet<ProjectBrainReplyKind> = new Set(['launch-plan', 'meeting-analysis', 'handoff', 'executive-briefing'])
+
+/** Owning scenario for reply kinds that do not carry a scenario id. */
+const REPLY_KIND_SCENARIOS: Partial<Record<ProjectBrainReplyKind, ProjectBrainScenarioId>> = {
+  'launch-plan': 'project-launch',
+  'launch-receipt': 'project-launch',
+  'meeting-analysis': 'meeting-actions',
+  'meeting-receipt': 'meeting-actions',
+  'executive-briefing': 'executive-briefing',
+  'briefing-receipt': 'executive-briefing',
+  note: 'my-day',
+  'platform-retry': 'project-launch',
+  fallback: 'project-launch',
+}
+
+/** Resolve the scenario whose registered stream pacing applies to one reply. */
+export function replyStreamScenario(reply: Pick<ProjectBrainReply, 'kind' | 'scenarioId'>): ProjectBrainScenarioDefinition {
+  if (reply.scenarioId !== undefined) return projectBrainScenario(reply.scenarioId)
+  return projectBrainScenario(REPLY_KIND_SCENARIOS[reply.kind] ?? 'project-launch')
+}
+
+interface ScenarioTextOptions { readonly thinking?: string }
+
+/** Split off a trailing run of invisible private payloads so they do not spend paced stream time after the visible reply.
+ * Markers are `<kind> [space-encoded-payload]`, e.g. `<!-- project-brain:scenario %7B... -->` or a bare `<!-- project-brain:platform-ready -->`. */
+export function splitTrailingPrivateMarkers(text: string): { readonly visible: string; readonly hidden: string } {
+  const match = /(?:\s*<!-- project-brain:\S+(?: [A-Za-z0-9%._~-]+)? -->)+\s*$/u.exec(text)
+  if (match?.index === undefined) return { visible: text, hidden: '' }
+  return { visible: text.slice(0, match.index), hidden: text.slice(match.index) }
+}
+
+/**
+ * Stream one deterministic document in chunks paced by the scenario registry.
+ * @param text Complete document content including any trailing private payloads.
+ * @param scenario Scenario whose registered stream pacing applies.
+ * @param signal Abort signal that stops the presentation early.
+ * @param options Optional thinking preamble rendered before the document.
+ */
+export async function* streamScenarioText(text: string, scenario: ProjectBrainScenarioDefinition, signal: AbortSignal, options: ScenarioTextOptions = {}): AsyncIterable<StreamChunk> {
+  const { introDelayMs, chunkChars, intervalMs } = scenario.stream
+  const { visible, hidden } = splitTrailingPrivateMarkers(text)
+  let index = 0
+  if (options.thinking !== undefined) {
     yield { type: 'block-start', index: 0, blockType: 'reasoning' }
-    await delay(700, signal)
+    await delay(800, signal)
     if (signal.aborted) return
-    yield { type: 'reasoning-delta', index: 0, text: thinking }
-    await delay(1_300, signal)
+    yield { type: 'reasoning-delta', index: 0, text: options.thinking }
+    await delay(1_200, signal)
     if (signal.aborted) return
-    yield { type: 'block-end', index: 0, block: { type: 'reasoning', text: thinking } }
+    yield { type: 'block-end', index: 0, block: { type: 'reasoning', text: options.thinking } }
+    index = 1
   }
-  const textIndex = showLaunchThinking ? 1 : 0
-  yield { type: 'block-start', index: textIndex, blockType: 'text' }
-  for (let offset = 0; offset < text.length; offset += PROJECT_BRAIN_STREAM_CONFIG.chunkChars) {
-    await delay(offset === 0 ? PROJECT_BRAIN_STREAM_CONFIG.introDelayMs : PROJECT_BRAIN_STREAM_CONFIG.intervalMs, signal)
+  yield { type: 'block-start', index, blockType: 'text' }
+  for (let offset = 0; offset < visible.length; offset += chunkChars) {
+    await delay(offset === 0 ? introDelayMs : intervalMs, signal)
     if (signal.aborted) return
-    yield { type: 'text-delta', index: textIndex, text: text.slice(offset, offset + PROJECT_BRAIN_STREAM_CONFIG.chunkChars) }
+    yield { type: 'text-delta', index, text: visible.slice(offset, offset + chunkChars) }
   }
-  if (signal.aborted) return
-  yield { type: 'block-end', index: textIndex, block: { type: 'text', text } }
+  if (hidden !== '') {
+    // Invisible payloads carry no waiting experience: attach them immediately so the
+    // turn completes right after the last visible character instead of crawling
+    // through kilobytes of percent-encoded data at visible-presentation speed.
+    if (signal.aborted) return
+    yield { type: 'text-delta', index, text: hidden }
+  }
+  yield { type: 'block-end', index, block: { type: 'text', text } }
   yield { type: 'usage', usage: { inputTokens: 128, outputTokens: text.length } }
   yield { type: 'finish', reason: { kind: 'stop' } }
 }
 
-/** Synchronize the platform data switch around the scripted launch lifecycle. */
+/** Stream a scripted reply with its optional thinking preamble and scenario pacing. */
+async function* streamDeterministicReply(reply: ProjectBrainReply, signal: AbortSignal): AsyncIterable<StreamChunk> {
+  const thinking = THINKING_REPLY_KINDS.has(reply.kind) ? replyStreamScenario(reply).thinking : undefined
+  yield* streamScenarioText(reply.text, replyStreamScenario(reply), signal, thinking === undefined ? {} : { thinking })
+}
+
+/** Route one scripted reply through its streaming presentation and platform synchronization duties. */
 async function* streamProjectBrainReply(reply: ProjectBrainReply, signal: AbortSignal, synchronizeDemoStatus: (enabled: boolean) => Promise<void>): AsyncIterable<StreamChunk> {
-  if (reply.kind === 'launch-plan') {
-    try {
-      await synchronizeDemoStatus(false)
-    } catch {
-      yield* streamReply('## 平台模拟数据暂不可用\n\n未能在初始化前关闭平台模拟数据，请确认服务连接后重新发起项目导入。\n\n<!-- project-brain:platform-failed -->', signal)
-      return
-    }
-    yield* streamReply(reply.text, signal, true)
-    return
-  }
   if (reply.kind === 'launch-receipt') {
     yield* streamExecutionReceipt(reply.text, signal, synchronizeDemoStatus)
     return
@@ -153,80 +213,15 @@ async function* streamProjectBrainReply(reply: ProjectBrainReply, signal: AbortS
     yield* streamPlatformRetry(signal, synchronizeDemoStatus)
     return
   }
-  if (reply.kind === 'meeting-analysis') {
-    yield* streamMeetingAnalysis(reply.text, signal)
-    return
+  if (reply.kind === 'launch-plan') {
+    try {
+      await synchronizeDemoStatus(false)
+    } catch {
+      yield* streamScenarioText('## 平台模拟数据暂不可用\n\n未能在初始化前关闭平台模拟数据，请确认服务连接后重新发起项目导入。\n\n<!-- project-brain:platform-failed -->', replyStreamScenario(reply), signal)
+      return
+    }
   }
-  if (reply.kind === 'meeting-receipt') {
-    yield* streamMeetingExecution(reply.text, signal)
-    return
-  }
-  if (reply.kind === 'executive-briefing') {
-    yield* streamScenarioWithThinking(reply, 'executive-briefing', signal)
-    return
-  }
-  if (reply.kind === 'briefing-receipt') {
-    yield* streamReply(reply.text, signal)
-    return
-  }
-  if (reply.kind === 'handoff' && reply.scenarioId !== undefined) {
-    yield* streamScenarioWithThinking(reply, reply.scenarioId, signal)
-    return
-  }
-  yield* streamReply(reply.text, signal)
-}
-
-/** Stream the meeting analysis with a thinking preamble and timed chunks. */
-async function* streamMeetingAnalysis(text: string, signal: AbortSignal): AsyncIterable<StreamChunk> {
-  const thinking = '正在阅读会议纪要，识别关键讨论、决策与行动事项…'
-  yield { type: 'block-start', index: 0, blockType: 'reasoning' }
-  await delay(800, signal)
-  if (signal.aborted) return
-  yield { type: 'reasoning-delta', index: 0, text: thinking }
-  await delay(1_200, signal)
-  if (signal.aborted) return
-  yield { type: 'block-end', index: 0, block: { type: 'reasoning', text: thinking } }
-  // Text block at index 1 (reasoning occupies index 0) — using index 0 here
-  // would overwrite the reasoning block and the text would vanish on finish.
-  yield { type: 'block-start', index: 1, blockType: 'text' }
-  for (let offset = 0; offset < text.length; offset += PROJECT_BRAIN_MEETING_STREAM_CONFIG.chunkChars) {
-    await delay(offset === 0 ? PROJECT_BRAIN_MEETING_STREAM_CONFIG.introDelayMs : PROJECT_BRAIN_MEETING_STREAM_CONFIG.intervalMs, signal)
-    if (signal.aborted) return
-    yield { type: 'text-delta', index: 1, text: text.slice(offset, offset + PROJECT_BRAIN_MEETING_STREAM_CONFIG.chunkChars) }
-  }
-  if (signal.aborted) return
-  yield { type: 'block-end', index: 1, block: { type: 'text', text } }
-  yield { type: 'usage', usage: { inputTokens: 128, outputTokens: text.length } }
-  yield { type: 'finish', reason: { kind: 'stop' } }
-}
-
-/** Stream the meeting execution progress with simulated steps. */
-async function* streamMeetingExecution(text: string, signal: AbortSignal): AsyncIterable<StreamChunk> {
-  yield* streamReply(text, signal)
-}
-
-/** Stream a scenario reply with a thinking preamble and per-scenario pacing from the registry. */
-async function* streamScenarioWithThinking(reply: ProjectBrainReply, scenarioId: ProjectBrainScenarioId, signal: AbortSignal): AsyncIterable<StreamChunk> {
-  const scenario = projectBrainScenario(scenarioId)
-  const { introDelayMs, chunkChars, intervalMs } = scenario.stream
-  const thinking = scenario.thinking
-  yield { type: 'block-start', index: 0, blockType: 'reasoning' }
-  await delay(800, signal)
-  if (signal.aborted) return
-  yield { type: 'reasoning-delta', index: 0, text: thinking }
-  await delay(1_200, signal)
-  if (signal.aborted) return
-  yield { type: 'block-end', index: 0, block: { type: 'reasoning', text: thinking } }
-  yield { type: 'block-start', index: 1, blockType: 'text' }
-  for (let offset = 0; offset < reply.text.length; offset += chunkChars) {
-    await delay(offset === 0 ? introDelayMs : intervalMs, signal)
-    if (signal.aborted) return
-    yield { type: 'text-delta', index: 1, text: reply.text.slice(offset, offset + chunkChars) }
-  }
-  if (signal.aborted) return
-  yield { type: 'block-end', index: 1, block: { type: 'text', text: reply.text } }
-  yield { type: 'usage', usage: { inputTokens: 128, outputTokens: reply.text.length } }
-  yield { type: 'finish', reason: { kind: 'stop' } }
+  yield* streamDeterministicReply(reply, signal)
 }
 
 /** Retry the external-platform synchronization without replaying initialization steps. */

@@ -11,7 +11,12 @@ export type ProjectBrainRisk = ProjectBrainRiskData
 export type { ProjectBrainPlanData }
 
 /** Browser-retained document metadata; file bytes never leave the browser. */
-export interface ProjectBrainFileMeta { readonly name: string; readonly type: string; readonly size: number; readonly lastModified?: number }
+export interface ProjectBrainFileMeta {
+  readonly name: string
+  readonly type: string
+  readonly size: number
+  readonly lastModified?: number
+}
 export interface ProjectBrainLaunchPlan extends ProjectBrainPlanData { readonly documents: readonly ProjectBrainFileMeta[] }
 export interface ProjectBrainMessage { readonly id: string; readonly role: 'user' | 'assistant'; readonly text: string }
 export interface ProjectBrainNextAction { readonly id: Exclude<ProjectBrainScenarioId, 'project-launch'>; readonly title: string; readonly description: string; readonly prompt: string }
@@ -28,7 +33,7 @@ export interface ProjectBrainLaunchOutcome { readonly kind: 'success' | 'ignored
 
 const NEXT_ACTIONS: readonly ProjectBrainNextAction[] = [
   { id: 'meeting-actions', title: '帮我整理项目会议', description: '上传会议纪要后，把事项、责任人和截止时间落到项目里。', prompt: '帮我整理这个项目的会议纪要，把里面的事项落到项目里。' },
-  { id: 'project-copilot', title: '帮我托管这个项目', description: '每天自动看进度、风险和阻塞，需要我处理时再提醒。', prompt: '从今天开始帮我托管这个项目，重点盯进度、风险和需要我协调的事项。' },
+  { id: 'project-copilot', title: '看看项目现状怎么样', description: 'AI 以托管视角汇报现状、已执行的跟进与需要你决策的事项。', prompt: '智慧园区建设项目现状怎么样？' },
   { id: 'my-day', title: '看看我今天该做什么', description: '按角色、任务状态和紧急程度，整理今天的个人工作清单。', prompt: '基于这个项目，帮我看看我今天到底该干什么。' },
   { id: 'executive-briefing', title: '准备下一次领导汇报', description: '自动汇总项目进展、风险、决策点和汇报材料草稿。', prompt: '下周要给集团领导汇报，帮我准备这个项目的汇报材料。' },
 ]
@@ -41,7 +46,10 @@ export function createProjectBrainStore(): EngineStoreHandle<ProjectBrainState, 
 }
 
 /** Start the fixed project-launch scenario when the user's prompt asks for it. */
-export function launchProjectScenario(store: EngineStoreInstance<ProjectBrainState, {}>, input: { readonly text: string; readonly files: readonly ProjectBrainFileMeta[] }): ProjectBrainLaunchOutcome {
+export function launchProjectScenario(
+  store: EngineStoreInstance<ProjectBrainState, {}>,
+  input: { readonly text: string; readonly files: readonly ProjectBrainFileMeta[] },
+): ProjectBrainLaunchOutcome {
   if (!isLaunchPrompt(input.text)) return { kind: 'ignored' }
   store.store.update((draft) => {
     draft.activeScenario = 'project-launch'
@@ -139,9 +147,58 @@ export function projectPlanRevision(before: ProjectBrainLaunchPlan, after: Proje
   return { summary, details: details.slice(0, 5) }
 }
 
+/** Human label for one meeting action-item type, used inside revision details. */
+function meetingItemTypeLabel(type: ProjectBrainMeetingActionItem['type']): string {
+  if (type === 'new-task') return '任务'
+  if (type === 'update-task') return '任务更新'
+  return '风险'
+}
+
+/** Produce user-readable summary and concise field-level revision details for edited meeting action items. */
+export function meetingRevision(
+  before: readonly ProjectBrainMeetingActionItem[],
+  after: readonly ProjectBrainMeetingActionItem[],
+): ProjectBrainRevision {
+  const beforeById = new Map(before.map(item => [item.id, item]))
+  const added = after.filter(item => !beforeById.has(item.id)).length
+  const removed = before.filter(item => !after.some(next => next.id === item.id)).length
+  const changes: string[] = []
+  if (added > 0) changes.push(`新增 ${added} 项行动事项`)
+  if (removed > 0) changes.push(`删除 ${removed} 项行动事项`)
+  const details: string[] = []
+  for (const item of after) {
+    const prior = beforeById.get(item.id)
+    if (prior === undefined) {
+      details.push(`新增${meetingItemTypeLabel(item.type)}「${item.title}」，负责人 ${item.owner || '待定'}，截止 ${item.dueDate}`)
+      continue
+    }
+    const fields: string[] = []
+    if (prior.title !== item.title) fields.push(`标题改为「${item.title}」`)
+    if (prior.owner !== item.owner) fields.push(`负责人 ${prior.owner} → ${item.owner}`)
+    if (prior.dueDate !== item.dueDate) fields.push(`截止时间 ${prior.dueDate} → ${item.dueDate}`)
+    if (prior.description !== item.description) fields.push('执行说明已更新')
+    if (JSON.stringify(prior.subtasks) !== JSON.stringify(item.subtasks)) fields.push('子任务已调整')
+    if (fields.length > 0) details.push(`「${prior.title}」：${fields.join('；')}`)
+  }
+  const parts = [...changes, ...details]
+  return {
+    summary: parts.length === 0 ? '未修改会议任务。' : `请按以下调整重新生成会议任务拆解：${parts.slice(0, 6).join('；')}。`,
+    details: details.slice(0, 5),
+  }
+}
+
 /** Return a mutable-safe copy that can become an editor draft. */
 export function clonePlan(plan: ProjectBrainLaunchPlan): ProjectBrainLaunchPlan {
-  return { project: { ...plan.project }, stages: plan.stages.map(stage => ({ ...stage })), tasks: plan.tasks.map(task => ({ ...task })), risks: plan.risks.map(risk => ({ ...risk })), knowledgeFolders: [...plan.knowledgeFolders], meeting: { ...plan.meeting, actions: plan.meeting.actions.map(action => ({ ...action })) }, knowledgeDocuments: plan.knowledgeDocuments.map(document => ({ ...document })), documents: [...plan.documents] }
+  return {
+    project: { ...plan.project },
+    stages: plan.stages.map(stage => ({ ...stage })),
+    tasks: plan.tasks.map(task => ({ ...task })),
+    risks: plan.risks.map(risk => ({ ...risk })),
+    knowledgeFolders: [...plan.knowledgeFolders],
+    meeting: { ...plan.meeting, actions: plan.meeting.actions.map(action => ({ ...action })) },
+    knowledgeDocuments: plan.knowledgeDocuments.map(document => ({ ...document })),
+    documents: [...plan.documents],
+  }
 }
 
 /** Serialize a revision as an invisible payload carried by the native user message. */
@@ -159,7 +216,10 @@ export function prepareNextProjectAction(store: EngineStoreInstance<ProjectBrain
 }
 
 /** Start the meeting-actions scenario when the user prompt asks for meeting minutes. */
-export function launchMeetingScenario(store: EngineStoreInstance<ProjectBrainState, {}>, items: readonly ProjectBrainMeetingActionItem[] = MEETING_ANALYSIS_MOCK.actionItems): void {
+export function launchMeetingScenario(
+  store: EngineStoreInstance<ProjectBrainState, {}>,
+  items: readonly ProjectBrainMeetingActionItem[] = MEETING_ANALYSIS_MOCK.actionItems,
+): void {
   store.store.update((draft) => {
     draft.activeScenario = 'meeting-actions'
     draft.phase = 'analyzing'
@@ -176,7 +236,10 @@ export function markMeetingPlanReady(store: EngineStoreInstance<ProjectBrainStat
 }
 
 /** Replace the current meeting draft before the revised response begins. */
-export function submitMeetingRevision(store: EngineStoreInstance<ProjectBrainState, {}>, items: readonly ProjectBrainMeetingActionItem[]): void {
+export function submitMeetingRevision(
+  store: EngineStoreInstance<ProjectBrainState, {}>,
+  items: readonly ProjectBrainMeetingActionItem[],
+): void {
   store.store.update((draft) => {
     draft.activeScenario = 'meeting-actions'
     draft.phase = 'revising'
@@ -185,7 +248,10 @@ export function submitMeetingRevision(store: EngineStoreInstance<ProjectBrainSta
 }
 
 /** Restore the meeting review state from a historical assistant response. */
-export function restoreMeetingPlan(store: EngineStoreInstance<ProjectBrainState, {}>, items: readonly ProjectBrainMeetingActionItem[]): void {
+export function restoreMeetingPlan(
+  store: EngineStoreInstance<ProjectBrainState, {}>,
+  items: readonly ProjectBrainMeetingActionItem[],
+): void {
   store.store.update((draft) => {
     draft.activeScenario = 'meeting-actions'
     draft.phase = 'review-ready'
@@ -235,7 +301,12 @@ function applyMeetingItems(plan: ProjectBrainLaunchPlan, items: readonly Project
 }
 
 function isLaunchPrompt(text: string): boolean { return /启动|创建|新建|初始化/u.test(text) && /项目/u.test(text) }
-function summarizeCollection(label: string, before: readonly { readonly id: string }[], after: readonly { readonly id: string }[], changes: string[]): void {
+function summarizeCollection(
+  label: string,
+  before: readonly { readonly id: string }[],
+  after: readonly { readonly id: string }[],
+  changes: string[],
+): void {
   const beforeIds = new Set(before.map(item => item.id)); const afterIds = new Set(after.map(item => item.id))
   const added = after.filter(item => !beforeIds.has(item.id)).length; const removed = before.filter(item => !afterIds.has(item.id)).length
   if (added > 0) changes.push(`新增 ${added} 项${label}`)

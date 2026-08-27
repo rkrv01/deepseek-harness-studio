@@ -34,7 +34,7 @@ function documentBadge(name: string): string {
 
 /** Draft-image rail, document drop target, and original-image preview slot entry. */
 export function ComposerAttachments({
-  attachments, canAcceptDrop, onAddImages, onRemoveImage, onRemoveDocument, dropLimits, t,
+  attachments, canAcceptDrop, documentDrop, onAddImages, onRemoveImage, onRemoveDocument, dropLimits, t,
 }: ComposerAttachmentsProps) {
   const [preview, setPreview] = useState<ComposerAttachment | null>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -118,7 +118,7 @@ export function ComposerAttachments({
       {dragActive && (
         <DropOverlay
           disabled={!canAcceptDrop}
-          labels={dropOverlayLabels(t, canAcceptDrop, dropLimits)}
+          labels={dropOverlayLabels(t, canAcceptDrop, dropLimits, { documents: documentDrop })}
         />
       )}
       {documentItems.length > 0 && (

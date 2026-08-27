@@ -1,17 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { PROJECT_BRAIN_MEETING_READY_DELAY_MS, PROJECT_BRAIN_PLAN_READY_DELAY_MS } from '../src/client/index.ts'
-import { clonePlan, confirmMeetingExecution, createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingExecuted, markProjectPlanReady, projectPlanRevisionSummary, submitMeetingRevision, submitProjectPlanRevision } from '../src/client/state.ts'
+import { clonePlan, confirmMeetingExecution, createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingExecuted, markProjectPlanReady, meetingRevision, projectPlanRevisionSummary, submitMeetingRevision, submitProjectPlanRevision } from '../src/client/state.ts'
 
 describe('project brain demo state', () => {
-  it('makes the editor entry available when the faster launch stream completes', () => {
-    expect(PROJECT_BRAIN_PLAN_READY_DELAY_MS).toBe(14_000)
-  })
-
-  it('uses a shorter ready delay for meeting analysis cards', () => {
-    expect(PROJECT_BRAIN_MEETING_READY_DELAY_MS).toBe(7_000)
-    expect(PROJECT_BRAIN_MEETING_READY_DELAY_MS).toBeLessThan(PROJECT_BRAIN_PLAN_READY_DELAY_MS)
-  })
-
   it('uses the shared plan as the launch source', () => {
     const store = createProjectBrainStore().create()
     const outcome = launchProjectScenario(store, { text: '帮我启动智慧园区建设项目。', files: [] })
@@ -57,5 +47,22 @@ describe('project brain demo state', () => {
     markMeetingExecuted(store)
     expect(store.getSnapshot().phase).toBe('completed')
     expect(store.getSnapshot().plan?.tasks.some(task => task.id === item.id)).toBe(true)
+  })
+
+  it('summarizes meeting revisions as readable change lists', () => {
+    const before = [
+      { id: 'a', type: 'new-task' as const, title: '搭建最小测试环境', description: '', owner: '刘洋', dueDate: '2026-08-25', source: '', subtasks: [] },
+      { id: 'b', type: 'update-task' as const, title: '调整采购到货时间', description: '', owner: '王刚', dueDate: '2026-09-15', source: '', subtasks: [] },
+    ]
+    const after = [
+      { ...before[0]!, owner: '陈涛' },
+      before[1]!,
+      { id: 'c', type: 'new-risk' as const, title: '供应商产能风险', description: '', owner: '王刚', dueDate: '2026-09-01', source: '', subtasks: [] },
+    ]
+    const revision = meetingRevision(before, after)
+    expect(revision.summary).toContain('新增 1 项行动事项')
+    expect(revision.summary).toContain('「搭建最小测试环境」：负责人 刘洋 → 陈涛')
+    expect(revision.details).toHaveLength(2)
+    expect(meetingRevision(before, before).summary).toBe('未修改会议任务。')
   })
 })
