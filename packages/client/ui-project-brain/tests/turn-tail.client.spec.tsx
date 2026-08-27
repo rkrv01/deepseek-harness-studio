@@ -3,6 +3,7 @@ import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { ProjectBrainTurnTail } from '../src/client/ProjectBrainTurnTail.tsx'
+import { ProjectBrainScenarioSurface } from '../src/client/ProjectBrainScenarioSurface.tsx'
 import { ProjectReadyCard } from '../src/client/ProjectBrainMessageDock.tsx'
 import { createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingPlanReady as applyMeetingPlanReady, markProjectPlanReady as applyProjectPlanReady } from '../src/client/state.ts'
 import type { ProjectBrainState } from '../src/client/state.ts'
@@ -152,8 +153,18 @@ describe('ProjectBrainTurnTail', () => {
     expect(view.getByText('跟进后续事项')).toBeTruthy()
   })
 
-  it('renders the project-copilot dashboard surface with local permission switching', () => {
+  it('leaves copilot-surface turns to the inline assistantSurface renderer', () => {
     const brain = createProjectBrainStore().create()
+    const data = { /* shape built in the surface spec below */ }
+    const turn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:surface ${projectBrainSurfacePayload('project-copilot', 'project-copilot-dashboard', data)} -->` }] }]]) }] }
+    const props = tailProps(brain)
+    const view = render(<ProjectBrainTurnTail {...props} turn={turn as never} />)
+    // The board inlines above the prose via the assistantSurface service; the
+    // turn tail must not render it a second time.
+    expect(view.container.textContent).toBe('')
+  })
+
+  it('renders the copilot board surface with decisions and no permission switcher', () => {
     const data = {
       projectName: PROJECT_BRAIN_PLAN.project.name,
       progress: PROJECT_BRAIN_PLAN.project.progress,
@@ -178,22 +189,14 @@ describe('ProjectBrainTurnTail', () => {
       },
       nextPlan: ['明日上午再次确认设备采购交期'],
     }
-    const turn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:surface ${projectBrainSurfacePayload('project-copilot', 'project-copilot-dashboard', data)} -->` }] }]]) }] }
-    const props = tailProps(brain)
-    const view = render(<ProjectBrainTurnTail {...props} turn={turn as never} />)
-
+    const surface = { version: 1, scenarioId: 'project-copilot', template: 'project-copilot-dashboard', data } as const
+    const view = render(<ProjectBrainScenarioSurface surface={surface} />)
     expect(view.getByRole('region', { name: '项目托管看板' })).toBeTruthy()
-    expect(view.getByText('AI 托管中')).toBeTruthy()
-    expect(view.getByRole('region', { name: 'AI 正在跟进' })).toBeTruthy()
-    expect(view.getByText('设备采购交付')).toBeTruthy()
-    expect(view.getByText('AI 已催办：2 次')).toBeTruthy()
     expect(view.getByRole('region', { name: '需要你处理' })).toBeTruthy()
-    // The AI wrap-up streams as reply text now; the surface renders only the board.
-    expect(view.queryByRole('complementary', { name: 'AI 项目经理小结' })).toBeNull()
+    // 托管权限模式切换器已移除
+    expect(view.queryByRole('button', { name: '托管模式' })).toBeNull()
     fireEvent.click(view.getByRole('button', { name: '采用建议' }))
     expect(view.getByText(/当前没有需要你立即处理的事项/u)).toBeTruthy()
-    fireEvent.click(view.getByRole('button', { name: '托管模式' }))
-    expect(view.getByText('当前权限：托管模式')).toBeTruthy()
   })
 
   it('renders the enriched daily workbench with explanations and local completion', () => {

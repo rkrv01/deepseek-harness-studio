@@ -1,4 +1,5 @@
 /** Project Brain demo plugin, browser half. */
+import { createElement } from 'react'
 import type { ClientContext, EngineStoreInstance, ObservableSnapshot, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConversationSubmitHandler, IConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
@@ -7,14 +8,15 @@ import { confirmMeetingExecution, createProjectBrainStore, launchMeetingScenario
 import type { ProjectBrainNextAction, ProjectBrainState } from './state.ts'
 import { PROJECT_BRAIN_PLAN } from '../project-data.ts'
 import type { ProjectBrainMeetingActionItem } from '../project-data.ts'
-import { matchProjectBrainScenario, parseProjectBrainScenarioPayload, projectBrainScenarioPayload } from '../scenario-registry.ts'
+import { matchProjectBrainScenario, parseProjectBrainScenarioPayload, parseProjectBrainSurfacePayload, projectBrainScenarioPayload } from '../scenario-registry.ts'
 import { ProjectBrainMessageDock } from './ProjectBrainMessageDock.tsx'
 import type { ProjectBrainMessageDockInjected } from './ProjectBrainMessageDock.tsx'
+import { ProjectBrainScenarioSurface } from './ProjectBrainScenarioSurface.tsx'
 import { ProjectBrainWorkbench } from './ProjectBrainWorkbench.tsx'
 import type { ProjectBrainWorkbenchInjected } from './ProjectBrainWorkbench.tsx'
 import { ProjectBrainTurnTail } from './ProjectBrainTurnTail.tsx'
 import { isProjectBrainPlatformUrl, openProjectBrainPlatform } from './platform-window.ts'
-import { setPlatformBaseProvider, DEFAULT_PLATFORM_BASE_URL } from './platform-config.ts'
+import { setPlatformBaseProvider, setDemoApiBaseProvider, DEFAULT_PLATFORM_BASE_URL, DEFAULT_DEMO_API_BASE_URL, PROJECT_BRAIN_DEV_MODE_EVENT, PROJECT_BRAIN_DEV_MODE_KEY, isProjectBrainDevMode } from './platform-config.ts'
 import { PlatformSettingsSection } from './PlatformSettingsSection.tsx'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 
@@ -37,11 +39,18 @@ export function apply(ctx: ClientContext): void {
     namespace: PROJECT_BRAIN_SETTINGS_NS,
     decode: (value: unknown) => (
       typeof value === 'object' && value !== null && !Array.isArray(value)
-        ? value as { readonly platformBaseUrl?: string }
+        ? value as { readonly platformBaseUrl?: string; readonly demoApiBaseUrl?: string }
         : undefined
     ),
   })
   setPlatformBaseProvider(() => platformScope?.getSnapshot().value?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL)
+  setDemoApiBaseProvider(() => platformScope?.getSnapshot().value?.demoApiBaseUrl ?? DEFAULT_DEMO_API_BASE_URL)
+  // Console escape hatch: `toStarlightDev()` reveals the developer settings section;
+  // closing it from the section hides it until the command runs again.
+  window.toStarlightDev = (): void => {
+    window.localStorage.setItem(PROJECT_BRAIN_DEV_MODE_KEY, '1')
+    window.dispatchEvent(new Event(PROJECT_BRAIN_DEV_MODE_EVENT))
+  }
   const brainFor = (sessionId: SessionId): EngineStoreInstance<ProjectBrainState, {}> => {
     const existing = stores.get(sessionId)
     if (existing !== undefined) return existing
@@ -194,11 +203,47 @@ export function apply(ctx: ClientContext): void {
     },
   }, ProjectBrainTurnTail))
 
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
-    id: 'project-brain-platform',
-    order: 80,
-    label: () => '智脑平台',
-    inject: (): { readonly scope: typeof platformScope } => ({ scope: platformScope }),
-  }, PlatformSettingsSection))
+  // Inline board for assistant replies opening with a surface marker: the board
+  // leads the message and the wrap-up prose streams beneath it.
+  ctx.provide('assistantSurface', {
+    renderLeading: (payload) => {
+      const surface = parseProjectBrainSurfacePayload(`<!-- project-brain:surface ${payload} -->`)
+      return surface === null ? null : createElement(ProjectBrainScenarioSurface, { surface })
+    },
+  })
+
+  // The developer settings section only exists while dev mode is on: `toStarlightDev()`
+  // registers it, the section's 关闭开发者模式 button unregisters it until the command runs again.
+  ctx.effect(() => {
+    let unregister: (() => void) | undefined
+    const sync = (): void => {
+      if (isProjectBrainDevMode()) {
+        unregister ??= ctx.slots.inject('settings.section', () => ctx.slots.register({
+          name: 'settings.section',
+          id: 'project-brain-platform',
+          order: 80,
+          label: () => '开发者配置',
+          inject: (): { readonly scope: typeof platformScope } => ({ scope: platformScope }),
+        }, PlatformSettingsSection))
+        return
+      }
+      unregister?.()
+      unregister = undefined
+    }
+    sync()
+    window.addEventListener(PROJECT_BRAIN_DEV_MODE_EVENT, sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener(PROJECT_BRAIN_DEV_MODE_EVENT, sync)
+      window.removeEventListener('storage', sync)
+      unregister?.()
+    }
+  }, 'project-brain: developer settings section')
+}
+
+declare global {
+  interface Window {
+    /** Console command that reveals the developer settings section. */
+    toStarlightDev: () => void
+  }
 }

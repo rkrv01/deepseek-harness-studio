@@ -5,7 +5,6 @@ import {
   IconListPenOutline16,
   IconQueueOutline14,
   IconRightUpOutline16,
-  IconSettingsOutline14,
   IconSparkle16,
   IconThinkOutline16,
   IconUserOutline16,
@@ -25,7 +24,7 @@ const CIRCLED_NUMERALS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'
 /** Render a configured scenario through an allow-listed React surface template. */
 export function ProjectBrainScenarioSurface({ surface }: { readonly surface: ProjectBrainSurfaceEnvelope }): JSX.Element | null {
   if (surface.template === 'my-day-workbench' && isMyDayData(surface.data)) return <MyDayWorkbench data={surface.data} />
-  // The AI wrap-up streams as ordinary reply text; only the board mounts from the surface.
+  // Board first, then the AI wrap-up as a conversation-style bubble beneath it.
   if (surface.template === 'project-copilot-dashboard' && isCopilotData(surface.data)) {
     return <ProjectCopilotDashboard data={surface.data} />
   }
@@ -34,10 +33,8 @@ export function ProjectBrainScenarioSurface({ surface }: { readonly surface: Pro
 
 /** AI project-manager report dashboard (doc 03): status strip, hero metrics, active tracking, findings, decisions, overview. */
 function ProjectCopilotDashboard({ data }: { readonly data: ProjectBrainCopilotData }): JSX.Element {
-  const [mode, setMode] = useState(data.permissionMode)
   const [handledDecisions, setHandledDecisions] = useState<ReadonlySet<string>>(() => new Set())
-  const modes = ['建议模式', '辅助执行模式', '托管模式']
-  return <section className={`${css.root} ${css.surfaceNarrow} ${css.surfacePadded}`} aria-label="项目托管看板">
+  return <section className={`${css.root} ${css.surfaceInline} ${css.surfacePadded}`} aria-label="项目托管看板">
     <header className={css.surfaceHeader}>
       <span className={css.headerIcon} aria-hidden="true"><IconSparkle16 /></span>
       <div className={css.headerBody}>
@@ -122,7 +119,7 @@ function ProjectCopilotDashboard({ data }: { readonly data: ProjectBrainCopilotD
       </div>
       <div className={css.packageRow}>
         {data.overview.packages.map(pkg => (
-          <div key={pkg.id} className={css.packageCard}>
+          <div key={pkg.id} className={css.packageCard} data-status={pkg.status}>
             <strong>{pkg.name}</strong>
             <span>{pkg.done}/{pkg.total} 任务 · {pkg.status}</span>
           </div>
@@ -132,13 +129,19 @@ function ProjectCopilotDashboard({ data }: { readonly data: ProjectBrainCopilotD
         <div className={css.overviewBlock}>
           <h5>任务状态分布</h5>
           {data.overview.taskStates.map(state => (
-            <div key={state.label} className={css.overviewRow}><span>{state.label}</span><strong>{state.count}</strong></div>
+            <div key={state.label} className={css.overviewRow}>
+              <span>{state.label}</span>
+              <strong data-tone={overviewTone(state.label)}>{state.count}</strong>
+            </div>
           ))}
         </div>
         <div className={css.overviewBlock}>
           <h5>风险概览</h5>
           {data.overview.riskLevels.map(level => (
-            <div key={level.level} className={css.overviewRow}><span>{level.level}</span><strong>{level.count}</strong></div>
+            <div key={level.level} className={css.overviewRow}>
+              <span>{level.level}</span>
+              <strong data-tone={overviewTone(level.level)}>{level.count}</strong>
+            </div>
           ))}
         </div>
         <div className={`${css.overviewBlock} ${css.overviewWide}`}>
@@ -152,12 +155,6 @@ function ProjectCopilotDashboard({ data }: { readonly data: ProjectBrainCopilotD
         </div>
       </div>
     </section>
-    <div className={css.modePanel}>
-      <div className={css.modeIntro}><h4><IconSettingsOutline14 />托管权限模式</h4><p>当前权限：{mode}</p></div>
-      <div className={css.modeButtons}>
-        {modes.map(item => <button type="button" key={item} data-active={item === mode} onClick={() => { setMode(item) }}>{item}</button>)}
-      </div>
-    </div>
     <footer className={css.planFooter}>
       <strong><IconCalendarOutline16 />接下来的跟进计划</strong>
       <div>{data.nextPlan.map(item => <span key={item}>{item}</span>)}</div>
@@ -319,6 +316,14 @@ function DayTaskCard({
       <button type="button" onClick={onComplete}>标记完成</button>
     </div>
   </article>
+}
+
+/** Shared stop-light tone for overview counts (task states and risk levels). */
+function overviewTone(label: string): 'green' | 'warn' | 'risk' | undefined {
+  if (/完成|正常|低风险/u.test(label)) return 'green'
+  if (/临期|中风险/u.test(label)) return 'warn'
+  if (/滞后|高风险/u.test(label)) return 'risk'
+  return undefined
 }
 
 interface MetricProps {

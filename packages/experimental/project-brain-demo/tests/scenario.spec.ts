@@ -64,6 +64,33 @@ describe('project brain scripted scenario', () => {
       const budget = scenario.stream.introDelayMs + Math.ceil(visible.length / scenario.stream.chunkChars) * scenario.stream.intervalMs + scenario.stream.intervalMs * 2
       expect(simulatedMs).toBeLessThanOrEqual(budget)
     })
+    it('attaches a leading surface marker unpaced before the first paced character', async () => {
+      vi.useFakeTimers()
+      const scenario = replyStreamScenario({ kind: 'handoff', scenarioId: 'project-copilot', text: '' })
+      const reply = resolveProjectBrainReply('智慧园区建设项目现状怎么样？')
+      const deltas: string[] = []
+      let simulatedMs = 0
+      const consumed = (async () => {
+        for await (const chunk of streamScenarioText(reply.text, scenario, new AbortController().signal)) {
+          if (chunk.type === 'text-delta') deltas.push(chunk.text)
+        }
+        deltas.push('DONE')
+      })()
+      void consumed.catch(() => undefined)
+      while (!deltas.includes('DONE') && simulatedMs <= 120_000) {
+        await vi.advanceTimersByTimeAsync(200)
+        simulatedMs += 200
+      }
+      await consumed
+
+      expect(deltas.slice(0, -1).join('')).toBe(reply.text)
+      // 首个 delta 是完整前导标记（看板随它立即挂载），正文按节奏后置
+      expect(deltas[0]?.startsWith('<!-- project-brain:surface ')).toBe(true)
+      expect(deltas[0]).toContain('-->')
+      const visible = reply.text
+      const budget = scenario.stream.introDelayMs + Math.ceil(visible.length / scenario.stream.chunkChars) * scenario.stream.intervalMs + scenario.stream.intervalMs * 2
+      expect(simulatedMs).toBeLessThanOrEqual(budget)
+    })
   })
 
   it('returns the rich launch plan with native markdown visual content', () => {
@@ -176,12 +203,10 @@ describe('project brain scripted scenario', () => {
   it('emits a named interactive surface for the project-copilot scenario', () => {
     const reply = resolveProjectBrainReply('智慧园区建设项目现状怎么样？')
     expect(reply.kind).toBe('handoff')
-    // The wrap-up streams as ordinary assistant reply text; the board mounts beneath it from the marker.
-    expect(reply.text.startsWith('## AI 项目经理小结')).toBe(true)
+    // Leading marker inlines the board above the prose; the wrap-up streams as real reply text.
+    expect(reply.text.startsWith('<!-- project-brain:surface')).toBe(true)
+    expect(reply.text).toContain('## AI 项目经理小结')
     expect(reply.text).toContain('目前最需要关注 3 件事')
-    const { visible, hidden } = splitTrailingPrivateMarkers(reply.text)
-    expect(visible).toContain('接下来我会继续')
-    expect(hidden).toContain('project-brain:surface')
     const surface = parseProjectBrainSurfacePayload<{
       readonly agentStatus: { readonly nextCheckAt: string }
       readonly metrics: readonly { readonly id: string; readonly value: string }[]

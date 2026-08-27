@@ -394,7 +394,31 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Prose file-mention provider (ui-deliverables); reach via ctx.get — optional. */
     chatFileMentions: ChatFileMentions
+    /**
+     * Leading-surface renderer (ui-project-brain); reach via ctx.get — optional.
+     * When composed, an assistant reply opening with a `project-brain:surface`
+     * marker renders the interactive board above its prose instead of at the
+     * turn tail.
+     */
+    assistantSurface: AssistantSurfaceRender
   }
+}
+
+/**
+ * Optional leading-surface renderer, consumed via `ctx.get('assistantSurface')`
+ * (optional-service convention, same shape as {@link ChatFileMentions}): the
+ * assistant markdown asks it to render the interactive payload of a surface
+ * marker that opens the reply. Absent service — the providing plugin composed
+ * out of cordis.yml — turns the inline board off; the marker strips from the
+ * prose and the turn-tail path keeps ownership.
+ */
+export interface AssistantSurfaceRender {
+  /**
+   * Render one leading surface marker payload.
+   * @param payload - Percent-encoded surface payload after the marker keyword.
+   * @returns The board node, or null when the payload is unhandled.
+   */
+  renderLeading(payload: string): ReactNode | null
 }
 
 /**
@@ -448,6 +472,11 @@ export interface ChatNodeOwnerProps {
   /** Render a historical image group through the attachment slot. */
   renderMessageImages: RenderMessageImages
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
+  /**
+   * Inline renderer for a leading Project Brain surface marker payload; null
+   * when no renderer is composed or the payload is unhandled.
+   */
+  assistantSurface: (payload: string) => ReactNode | null
 }
 
 /** Full props of one registered keyed Chat business renderer. */
@@ -812,6 +841,12 @@ export interface ChatViewInjected {
    * absent or the turn produced nothing worth linking.
    */
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
+  /**
+   * Inline board renderer for a leading `project-brain:surface` marker, from
+   * the optional {@link AssistantSurfaceRender} service (resolved lazily per
+   * call). Null when the service is absent or the payload is unhandled.
+   */
+  assistantSurface: (payload: string) => ReactNode | null
 }
 
 /** Full chat-view component props: runtime & its Tool/command/tail render shares & store & injected & locale seat. */

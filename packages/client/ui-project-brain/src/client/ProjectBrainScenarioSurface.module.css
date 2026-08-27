@@ -42,11 +42,11 @@
 .metric[data-tone="green"] { border-color: #d7ecdd; background: #f5fbf6; }
 .metric[data-tone="green"] .metricIcon { background: #d7ecdd; color: #2a8f4d; }
 .metric[data-tone="green"] strong { color: #2a8f4d; }
-.copilotGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 22px 26px 20px; }
+.copilotGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 20px 0; }
 .panel { min-width: 0; overflow: hidden; border: 1px solid #dfe7f1; border-radius: 16px; background: #fff; }
 .panelTitle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #e9eef5; }
-.panelTitle h4, .modePanel h4, .waitingPanel h4 { margin: 0; font-size: 15px; }
-.panelTitle h4 svg, .modePanel h4 svg, .waitingPanel h4 svg, .planFooter strong svg, .groupTitle span svg { vertical-align: -2px; margin-right: 5px; color: #2f6fed; }
+.panelTitle h4, .waitingPanel h4 { margin: 0; font-size: 15px; }
+.panelTitle h4 svg, .waitingPanel h4 svg, .planFooter strong svg, .groupTitle span svg { vertical-align: -2px; margin-right: 5px; color: #2f6fed; }
 .panelTitle span { color: #8490a2; font-size: 12px; }
 .trackList, .decisionList { display: grid; gap: 12px; padding: 16px 18px; }
 .trackItem { display: flex; align-items: flex-start; gap: 12px; border: 1px solid #e8edf4; border-radius: 13px; padding: 13px 14px; }
@@ -67,15 +67,10 @@
 .decisionItem > div { min-width: 0; }
 .decisionDone { opacity: .62; background: #fafbfc; }
 .decisionDone strong { text-decoration: line-through; }
-.decisionItem button, .decisionDone button, .modeButtons button, .taskActions button, .taskActions a, .waitingPanel button, .footer button { border: 1px solid #d9e2f2; border-radius: 10px; background: #fff; color: #2f6fed; font-weight: 650; cursor: pointer; transition: border-color .16s, background-color .16s, color .16s, box-shadow .16s; }
+.decisionItem button, .decisionDone button, .taskActions button, .taskActions a, .waitingPanel button, .footer button { border: 1px solid #d9e2f2; border-radius: 10px; background: #fff; color: #2f6fed; font-weight: 650; cursor: pointer; transition: border-color .16s, background-color .16s, color .16s, box-shadow .16s; }
 .taskActions a { text-decoration: none; }
 .decisionItem button, .decisionDone button { flex: 0 0 auto; padding: 7px 10px; }
-.decisionItem button:hover, .decisionDone button:hover, .modeButtons button:hover, .taskActions button:hover, .taskActions a:hover, .waitingPanel button:hover, .footer button:hover { border-color: #9dbcf3; background: #f4f8ff; }
-.modePanel { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 26px 20px; border: 1px solid #dfe7f1; border-radius: 16px; background: #f8fbff; padding: 16px 18px; }
-.modePanel p { margin: 6px 0 0; color: #6f7b8f; font-size: 12px; }
-.modeButtons { display: flex; gap: 8px; padding: 3px; border-radius: 11px; background: #eaf1fa; }
-.modeButtons button { border-color: transparent; background: transparent; padding: 8px 12px; color: #5d6a7e; }
-.modeButtons button[data-active="true"] { border-color: #2f6fed; background: #2f6fed; box-shadow: 0 3px 10px rgba(47, 111, 237, .22); color: #fff; }
+.decisionItem button:hover, .decisionDone button:hover, .taskActions button:hover, .taskActions a:hover, .waitingPanel button:hover, .footer button:hover { border-color: #9dbcf3; background: #f4f8ff; }
 .planFooter { display: grid; gap: 11px; border-top: 1px solid #e5ebf3; padding: 17px 26px 20px; background: #fbfcfe; }
 .planFooter div { display: flex; flex-wrap: wrap; gap: 9px; }
 .planFooter span { border: 1px solid #dfe7f1; border-left: 3px solid #74a1f2; border-radius: 10px; background: #fff; padding: 8px 11px; color: #57657c; font-size: 12px; }
@@ -92,7 +87,7 @@
 .dayTask:hover { border-color: #a9c2f5; box-shadow: 0 7px 20px rgba(47, 111, 237, .08); }
 .dayTaskDone { opacity: .64; background: #fafbfc; }
 .dayTaskDone strong { text-decoration: line-through; }
-.dayTaskMain { display: grid; grid-template-columns: 42px minmax(0, 1fr) minmax(0, auto); align-items: start; gap: 12px; }
+.dayTaskMain { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: start; gap: 12px; }
 .todoCheck, .todoCheckDone { display: grid; width: 24px; height: 24px; margin-top: 1px; place-items: center; border: 2px solid #b9c5d6; border-radius: 999px; background: #fff; color: #fff; cursor: pointer; transition: border-color .16s, background-color .16s, color .16s, box-shadow .16s; }
 .todoCheck:hover { border-color: #2f6fed; box-shadow: 0 0 0 3px rgba(47, 111, 237, .12); }
 .todoCheckDone { border-color: #2a8f4d; background: #2a8f4d; }
@@ -105,7 +100,7 @@
 .dayTaskTopline span[data-priority="等待"] { background: #eff8f1; color: #2a8f4d; }
 .dayTaskTopline strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .dayTaskBody small { display: block; overflow: hidden; margin-top: 5px; color: #7c8799; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.dayTaskMeta { display: flex; justify-content: flex-end; align-items: center; gap: 8px; min-width: 0; padding-top: 2px; }
+.dayTaskMeta { display: flex; grid-column: 2; justify-content: flex-start; align-items: center; gap: 8px; min-width: 0; margin-top: 2px; }
 .dueBadge { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; border-radius: 999px; background: #eef3fa; padding: 4px 9px; color: #4d5c75; font-size: 11px; font-weight: 650; white-space: nowrap; }
 .dueBadge[data-priority="紧急"] { background: #fff0ef; color: #d84c46; }
 .dueBadge[data-priority="会议"] { background: #fff6e8; color: #c9771d; }
@@ -146,7 +141,7 @@
   .progressTrack { width: 120px; }
   .myDaySummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .copilotGrid, .dayLayout { grid-template-columns: 1fr; padding: 18px; }
-  .modePanel, .footer, .decisionItem, .decisionDone { align-items: stretch; flex-direction: column; }
+  .footer, .decisionItem, .decisionDone { align-items: stretch; flex-direction: column; }
   .dayTaskMain { grid-template-columns: 42px minmax(0, 1fr); }
   .dayTaskMeta { grid-column: 2; justify-content: flex-start; }
   .taskDetail { margin-left: 54px; }
@@ -283,6 +278,7 @@
 
 .packageCard {
   border: 1px solid var(--dsw-alias-border-l2);
+  border-left-width: 3px;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -291,6 +287,14 @@
   min-width: 120px;
   padding: 8px 12px;
 }
+
+.packageCard[data-status="已完成"] { border-left-color: #2a8f4d; }
+.packageCard[data-status="已完成"] span { color: #2a8f4d; }
+.packageCard[data-status="进行中"] { border-left-color: #2f6fed; }
+.packageCard[data-status="进行中"] span { color: #2f6fed; }
+.packageCard[data-status="滞后"] { border-left-color: #d84c46; }
+.packageCard[data-status="滞后"] span { color: #d84c46; }
+.packageCard[data-status="准备中"] { border-left-color: #8a94a6; }
 
 .packageCard span {
   color: var(--dsw-alias-label-secondary);
@@ -321,6 +325,10 @@
   font-size: 13px;
   padding: 2px 0;
 }
+
+.overviewRow strong[data-tone="green"] { color: #2a8f4d; }
+.overviewRow strong[data-tone="warn"] { color: #c9771d; }
+.overviewRow strong[data-tone="risk"] { color: #d84c46; }
 
 .attentionRow {
   border-top: 1px solid var(--dsw-alias-border-l2);
@@ -374,7 +382,8 @@
   border-radius: 10px;
   color: var(--dsw-alias-state-success, #1f7a53);
   font-size: 13px;
-  margin-top: 12px;
+  width: 90%;
+  margin: 12px auto 0;
   padding: 8px 14px;
 }
 
@@ -433,6 +442,12 @@
   width: min(var(--dsh-chat-content-width, 748px), calc(100% - 32px));
   max-width: 900px;
   margin: 24px auto 12px;
+}
+
+/* Copilot board inlined at the top of its own assistant message: full message width, no breakout. */
+.surfaceInline {
+  margin: 0 0 12px;
+  width: 100%;
 }
 
 /* doc-03 copilot board container padding; my-day keeps its edge-to-edge header. */

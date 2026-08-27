@@ -14,7 +14,7 @@ import type { ProjectBrainReply, ProjectBrainReplyKind } from './scenario.ts'
 import { createDemoStatusFetch, DemoStatusSynchronizer } from './demo-status.ts'
 import { projectBrainScenario } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
 import type { ProjectBrainScenarioDefinition, ProjectBrainScenarioId } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
-import { DEFAULT_PLATFORM_BASE_URL, PROJECT_BRAIN_DEMO_STATUS_BASE_PATH } from '@deepseek-ai/dsh-client-ui-project-brain/src/client/platform-config.ts'
+import { DEFAULT_DEMO_API_BASE_URL, DEFAULT_PLATFORM_BASE_URL } from '@deepseek-ai/dsh-client-ui-project-brain/src/client/platform-config.ts'
 import z from '@deepseek-ai/schemastery'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import '@deepseek-ai/dsh-settings'
@@ -59,10 +59,11 @@ export interface ProjectBrainDemoConfig {
 
 /** Register the deterministic adapter with the platform demo-status endpoint. */
 export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
-  // The platform origin is user-configurable through 设置 → 智脑平台. Without a
-  // mounted settings provider the demo keeps resolving its default origin.
+  // The platform origin is user-configurable through 设置 → 开发者配置. Without a
+  // mounted settings provider the demo keeps resolving its defaults.
   const platformScope = ctx.settings?.register(settingsNamespace(PROJECT_BRAIN_SETTINGS_NS), z.object({
     platformBaseUrl: z.string().default(DEFAULT_PLATFORM_BASE_URL),
+    demoApiBaseUrl: z.string().default(DEFAULT_DEMO_API_BASE_URL),
   }))
   // Server-side sync of the scripted-reply links; the demo-status getter reads the scope live below.
   const syncPlatformBase = (): void => {
@@ -76,10 +77,11 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
     return () => { off?.() }
   }, 'project-brain: platform base sync')
 
-  // Resolved per call from the settings scope so a 智脑平台 change repoints synchronization without a restart.
+  // Resolved per call from the settings scope so a developer-config change repoints synchronization without a restart.
+  // Returns the API base; DemoStatusSynchronizer appends the endpoint path.
   const demoStatusBase = (): string => {
-    const origin = platformScope?.get()?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL
-    return config.demoStatusApiUrl ?? `${origin}${PROJECT_BRAIN_DEMO_STATUS_BASE_PATH}`
+    if (config.demoStatusApiUrl !== undefined) return config.demoStatusApiUrl
+    return platformScope?.get()?.demoApiBaseUrl ?? DEFAULT_DEMO_API_BASE_URL
   }
   const synchronizer = new DemoStatusSynchronizer(
     demoStatusBase,
@@ -160,14 +162,20 @@ export function splitTrailingPrivateMarkers(text: string): { readonly visible: s
 
 /**
  * Stream one deterministic document in chunks paced by the scenario registry.
- * @param text Complete document content including any trailing private payloads.
+ * @param text Complete document content including any private payloads.
  * @param scenario Scenario whose registered stream pacing applies.
  * @param signal Abort signal that stops the presentation early.
  * @param options Optional thinking preamble rendered before the document.
  */
 export async function* streamScenarioText(text: string, scenario: ProjectBrainScenarioDefinition, signal: AbortSignal, options: ScenarioTextOptions = {}): AsyncIterable<StreamChunk> {
   const { introDelayMs, chunkChars, intervalMs } = scenario.stream
+  // Leading private markers (inline-surface protocol) attach unpaced so the
+  // board mounts before the first visible character; trailing ones stay
+  // unpaced so the turn completes right after the last visible character.
+  const leading = /^((?:<!-- project-brain:[a-z-]+ [A-Za-z0-9%._~-]+ -->\s*)+)/u.exec(text)
+  const bodyStart = leading === null ? 0 : leading[1]?.length ?? 0
   const { visible, hidden } = splitTrailingPrivateMarkers(text)
+  const visibleBody = visible.slice(bodyStart)
   let index = 0
   if (options.thinking !== undefined) {
     yield { type: 'block-start', index: 0, blockType: 'reasoning' }
@@ -180,10 +188,13 @@ export async function* streamScenarioText(text: string, scenario: ProjectBrainSc
     index = 1
   }
   yield { type: 'block-start', index, blockType: 'text' }
-  for (let offset = 0; offset < visible.length; offset += chunkChars) {
+  if (bodyStart > 0) {
+    yield { type: 'text-delta', index, text: visible.slice(0, bodyStart) }
+  }
+  for (let offset = 0; offset < visibleBody.length; offset += chunkChars) {
     await delay(offset === 0 ? introDelayMs : intervalMs, signal)
     if (signal.aborted) return
-    yield { type: 'text-delta', index, text: visible.slice(offset, offset + chunkChars) }
+    yield { type: 'text-delta', index, text: visibleBody.slice(offset, offset + chunkChars) }
   }
   if (hidden !== '') {
     // Invisible payloads carry no waiting experience: attach them immediately so the

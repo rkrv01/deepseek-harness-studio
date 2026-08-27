@@ -71,3 +71,13 @@
 - 托管看板容器增加 `padding: 20px` 与分块渐入（nth-child 延迟，共约 1.5 秒，reduced-motion 下归零），「AI 今日发现」面板体与其他面板共用 `.panelBody` 内边距。
 - 今日工作台「打开任务」改为 `<a>` 后补齐按钮样式（10px 圆角、无下划线）。
 - 今日工作台与托管看板共用 `.surfaceNarrow`，两块看板宽度一致。
+
+## 同日第七批：地址分离、开发者配置门控与看板优先小结
+
+- 业务地址（`platformBaseUrl`，链接渲染 `${base}/business-xmzn/#/...`）与 demo-status 接口地址（`demoApiBaseUrl`，端点 = `${base}/api/demo/config`）拆分为两个独立设置字段、各有默认值——业务地址可能走代理，本地调试不便。`PROJECT_BRAIN_DEMO_STATUS_PATH` 是唯一的端点后缀常量；`DemoStatusSynchronizer` 继续接收 base 并只拼接一次路径（早期草稿让 getter 返回完整端点导致拼接了两次）。
+- 设置分区改为「开发者配置」且默认隐藏：`settings.section` 插槽由 effect 监听 `localStorage['starlight:dev-mode']` 动态注册；控制台命令 `window.toStarlightDev()` 写键并刷新，分区内的「关闭开发者模式」按钮移除该键，直到再次执行命令。静态注册会泄漏一个空的导航入口，因此改为条件注册。
+- 托管看板移除「托管权限模式」切换器；AI 小结回到纯 surface 标记回复，由 surface 渲染「看板在前、对话式小结气泡（`.narrativeBubble`）在后」——用户要求视觉顺序为看板 → 对话。
+
+## 同日第八批：看板内联前置 + 小结真实文本
+
+托管小结重新成为真正的 assistant 消息，且顺序为看板优先：回复以 surface 标记开头，ui-conversation 新增可选 `assistantSurface` 服务（与 `chatFileMentions` 同构），`AssistantMarkdown` 在首个文本块以完整 `project-brain:surface` 标记开头时调用它——载荷渲染为消息顶部的内联看板，其后被剥离的正文以普通 markdown 流式呈现在看板下方。turnTail 对 copilot surface 回合返回 null 避免重复，其他 surface（my-day 尾部标记）仍走 turnTail。`streamScenarioText` 新增对称的前导标记规则：开头连续私有标记不分速，看板在首个可见字符之前挂载。看板容器由窄化出血类改为 `.surfaceInline`（占满消息宽、不出血）。同时移除上一版的气泡变体；`.copilotGrid` 的 padding 改为 `20px 0`（保留垂直方向）；项目全貌新增状态对比：方案包卡按状态加左侧色条、状态/风险数值按档位着色（完成/正常/低风险绿、临期/中风险橙、滞后/高风险红）。

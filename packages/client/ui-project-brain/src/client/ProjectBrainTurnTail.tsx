@@ -84,6 +84,10 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
   ])
 
   if (!enabled()) return null
+  // Copilot-surface turns inline their board above the prose (assistantSurface
+  // service); the turn tail must not render it a second time. Other surfaces
+  // (my-day trailing marker) keep the turn-tail mount.
+  if (surface !== null && surface.template === 'project-copilot-dashboard') return null
   if (surface !== null) return <ProjectBrainScenarioSurface surface={surface} />
   if (briefingReadyTurn) return <ExecutiveBriefingReceiptCard materials={briefingMaterialNames} />
   if (briefingReviewTurn) return <BriefingMaterialPickerCard onConfirm={confirmBriefing} />

@@ -27,6 +27,8 @@ export interface AssistantMarkdownProps {
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
   /** Resolved prose file mentions for this Assistant's closing turn. */
   mentions?: MarkdownFileMentions | undefined
+  /** Inline board renderer for a leading project-brain surface marker. */
+  assistantSurface: ChatNodeOwnerProps['assistantSurface']
   /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
@@ -38,9 +40,20 @@ export function projectAssistantMessageText(text: string): string {
     .replace(/<!-- project-brain[\s\S]*$/u, '')
 }
 
+const LEADING_SURFACE_MARKER = /^<!-- project-brain:surface ([A-Za-z0-9%._~-]+) -->/
+
+/**
+ * Extract the payload of a surface marker that opens the reply, or null when
+ * the text does not (yet) start with a complete leading marker.
+ */
+export function leadingSurfacePayload(text: string): string | null {
+  const match = LEADING_SURFACE_MARKER.exec(text)
+  return match?.[1] ?? null
+}
+
 /** Reasoning block as the Think variant summary row (figma 39:28304). */
 export const AssistantMarkdown = memo(function AssistantMarkdown({
-  blocks, streaming, interrupted, renderMessageImages, mentions, t,
+  blocks, streaming, interrupted, renderMessageImages, mentions, assistantSurface, t,
 }: AssistantMarkdownProps) {
   // Stable per locale revision (t identity changes on switch): a fresh object
   // per render would rebuild MarkdownText's component table every chunk.
@@ -59,6 +72,16 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
     if (block === undefined) continue
     switch (block.kind) {
       case 'text':
+        // A surface marker opening the FIRST text block inlines its board above
+        // the prose: the board leads the message while the wrap-up streams as
+        // ordinary markdown beneath it. Later text blocks never carry it.
+        if (i === blocks.findIndex(candidate => candidate?.kind === 'text')) {
+          const payload = leadingSurfacePayload(block.text)
+          if (payload !== null) {
+            const board = assistantSurface(payload)
+            if (board !== null) rendered.push(<Fragment key={`surface-${i}`}>{board}</Fragment>)
+          }
+        }
         rendered.push(
           <MarkdownText
             key={i}

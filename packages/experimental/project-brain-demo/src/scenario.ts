@@ -140,7 +140,7 @@ function myDaySurface(): string {
   return `我已经结合你当前参与的项目、任务截止时间、风险、依赖关系和协作等待情况，把今天最值得推进的 6 件事排好了。\n\n其中 2 件需要优先处理，1 件正在影响后续任务，另外有 1 项在等你反馈。\n\n<!-- project-brain:surface ${projectBrainSurfacePayload('my-day', 'my-day-workbench', PROJECT_BRAIN_MY_DAY_DEMO)} -->`
 }
 
-/** The AI manager wrap-up as visible markdown so it streams as an ordinary assistant reply. */
+/** The AI manager wrap-up as visible markdown, streamed after the inline board. */
 function copilotNarrativeText(): string {
   const narrative = PROJECT_BRAIN_COPILOT_DEMO.aiNarrative
   return [
@@ -161,8 +161,9 @@ function copilotNarrativeText(): string {
 }
 
 function projectCopilotSurface(): string {
-  // The wrap-up is ordinary reply text; the board mounts beneath it from the surface marker.
-  return `${copilotNarrativeText()}\n\n<!-- project-brain:surface ${projectBrainSurfacePayload('project-copilot', 'project-copilot-dashboard', PROJECT_BRAIN_COPILOT_DEMO)} -->`
+  // The leading marker inlines the board above the prose; the wrap-up streams
+  // as ordinary reply text beneath it.
+  return `<!-- project-brain:surface ${projectBrainSurfacePayload('project-copilot', 'project-copilot-dashboard', PROJECT_BRAIN_COPILOT_DEMO)} -->\n\n${copilotNarrativeText()}`
 }
 
 function executiveBriefingDocument(): string {
