@@ -25,7 +25,6 @@ function stubScope(value?: ScopeValue): SettingsScope<ScopeValue | undefined> {
     subscribe: (listener) => { listeners.add(listener); return () => { listeners.delete(listener) } },
     set: vi.fn((field, next) => { value = { ...value, [field]: next }; for (const l of listeners) l(); return Promise.resolve() }),
     unset: vi.fn(() => Promise.resolve()),
-    dispose: vi.fn(() => Promise.resolve()),
   }
 }
 

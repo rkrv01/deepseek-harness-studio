@@ -57,6 +57,12 @@ function flowProbe() {
   return { probe, renderSlot }
 }
 
+/** Fixed-workspace lock source bound like the renderer would (always unlocked in these flows). */
+const useFixedLocked = bindSnapshotSelector({
+  getSnapshot: () => false,
+  subscribe: () => () => {},
+})
+
 /** Manual occupancy source bound like the renderer would: flip() drives the hook like a real registration change. */
 function occupancySource(initial = true) {
   let occupied = initial
@@ -96,7 +102,7 @@ function mount(
       onClose={onClose}
       createWorkspace={createWorkspace}
       useDirectoryFlow={occupancy.useDirectoryFlow}
-      useFixedLocked={() => false}
+      useFixedLocked={useFixedLocked}
       renderSlot={renderSlot}
       t={t}
     />
@@ -213,7 +219,7 @@ describe('WorkspacePicker', () => {
       <WorkspacePicker
         open useSessions={hook(sessions)} useWorkspaces={hook(workspaceState([workspace('alpha', 'Alpha')]))}
         onPick={vi.fn()} onClose={vi.fn()} createWorkspace={vi.fn()}
-        useDirectoryFlow={occupancySource().useDirectoryFlow} useFixedLocked={() => false} renderSlot={renderSlot} t={t}
+        useDirectoryFlow={occupancySource().useDirectoryFlow} useFixedLocked={useFixedLocked} renderSlot={renderSlot} t={t}
       />,
     )
     expect(screen.queryByRole('menu')).toBeNull()
@@ -228,7 +234,7 @@ describe('WorkspacePicker', () => {
       <WorkspacePicker
         open anchorRef={anchor()} useSessions={hook(sessions)} useWorkspaces={hook(state)}
         onPick={vi.fn()} onClose={vi.fn()} createWorkspace={vi.fn()}
-        useDirectoryFlow={occupancySource().useDirectoryFlow} useFixedLocked={() => false} renderSlot={renderSlot} t={t}
+        useDirectoryFlow={occupancySource().useDirectoryFlow} useFixedLocked={useFixedLocked} renderSlot={renderSlot} t={t}
       />,
     )
     // An empty list is not final yet: jumping into the directory flow here

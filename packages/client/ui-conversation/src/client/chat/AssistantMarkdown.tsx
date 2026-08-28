@@ -28,7 +28,7 @@ export interface AssistantMarkdownProps {
   /** Resolved prose file mentions for this Assistant's closing turn. */
   mentions?: MarkdownFileMentions | undefined
   /** Inline board renderer for a leading project-brain surface marker. */
-  assistantSurface: ChatNodeOwnerProps['assistantSurface']
+  assistantSurface?: ChatNodeOwnerProps['assistantSurface']
   /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
@@ -78,7 +78,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
         if (i === blocks.findIndex(candidate => candidate?.kind === 'text')) {
           const payload = leadingSurfacePayload(block.text)
           if (payload !== null) {
-            const board = assistantSurface(payload)
+            const board = assistantSurface?.(payload) ?? null
             if (board !== null) rendered.push(<Fragment key={`surface-${i}`}>{board}</Fragment>)
           }
         }

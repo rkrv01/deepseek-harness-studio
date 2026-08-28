@@ -109,7 +109,7 @@ async function harness(
     ...extras.openPath === undefined ? {} : { openPath: extras.openPath },
     ...extras.canOpenPath === undefined ? {} : { canOpenPath: extras.canOpenPath },
   })
-  return { api, ctx, storageDomain, root, fixedWorkspaceControl: ctx.get('fixedWorkspaceControl') }
+  return { api, ctx, storageDomain, root, fixedWorkspaceControl: ctx.get('fixedWorkspaceControl')! }
 }
 
 /** Stage one directory under the harness root for path adoption. */

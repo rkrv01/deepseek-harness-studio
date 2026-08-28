@@ -15,16 +15,16 @@ describe('project brain scripted scenario', () => {
     expect(replyStreamScenario(resolveProjectBrainReply('帮我启动智慧园区建设项目。')).id).toBe('project-launch')
     expect(replyStreamScenario(resolveProjectBrainReply('帮我整理这个项目的会议纪要')).id).toBe('meeting-actions')
     expect(replyStreamScenario(resolveProjectBrainReply('基于这个项目，帮我看看我今天到底该干什么。')).id).toBe('my-day')
-    expect(replyStreamScenario({ kind: 'briefing-receipt', text: '' }).id).toBe('executive-briefing')
-    expect(replyStreamScenario({ kind: 'meeting-receipt', text: '' }).id).toBe('meeting-actions')
-    expect(replyStreamScenario({ kind: 'fallback', text: '' }).id).toBe('project-launch')
+    expect(replyStreamScenario({ kind: 'briefing-receipt' }).id).toBe('executive-briefing')
+    expect(replyStreamScenario({ kind: 'meeting-receipt' }).id).toBe('meeting-actions')
+    expect(replyStreamScenario({ kind: 'fallback' }).id).toBe('project-launch')
   })
 
   it('keeps all scenario documents on the slowed registry pacing', () => {
-    expect(replyStreamScenario({ kind: 'launch-plan', text: '' }).stream).toEqual({ introDelayMs: 1_200, chunkChars: 112, intervalMs: 350 })
-    expect(replyStreamScenario({ kind: 'meeting-analysis', text: '' }).stream).toEqual({ introDelayMs: 900, chunkChars: 160, intervalMs: 320 })
-    expect(replyStreamScenario({ kind: 'handoff', scenarioId: 'project-copilot', text: '' }).stream).toEqual({ introDelayMs: 800, chunkChars: 112, intervalMs: 350 })
-    expect(replyStreamScenario({ kind: 'executive-briefing', text: '' }).stream).toEqual({ introDelayMs: 1_000, chunkChars: 96, intervalMs: 420 })
+    expect(replyStreamScenario({ kind: 'launch-plan' }).stream).toEqual({ introDelayMs: 1_200, chunkChars: 112, intervalMs: 350 })
+    expect(replyStreamScenario({ kind: 'meeting-analysis' }).stream).toEqual({ introDelayMs: 900, chunkChars: 160, intervalMs: 320 })
+    expect(replyStreamScenario({ kind: 'handoff', scenarioId: 'project-copilot' }).stream).toEqual({ introDelayMs: 800, chunkChars: 112, intervalMs: 350 })
+    expect(replyStreamScenario({ kind: 'executive-briefing' }).stream).toEqual({ introDelayMs: 1_000, chunkChars: 96, intervalMs: 420 })
   })
 
   describe('trailing private payload streaming', () => {
@@ -45,7 +45,7 @@ describe('project brain scripted scenario', () => {
 
     it('finishes right after the last visible character instead of pacing kilobytes of invisible payload', async () => {
       vi.useFakeTimers()
-      const scenario = replyStreamScenario({ kind: 'meeting-analysis', text: '' })
+      const scenario = replyStreamScenario({ kind: 'meeting-analysis' })
       // 模拟会议回复：完整真实可见正文 + 与实际规模相当的编码载荷
       const visible = meetingReplyText()
       const hidden = `\n\n<!-- project-brain:scenario ${encodeURIComponent('x'.repeat(6_000))} -->`
@@ -71,7 +71,7 @@ describe('project brain scripted scenario', () => {
     })
     it('attaches a leading surface marker unpaced before the first paced character', async () => {
       vi.useFakeTimers()
-      const scenario = replyStreamScenario({ kind: 'handoff', scenarioId: 'project-copilot', text: '' })
+      const scenario = replyStreamScenario({ kind: 'handoff', scenarioId: 'project-copilot' })
       const reply = resolveProjectBrainReply('智慧园区建设项目现状怎么样？')
       const deltas: string[] = []
       let simulatedMs = 0

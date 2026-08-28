@@ -39,6 +39,14 @@ export class TestWorkspaces implements IWorkspaces {
   }
 
   /**
+   * Re-fetch the workspace list from the Host (recorded; default no-op).
+   */
+  async refresh(): Promise<void> {
+    this.calls.push({ method: 'refresh', args: [] })
+    await (this.stubs.get('refresh')?.() as Promise<void> | undefined)
+  }
+
+  /**
    * Replace an action's behavior (the recorded call is still appended first).
    * @param method - action name (e.g. 'connectWorkspace').
    * @param impl - replacement behavior.
