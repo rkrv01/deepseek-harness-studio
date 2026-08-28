@@ -14,6 +14,14 @@ export interface SettingsValues {
   readonly fixedWorkspace?: boolean
 }
 
+/** Line tone of the connectivity probe output: ok/error carry the green/red accents. */
+type ProbeTone = 'ok' | 'error' | 'neutral'
+
+interface ProbeLine {
+  readonly tone: ProbeTone
+  readonly text: string
+}
+
 /** Injected dependency of the developer settings section. */
 export interface PlatformSettingsInjected {
   readonly scope: SettingsScope<SettingsValues | undefined> | undefined
@@ -30,6 +38,8 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
   const [base, setBase] = useState<string>(() => scope?.getSnapshot().value?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL)
   const [apiBase, setApiBase] = useState<string>(() => scope?.getSnapshot().value?.demoApiBaseUrl ?? DEFAULT_DEMO_API_BASE_URL)
   const [fixed, setFixed] = useState<boolean>(() => scope?.getSnapshot().value?.fixedWorkspace ?? false)
+  const [probeLines, setProbeLines] = useState<readonly ProbeLine[]>([])
+  const [probing, setProbing] = useState(false)
   const appliedBase = scope?.getSnapshot().value?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL
   const appliedApiBase = scope?.getSnapshot().value?.demoApiBaseUrl ?? DEFAULT_DEMO_API_BASE_URL
 
@@ -61,6 +71,60 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
   const commitFixed = (checked: boolean): void => {
     setFixed(checked)
     void scope?.set('fixedWorkspace', checked)
+  }
+
+  /** Current 接口地址 input value, defaulted and trailing-slash-normalized for probing. */
+  const probeBase = (): string => {
+    const value = apiBase.trim() === '' ? DEFAULT_DEMO_API_BASE_URL : apiBase.trim()
+    return value.replace(/\/+$/u, '')
+  }
+
+  const probeRead = async (base: string, lines: ProbeLine[]): Promise<void> => {
+    const response = await fetch(`${base}/api/demo/config`)
+    if (!response.ok) {
+      lines.push({ tone: 'error', text: `GET /api/demo/config → HTTP ${response.status}` })
+      return
+    }
+    const value: unknown = await response.json()
+    const record = value as Record<string, unknown>
+    lines.push({ tone: 'ok', text: `GET /api/demo/config → HTTP 200，demoEnabled=${String(record.demoEnabled)}，aiTaskCreated=${String(record.aiTaskCreated)}` })
+  }
+
+  const runProbe = async (): Promise<void> => {
+    setProbing(true)
+    const base = probeBase()
+    const lines: ProbeLine[] = [{ tone: 'neutral', text: `测试地址：${base}` }]
+    try {
+      await probeRead(base, lines)
+    } catch (error) {
+      lines.push({ tone: 'error', text: `连接失败：${error instanceof Error ? error.message : String(error)}` })
+    }
+    setProbeLines(lines)
+    setProbing(false)
+  }
+
+  const toggleProbe = async (key: 'master' | 'ai-task'): Promise<void> => {
+    setProbing(true)
+    const base = probeBase()
+    const lines: ProbeLine[] = [{ tone: 'neutral', text: `测试地址：${base}` }]
+    try {
+      if (key === 'master') {
+        const response = await fetch(`${base}/api/demo/config`, { method: 'POST' })
+        lines.push({ tone: response.ok ? 'ok' : 'error', text: `POST /api/demo/config（切换模拟数据）→ HTTP ${response.status}` })
+      } else {
+        const response = await fetch(`${base}/api/demo/toggle`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ key: 'aiTaskCreated' }),
+        })
+        lines.push({ tone: response.ok ? 'ok' : 'error', text: `POST /api/demo/toggle（切换AI任务创建）→ HTTP ${response.status}` })
+      }
+      await probeRead(base, lines)
+    } catch (error) {
+      lines.push({ tone: 'error', text: `操作失败：${error instanceof Error ? error.message : String(error)}` })
+    }
+    setProbeLines(lines)
+    setProbing(false)
   }
 
   return (
@@ -95,6 +159,32 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
         />
         <em>已应用：{appliedApiBase}</em>
       </label>
+      <div className={css.probe}>
+        <strong>接口连通性测试</strong>
+        <div className={css.probeActions}>
+          <button type="button" className={css.testButton} disabled={probing} onClick={() => { void runProbe() }}>
+            测试连接
+          </button>
+          <button type="button" className={css.testButton} disabled={probing} onClick={() => { void toggleProbe('master') }}>
+            切换模拟数据
+          </button>
+          <button type="button" className={css.testButton} disabled={probing} onClick={() => { void toggleProbe('ai-task') }}>
+            切换AI任务创建
+          </button>
+        </div>
+        {probeLines.length > 0 && (
+          <ul className={css.probeOutput}>
+            {probeLines.map((line, index) => (
+              <li
+                key={index}
+                className={`${css.probeLine} ${line.tone === 'ok' ? css.probeOk : line.tone === 'error' ? css.probeError : css.probeNeutral}`}
+              >
+                {line.text}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       <label className={css.toggle}>
         <input
           type="checkbox"

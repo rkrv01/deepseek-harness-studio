@@ -32,11 +32,17 @@ const PROVIDER = 'project-brain-demo'
 const MODEL = 'project-brain-demo'
 const PROJECT_EXECUTION_SYNC_DELAY_MS = 4_000
 
+/** Demo item key for the platform's AI task-creation switch (protocol constant). */
+const DEMO_TASK_CREATION_KEY = 'aiTaskCreated'
+
 /** Settings namespace owning the configurable platform origin. */
 export const PROJECT_BRAIN_SETTINGS_NS = 'project-brain'
 
 class ProjectBrainDemoAdapter extends LlmAdapter {
-  constructor(private readonly synchronizeDemoStatus: (enabled: boolean) => Promise<void>) { super() }
+  constructor(
+    private readonly synchronizeDemoStatus: (enabled: boolean) => Promise<void>,
+    private readonly synchronizeDemoItem: (key: string, enabled: boolean) => Promise<void>,
+  ) { super() }
   override providerInfo(provider: string) {
     return { id: provider, name: '项目智脑演示模型' }
   }
@@ -52,7 +58,7 @@ class ProjectBrainDemoAdapter extends LlmAdapter {
   override stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const prompt = latestUserText(options)
     const reply = resolveProjectBrainReply(prompt)
-    return streamProjectBrainReply(reply, options.signal ?? new AbortController().signal, this.synchronizeDemoStatus)
+    return streamProjectBrainReply(reply, options.signal ?? new AbortController().signal, this.synchronizeDemoStatus, this.synchronizeDemoItem)
   }
 }
 
@@ -115,7 +121,9 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
     demoStatusBase,
     createDemoStatusFetch(config.demoStatusAllowSelfSignedCertificate ?? true),
   )
-  const registration = ctx.llm.registerAdapter([PROVIDER], new ProjectBrainDemoAdapter(enabled => synchronizer.ensure(enabled)))
+  const synchronizeDemoStatus = (enabled: boolean) => synchronizer.ensure(enabled)
+  const synchronizeDemoItem = (key: string, enabled: boolean) => synchronizer.ensureItem(key, enabled)
+  const registration = ctx.llm.registerAdapter([PROVIDER], new ProjectBrainDemoAdapter(synchronizeDemoStatus, synchronizeDemoItem))
   ctx.effect(() => registration, 'project-brain-demo: adapter')
   const mounted = new WeakSet<Agent>()
   const mount = (agent: Agent): void => {
@@ -136,7 +144,7 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
     const reply = resolveProjectBrainReply(latest)
     return reply.kind === 'fallback'
       ? next()
-      : streamProjectBrainReply(reply, options.signal ?? new AbortController().signal, enabled => synchronizer.ensure(enabled))
+      : streamProjectBrainReply(reply, options.signal ?? new AbortController().signal, synchronizeDemoStatus, synchronizeDemoItem)
   })
 }
 
@@ -243,7 +251,16 @@ async function* streamDeterministicReply(reply: ProjectBrainReply, signal: Abort
 }
 
 /** Route one scripted reply through its streaming presentation and platform synchronization duties. */
-async function* streamProjectBrainReply(reply: ProjectBrainReply, signal: AbortSignal, synchronizeDemoStatus: (enabled: boolean) => Promise<void>): AsyncIterable<StreamChunk> {
+async function* streamProjectBrainReply(
+  reply: ProjectBrainReply,
+  signal: AbortSignal,
+  synchronizeDemoStatus: (enabled: boolean) => Promise<void>,
+  synchronizeDemoItem: (key: string, enabled: boolean) => Promise<void>,
+): AsyncIterable<StreamChunk> {
+  if (reply.kind === 'meeting-receipt') {
+    yield* streamMeetingExecutionReceipt(reply.text, signal, synchronizeDemoStatus, synchronizeDemoItem)
+    return
+  }
   if (reply.kind === 'launch-receipt') {
     yield* streamExecutionReceipt(reply.text, signal, synchronizeDemoStatus)
     return
@@ -311,6 +328,51 @@ async function* streamExecutionReceipt(receipt: string, signal: AbortSignal, syn
     const delta = '\n\n## 平台模拟数据尚未加载\n\n项目方案已保留，但平台模拟数据未能开启。请检查服务连接后重试加载。\n\n<!-- project-brain:platform-failed -->'
     text += delta
     yield { type: 'text-delta', index: 0, text: delta }
+  }
+  yield { type: 'block-end', index: 0, block: { type: 'text', text } }
+  yield { type: 'usage', usage: { inputTokens: 128, outputTokens: text.length } }
+  yield { type: 'finish', reason: { kind: 'stop' } }
+}
+
+/**
+ * Stream the meeting execution receipt with the platform switches synchronized
+ * once the visible steps finish: the master demo switch and the AI task-creation
+ * item both turn on, matching the initialization flow's platform hand-off.
+ */
+export async function* streamMeetingExecutionReceipt(
+  receipt: string,
+  signal: AbortSignal,
+  synchronizeDemoStatus: (enabled: boolean) => Promise<void>,
+  synchronizeDemoItem: (key: string, enabled: boolean) => Promise<void>,
+): AsyncIterable<StreamChunk> {
+  const scenario = replyStreamScenario({ kind: 'meeting-receipt' })
+  const { visible, hidden } = splitTrailingPrivateMarkers(receipt)
+  let text = visible
+  yield { type: 'block-start', index: 0, blockType: 'text' }
+  for (let offset = 0; offset < text.length; offset += scenario.stream.chunkChars) {
+    await delay(offset === 0 ? scenario.stream.introDelayMs : scenario.stream.intervalMs, signal)
+    if (signal.aborted) return
+    yield { type: 'text-delta', index: 0, text: text.slice(offset, offset + scenario.stream.chunkChars) }
+  }
+  const syncing = '\n\n> 正在同步会议任务数据到项目智脑平台，请稍候…'
+  text += syncing
+  yield { type: 'text-delta', index: 0, text: syncing }
+  await delay(PROJECT_EXECUTION_SYNC_DELAY_MS, signal)
+  if (signal.aborted) return
+  try {
+    await synchronizeDemoStatus(true)
+    await synchronizeDemoItem(DEMO_TASK_CREATION_KEY, true)
+    const ready = '\n\n## 平台模拟数据已加载\n\n会议任务数据已同步到项目智脑平台，任务与风险台账已更新，可以进入项目查看详情。\n\n<!-- project-brain:platform-ready -->'
+    text += ready
+    yield { type: 'text-delta', index: 0, text: ready }
+  } catch {
+    const failed = '\n\n## 平台模拟数据尚未加载\n\n会议任务数据未能同步到项目智脑平台。请确认服务连接后重试。\n\n<!-- project-brain:platform-failed -->'
+    text += failed
+    yield { type: 'text-delta', index: 0, text: failed }
+  }
+  if (hidden !== '') {
+    text += hidden
+    yield { type: 'text-delta', index: 0, text: hidden }
   }
   yield { type: 'block-end', index: 0, block: { type: 'text', text } }
   yield { type: 'usage', usage: { inputTokens: 128, outputTokens: text.length } }

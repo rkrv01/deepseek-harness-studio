@@ -267,7 +267,7 @@ function MyDayWorkbench({ data }: { readonly data: ProjectBrainMyDayData }): JSX
     </div>
     <footer className={css.footer}>
       <span>标记完成后排序仅在演示内重新计算，不写入真实项目平台。</span>
-      <button type="button">进入我的任务</button>
+      {/* <button type="button">进入我的任务</button> */}
     </footer>
   </section>
 }

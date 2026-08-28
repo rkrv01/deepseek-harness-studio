@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { replyStreamScenario, splitTrailingPrivateMarkers, streamScenarioText } from '../src/index.ts'
+import { replyStreamScenario, splitTrailingPrivateMarkers, streamMeetingExecutionReceipt, streamScenarioText } from '../src/index.ts'
 import { PROJECT_BRAIN_PLAN, projectPlanRevisionPayload, resolveProjectBrainReply } from '../src/scenario.ts'
 import { parseProjectBrainSurfacePayload, projectBrainScenarioPayload } from '@deepseek-ai/dsh-client-ui-project-brain/scenario'
 
@@ -285,5 +285,62 @@ describe('project brain scripted scenario', () => {
     expect(reply.text).toContain('武汉经开区智慧园区建设项目')
     expect(reply.text).toContain('王莉')
     expect(reply.text).toContain('2026-09-03')
+  })
+
+  it('synchronizes both platform switches after the meeting receipt completes', async () => {
+    vi.useFakeTimers()
+    const syncStatus = vi.fn(async (_enabled: boolean) => {})
+    const syncItem = vi.fn(async (_key: string, _enabled: boolean) => {})
+    const receipt = `收到，开始按会议分析结果执行。\n\n## 执行进度\n\n1. ✓ 已创建 5 项新任务\n2. ✓ 已更新 1 项已有任务\n3. ✓ 已新增 1 项风险\n4. ✓ 已配置任务到期提醒与负责人通知\n\n## 执行完成\n\n**本次会议共处理 7 项行动事项**\n\n<!-- project-brain:meeting-executed -->\n<!-- project-brain:scenario ${projectBrainScenarioPayload('meeting-actions', 'confirm', [])} -->`
+    const deltas: string[] = []
+    let simulatedMs = 0
+    const consumed = (async () => {
+      for await (const chunk of streamMeetingExecutionReceipt(receipt, new AbortController().signal, syncStatus, syncItem)) {
+        if (chunk.type === 'text-delta') deltas.push(chunk.text)
+      }
+      deltas.push('DONE')
+    })()
+    void consumed.catch(() => undefined)
+    while (!deltas.includes('DONE') && simulatedMs <= 120_000) {
+      await vi.advanceTimersByTimeAsync(200)
+      simulatedMs += 200
+    }
+    await consumed
+    vi.useRealTimers()
+
+    expect(syncStatus).toHaveBeenCalledWith(true)
+    expect(syncItem).toHaveBeenCalledWith('aiTaskCreated', true)
+    const joined = deltas.join('')
+    expect(joined).toContain('正在同步会议任务数据到项目智脑平台')
+    expect(joined).toContain('<!-- project-brain:platform-ready -->')
+    // 同步播报与 ready 标记先于会议私有标记：完成卡片仍在回复末尾呈现。
+    expect(joined.indexOf('platform-ready')).toBeLessThan(joined.indexOf('meeting-executed'))
+  })
+
+  it('signals the platform-failed marker when the meeting synchronization fails', async () => {
+    vi.useFakeTimers()
+    const syncStatus = vi.fn(async () => { throw new Error('platform unreachable') })
+    const syncItem = vi.fn(async (_key: string, _enabled: boolean) => {})
+    const receipt = '收到，开始按会议分析结果执行。\n\n## 执行完成\n\n**本次会议共处理 1 项行动事项**\n\n<!-- project-brain:meeting-executed -->'
+    const deltas: string[] = []
+    let simulatedMs = 0
+    const consumed = (async () => {
+      for await (const chunk of streamMeetingExecutionReceipt(receipt, new AbortController().signal, syncStatus, syncItem)) {
+        if (chunk.type === 'text-delta') deltas.push(chunk.text)
+      }
+      deltas.push('DONE')
+    })()
+    void consumed.catch(() => undefined)
+    while (!deltas.includes('DONE') && simulatedMs <= 120_000) {
+      await vi.advanceTimersByTimeAsync(200)
+      simulatedMs += 200
+    }
+    await consumed
+    vi.useRealTimers()
+
+    expect(syncStatus).toHaveBeenCalledWith(true)
+    expect(syncItem).not.toHaveBeenCalled()
+    expect(deltas.join('')).toContain('<!-- project-brain:platform-failed -->')
+    expect(deltas.join('')).toContain('<!-- project-brain:meeting-executed -->')
   })
 })
