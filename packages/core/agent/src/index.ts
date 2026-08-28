@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-agent
  */
 
-import { Context, FiberState, getTraceable, Service, symbols } from '@deepseek-ai/cordis'
+import { Context, getTraceable, Service, symbols } from '@deepseek-ai/cordis'
 import type { Fiber } from '@deepseek-ai/cordis'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { isPromise } from 'node:util/types'
@@ -14,6 +14,8 @@ import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { TypertContext, TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import type { Agent, AgentOptions } from './runtime-types.ts'
+
+const FIBER_UNLOADING = 5
 
 export * from './runtime-types.ts'
 export * from './types.ts'
@@ -287,7 +289,7 @@ export class AgentRegistry extends Service {
     // unwinds with this service's fiber.
     ctx.accessor('agent', { get: () => undefined })
     ctx.on('internal/status', (fiber) => {
-      if (fiber.state === FiberState.UNLOADING && this.hasLifecycleAncestor(fiber)) {
+      if (fiber.state === FIBER_UNLOADING && this.hasLifecycleAncestor(fiber)) {
         this.closeInitiators()
       }
     })

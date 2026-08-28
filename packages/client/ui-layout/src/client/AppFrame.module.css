@@ -75,6 +75,12 @@
   background: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 72%, transparent);
 }
 
+/* macOS keeps the native traffic lights but uses the same opaque sidebar tint
+   as the browser surface; the demo should not inherit the system material. */
+:global(html[data-dsh-desktop-platform='darwin']) .sidebarCol {
+  background: var(--dsw-specific-sidebar-fill);
+}
+
 :global(html[data-dsh-desktop-platform='darwin']) .centerCol,
 :global(html[data-dsh-desktop-platform='darwin']) .detailsCol,
 :global(html[data-dsh-desktop-platform='win32']) .centerCol,

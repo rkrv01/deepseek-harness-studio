@@ -1,6 +1,8 @@
 import { IconSparkle16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './PluginCenterNavItem.module.css'
+import { useSyncExternalStore } from 'react'
+import { productEntryVisibility, subscribeProductEntryVisibility } from './entry-visibility.ts'
 
 /** Registration-side navigation action for Plugin Discovery. */
 export interface PluginDiscoveryNavInjected {
@@ -16,6 +18,8 @@ export type PluginDiscoveryNavProps =
 
 /** First-level sidebar entry that opens the independent Plugin Discovery page. */
 export function PluginDiscoveryNavItem({ wide, primaryPage, pageId, open, t }: PluginDiscoveryNavProps) {
+  const visible = useSyncExternalStore(subscribeProductEntryVisibility, () => productEntryVisibility()['plugin-discovery'])
+  if (!visible) return null
   const selected = primaryPage === pageId
   return (
     <Tooltip label={t('discoveryNav')} delayMs={500} disabled={wide}>

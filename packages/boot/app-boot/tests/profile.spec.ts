@@ -6,8 +6,14 @@
 
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { dirname, join } from 'node:path'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
+  return { ...actual, symlinkSync: vi.fn(actual.symlinkSync) }
+})
+
 import {
   composeEntries,
   healProfilesModuleFallback,
@@ -419,5 +425,21 @@ describe('healProfilesModuleFallback', () => {
     healProfilesModuleFallback(anchor, home) // second healer sees the correct link
     const fallback = join(home, 'profiles', 'node_modules')
     expect(lstatSync(join(fallback, 'dsh-app')).isSymbolicLink()).toBe(true)
+  })
+
+  it('copies a package when Windows denies junction creation and reuses the marked copy', () => {
+    const anchor = stageInstallation({})
+    const home = tmp()
+    const mockedSymlink = vi.mocked(symlinkSync)
+    mockedSymlink.mockImplementationOnce(() => {
+      const error = new Error('junction denied') as NodeJS.ErrnoException
+      error.code = 'EPERM'
+      throw error
+    })
+    healProfilesModuleFallback(anchor, home)
+    const fallback = join(home, 'profiles', 'node_modules', 'dsh-app')
+    expect(lstatSync(fallback).isDirectory()).toBe(true)
+    expect(readFileSync(join(home, 'profiles', 'node_modules', '.dsh-copy-fallback.json.dsh-app'), 'utf8')).toContain(dirname(anchor))
+    healProfilesModuleFallback(anchor, home)
   })
 })

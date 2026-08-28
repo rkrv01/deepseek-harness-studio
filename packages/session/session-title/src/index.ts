@@ -3,7 +3,7 @@
  * @module @deepseek-ai/dsh-session-title
  */
 
-import { Context, FiberState, Service, type Fiber } from '@deepseek-ai/cordis'
+import { Context, Service, type Fiber } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { z as zod } from 'zod'
 import type { Branded } from '@deepseek-ai/dsh-brand'
@@ -20,6 +20,8 @@ import type {} from '@deepseek-ai/dsh-session-projection'
 // module edge in the emitted index.d.ts, so aggregate programs consuming the
 // declarations still receive the SessionProjectionMap merge.
 export type * from './types.ts'
+
+const FIBER_ACTIVE = 2
 import { fallbackSessionTitle, normalizeSessionTitle } from './normalize.ts'
 
 export { fallbackSessionTitle, normalizeSessionTitle, truncateTitleUtf8 } from './normalize.ts'
@@ -710,7 +712,7 @@ export class SessionTitleService extends Service {
   private serviceActive(): boolean {
     return !this.lifetime.signal.aborted
       && this.ownerFiber.uid !== null
-      && this.ownerFiber.state === FiberState.ACTIVE
+      && this.ownerFiber.state === FIBER_ACTIVE
   }
 
   /** Reject work once the owning plugin fiber has begun unloading. */

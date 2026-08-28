@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import {
   Button, IconDataOutline16, IconRefreshOutline16, IconRightUpOutline16, IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './ApplicationCenterPage.module.css'
+import { productEntryVisibility, subscribeProductEntryVisibility } from './entry-visibility.ts'
 
 /** Runtime evidence returned by one built-in application. */
 export interface ApplicationRuntimeStatus {
@@ -62,6 +63,8 @@ export function ApplicationCenterPage({
   setLlmWikiSidebarVisible,
   t,
 }: ApplicationCenterPageProps) {
+  const visible = useSyncExternalStore(subscribeProductEntryVisibility, () => productEntryVisibility()['application-center'])
+  if (!visible) return null
   const [runtime, setRuntime] = useState<RuntimeState>({ status: 'loading' })
   const [sidebarVisible, setSidebarVisible] = useState(getLlmWikiSidebarVisible)
 

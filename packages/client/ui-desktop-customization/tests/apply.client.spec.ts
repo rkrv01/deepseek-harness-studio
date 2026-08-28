@@ -6,8 +6,6 @@ import { createSnapshotStore, SlotRegistry } from '@deepseek-ai/dsh-client-runti
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-desktop-customization/client'
-import { AppearanceSection } from '../src/client/AppearanceSection.tsx'
-import { BrandBadge } from '../src/client/BrandBadge.tsx'
 import { validateImageFile } from '../src/client/background-image.ts'
 import { UpdateSection } from '../src/client/UpdateSection.tsx'
 import { VisionEnhancementRow } from '../src/client/VisionEnhancementRow.tsx'
@@ -70,14 +68,13 @@ async function bench() {
 }
 
 describe('Desktop customization client plugin', () => {
-  it('registers both settings sections, the shared vision controls, and the sidebar brand action', async () => {
+  it('registers the update section and shared vision controls', async () => {
     const b = await bench()
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const sections = b.slots.entries('settings.section')
-    expect(sections.map(entry => entry.component)).toEqual([AppearanceSection, UpdateSection])
-    expect(sections.map(entry => resolveSlotLabel(entry.options.label))).toEqual(['背景', '软件更新'])
-    expect(b.slots.entries('sidebar.footer.action')[0]?.component).toBe(BrandBadge)
+    expect(sections.map(entry => entry.component)).toEqual([UpdateSection])
+    expect(sections.map(entry => resolveSlotLabel(entry.options.label))).toEqual(['软件更新'])
     expect(b.slots.entries('settings.general.item')[0]?.component).toBe(VisionEnhancementRow)
     const shortcut = b.slots.entries('conversation.input.left')[0]
     expect(shortcut?.component).toBe(VisionEnhancementShortcut)
@@ -85,15 +82,14 @@ describe('Desktop customization client plugin', () => {
     const rowInjected = b.slots.entries('settings.general.item')[0]?.inject?.() as unknown as VisionEnhancementInjected
     const shortcutInjected = shortcut?.inject?.('session-id' as never) as unknown as VisionEnhancementInjected
     expect(shortcutInjected.hooks.visionEnhancement).toBe(rowInjected.hooks.visionEnhancement)
-    expect(document.body.getAttribute('data-dsh-desktop-skin')).toBe('active')
-    expect(b.overrideTokens).toHaveBeenCalledOnce()
+    expect(document.body.hasAttribute('data-dsh-desktop-skin')).toBe(false)
+    expect(b.overrideTokens).not.toHaveBeenCalled()
     await fiber.dispose()
     expect(b.slots.entries('settings.section')).toHaveLength(0)
-    expect(b.slots.entries('sidebar.footer.action')).toHaveLength(0)
     expect(b.slots.entries('settings.general.item')).toHaveLength(0)
     expect(b.slots.entries('conversation.input.left')).toHaveLength(0)
     expect(document.body.hasAttribute('data-dsh-desktop-skin')).toBe(false)
-    expect(b.disposeTokens).toHaveBeenCalledOnce()
+    expect(b.disposeTokens).not.toHaveBeenCalled()
   })
 
   it('declares only the services it uses', () => {

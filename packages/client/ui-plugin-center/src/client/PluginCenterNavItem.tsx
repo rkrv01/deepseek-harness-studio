@@ -1,6 +1,8 @@
 import { IconCordisPluginOutline14, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './PluginCenterNavItem.module.css'
+import { useSyncExternalStore } from 'react'
+import { productEntryVisibility, subscribeProductEntryVisibility } from './entry-visibility.ts'
 
 /** Registration-side navigation action. */
 export interface PluginCenterNavInjected {
@@ -16,6 +18,8 @@ export type PluginCenterNavProps =
 
 /** First-level sidebar entry that opens the independent Plugin page. */
 export function PluginCenterNavItem({ wide, primaryPage, pageId, open, t }: PluginCenterNavProps) {
+  const visible = useSyncExternalStore(subscribeProductEntryVisibility, () => productEntryVisibility()['plugin-center'])
+  if (!visible) return null
   const selected = primaryPage === pageId
   return (
     <Tooltip label={t('nav')} delayMs={500} disabled={wide}>

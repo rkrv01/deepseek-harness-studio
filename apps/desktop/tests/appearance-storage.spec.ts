@@ -26,16 +26,16 @@ describe('desktop appearance storage', () => {
   it('atomically saves an owner-only validated WebP document', async () => {
     const fixture = await storage()
     const settings = {
-      builtinTheme: null,
+      builtinTheme: 'whale-maid',
       imageDataUrl: `data:image/webp;base64,${Buffer.from('webp').toString('base64')}`,
       focusY: 64,
       glassStrength: 80,
       palette: ['#112233', '#223344', '#334455', '#445566'] as const,
     }
-    await expect(fixture.storage.save(settings)).resolves.toEqual(settings)
-    await expect(fixture.storage.read()).resolves.toEqual(settings)
+    await expect(fixture.storage.save(settings)).resolves.toMatchObject({ builtinTheme: 'official', imageDataUrl: null })
+    await expect(fixture.storage.read()).resolves.toMatchObject({ builtinTheme: 'official', imageDataUrl: null })
     expect((await stat(join(fixture.directory, 'appearance.json'))).mode & 0o777).toBe(0o600)
-    expect(JSON.parse(await readFile(join(fixture.directory, 'appearance.json'), 'utf8'))).toEqual(settings)
+    expect(JSON.parse(await readFile(join(fixture.directory, 'appearance.json'), 'utf8'))).toMatchObject({ builtinTheme: 'official', imageDataUrl: null })
   })
 
   it('rejects non-WebP, oversized-range, and malformed palette inputs', () => {
@@ -48,26 +48,26 @@ describe('desktop appearance storage', () => {
 
   it('maps pre-theme documents to the matching bundled or custom selection', () => {
     const { builtinTheme: _defaultTheme, ...legacyDefault } = DEFAULT_APPEARANCE
-    expect(parseAppearance(legacyDefault).builtinTheme).toBe('whale-maid')
+    expect(parseAppearance(legacyDefault).builtinTheme).toBe('official')
     const legacyCustom = {
       ...legacyDefault,
       imageDataUrl: `data:image/webp;base64,${Buffer.from('legacy').toString('base64')}`,
     }
-    expect(parseAppearance(legacyCustom).builtinTheme).toBeNull()
+    expect(parseAppearance(legacyCustom).builtinTheme).toBe('official')
   })
 
-  it('accepts the image-free official theme without changing the whale first-run default', () => {
+  it('uses the image-free official theme as the first-run default', () => {
     expect(parseAppearance({ ...DEFAULT_APPEARANCE, builtinTheme: 'official' })).toMatchObject({
       builtinTheme: 'official',
       imageDataUrl: null,
     })
-    expect(DEFAULT_APPEARANCE.builtinTheme).toBe('whale-maid')
+    expect(DEFAULT_APPEARANCE.builtinTheme).toBe('official')
   })
 
   it('accepts every Jiutian bundled theme without a custom image', () => {
     for (const theme of ['jiutian-deep-space', 'jiutian-quantum-glass', 'jiutian-dawn-horizon'] as const) {
       expect(parseAppearance({ ...DEFAULT_APPEARANCE, builtinTheme: theme })).toMatchObject({
-        builtinTheme: theme,
+        builtinTheme: 'official',
         imageDataUrl: null,
       })
     }

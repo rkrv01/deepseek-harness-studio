@@ -2,6 +2,8 @@ import { IconAgentPresetOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { PresetSquarePanel, type PresetSquareInjected } from './PresetSquarePanel.tsx'
 import css from './PresetSquarePage.module.css'
+import { useSyncExternalStore } from 'react'
+import { productEntryVisibility, subscribeProductEntryVisibility } from './entry-visibility.ts'
 
 /** Operations provided to the independent Preset Square page. */
 export type PresetSquarePageInjected = PresetSquareInjected
@@ -30,6 +32,8 @@ export function PresetSquarePage({
   useLocalPreset,
   t,
 }: PresetSquarePageProps) {
+  const visible = useSyncExternalStore(subscribeProductEntryVisibility, () => productEntryVisibility()['preset-square'])
+  if (!visible) return null
   return (
     <div
       className={css.root}

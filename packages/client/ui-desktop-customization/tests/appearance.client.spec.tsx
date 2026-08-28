@@ -34,36 +34,20 @@ function bench(initial: AppearanceSettings = DEFAULT_APPEARANCE) {
 }
 
 describe('Desktop appearance themes', () => {
-  it('starts with the whale-maid skin and persists one cat-theme selection', async () => {
+  it('starts with the official skin and does not expose alternate themes', async () => {
     const fixture = bench()
     const dispose = fixture.controller.start()
     render(<AppearanceSection controller={fixture.controller} />)
     await act(async () => {})
 
-    const whale = screen.getByRole('button', { name: /大肥鱼拟人/ })
-    const cat = screen.getByRole('button', { name: /云端猫咪/ })
-    expect(whale.getAttribute('aria-pressed')).toBe('true')
-    expect(document.body.style.getPropertyValue('--dsh-desktop-background-image'))
-      .toContain(BUNDLED_APPEARANCE_THEMES['whale-maid'].imageUrl)
-
-    fireEvent.click(cat)
-    expect(cat.getAttribute('aria-pressed')).toBe('true')
-    fireEvent.click(screen.getByRole('button', { name: '保存并应用' }))
-
-    await waitFor(() => {
-      expect(fixture.save).toHaveBeenCalledWith({
-        builtinTheme: 'cloud-cat',
-        imageDataUrl: null,
-        focusY: 50,
-        glassStrength: 72,
-        palette: BUNDLED_APPEARANCE_THEMES['cloud-cat'].palette,
-      })
-    })
-    expect(document.body.style.getPropertyValue('--dsh-desktop-background-image'))
-      .toContain(BUNDLED_APPEARANCE_THEMES['cloud-cat'].imageUrl)
+    expect(screen.getByText('官方原版背景')).toBeTruthy()
+    expect(screen.queryByText('内置皮肤')).toBeNull()
+    expect(screen.queryByRole('button', { name: /大肥鱼拟人/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /云端猫咪/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /九天/ })).toBeNull()
+    expect(screen.queryByText('选择图片')).toBeNull()
 
     dispose()
-    expect(fixture.disposeTokens).toHaveBeenCalled()
   })
 
   it('persists the official original theme and removes the image skin', async () => {
@@ -72,9 +56,6 @@ describe('Desktop appearance themes', () => {
     render(<AppearanceSection controller={fixture.controller} />)
     await act(async () => {})
 
-    const official = screen.getByRole('button', { name: /官方原版/ })
-    fireEvent.click(official)
-    expect(official.getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(screen.getByRole('button', { name: '保存并应用' }))
 
     await waitFor(() => {
@@ -92,29 +73,4 @@ describe('Desktop appearance themes', () => {
     dispose()
   })
 
-  it('renders and persists the Jiutian light themes', async () => {
-    const fixture = bench()
-    const dispose = fixture.controller.start()
-    render(<AppearanceSection controller={fixture.controller} />)
-    await act(async () => {})
-
-    expect(screen.getByRole('button', { name: /九天·量子玻璃实验室/ })).toBeTruthy()
-    const dawn = screen.getByRole('button', { name: /九天·晨曦算力网络/ })
-    fireEvent.click(dawn)
-    fireEvent.click(screen.getByRole('button', { name: '保存并应用' }))
-
-    await waitFor(() => {
-      expect(fixture.save).toHaveBeenCalledWith({
-        builtinTheme: 'jiutian-dawn-horizon',
-        imageDataUrl: null,
-        focusY: 50,
-        glassStrength: 72,
-        palette: BUNDLED_APPEARANCE_THEMES['jiutian-dawn-horizon'].palette,
-      })
-    })
-    expect(document.body.style.getPropertyValue('--dsh-desktop-background-image'))
-      .toContain(BUNDLED_APPEARANCE_THEMES['jiutian-dawn-horizon'].imageUrl)
-
-    dispose()
-  })
 })

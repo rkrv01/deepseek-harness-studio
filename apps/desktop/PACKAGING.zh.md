@@ -19,7 +19,11 @@
 pnpm install
 ```
 
-打包会重建 FF–LLM Wiki 前端、仓库产物和 Host 生产依赖树。`apps/desktop/runtime-host/` 与 `apps/desktop/dist/` 是生成目录，不是发布源文件。
+打包会重建 FF–LLM Wiki 前端、仓库产物和 Host 生产依赖树。`apps/desktop/runtime-host/` 与 `apps/desktop/dist/` 是生成目录，不是发布源文件。最终交付文件统一放在 `apps/desktop/dist/windows/` 和 `apps/desktop/dist/mac/`。
+
+暂存运行时会清理声明文件、source map、包文档、测试/示例目录，以及其他平台或架构的原生依赖，只保留当前目标平台的二进制文件。JavaScript 和 TypeScript 运行时文件不会按后缀全部删除，因为部分 Host 包启动时会通过发布后的 ESM 导入解析源码文件。暂存目标由 `DSH_DESKTOP_TARGET_PLATFORM` 和 `DSH_DESKTOP_TARGET_ARCH` 控制。
+
+Demo 使用 NSIS 普通压缩级别，以减少测试机安装时的 CPU 解压和展开耗时。安装包体积可能略大于最高压缩级别，但不会改变安装后的运行时内容和文件数量。
 
 ## 本地预览包
 
@@ -31,6 +35,10 @@ pnpm run package:desktop
 
 生成目录位于 `apps/desktop/dist/`。首次启动重点检查窗口标题、图标、托盘菜单和 Host 是否成功进入就绪状态。
 
+## Windows 全新安装测试
+
+如果电脑已经安装过 Starlight Harness，可双击运行 [uninstall-starlight-harness.bat](uninstall-starlight-harness.bat)。脚本会结束 Starlight 进程，调用已安装目录中的 NSIS 卸载程序，再删除 Starlight 残留安装目录、用户配置、`web` 工作档案、快捷方式和卸载注册表项，然后即可重新运行最新安装器。脚本不会删除 DeepSeek Harness 的安装目录或注册表项；其中删除 `web` 工作档案会清空当前用户该工作档案下的测试数据。
+
 ## macOS DMG
 
 在 macOS 上生成演示 DMG 和 ZIP：
@@ -41,6 +49,10 @@ pnpm run dist:mac:desktop
 
 没有 `Developer ID Application` 和公证凭据时，系统可能阻止首次打开。测试用户可在系统设置中允许该应用运行。正式分发前需要完成代码签名、hardened runtime 和 notarization；签名配置方法见 [README.md](README.md#macos-demo-dmg-and-zip)。
 
+macOS 交付目录还包含 `uninstall.command` 和 `Starlight-Harness-macOS-<architecture>-delivery.zip`。双击 `uninstall.command` 后输入 `YES`，会退出并删除 Starlight Harness 应用、配置、缓存、日志、保存状态和 `web` 工作档案；脚本不会删除 DeepSeek Harness。交付 ZIP 包含 DMG 和该清理脚本，适合在下一次全新安装测试前使用。
+
+Windows 和 macOS 的任务栏/托盘图标统一使用 `resources/trayTemplate.png`，与安装器使用的 Starlight logo 保持一致。
+
 ## Windows x64 安装包
 
 生成可选择安装目录的 NSIS 安装器：
@@ -49,16 +61,18 @@ pnpm run dist:mac:desktop
 pnpm run dist:win:desktop
 ```
 
-产物名称为：
+Windows 交付目录为 `apps/desktop/dist/windows/`，包含以下文件：
 
 ```text
-Starlight-Harness-Desktop-Windows-x64-<version>-Setup.exe
+Starlight-Harness-Windows-<version>.exe
+uninstall.bat
+Starlight-Harness-Windows-<version>.zip
 ```
 
-测试交付前计算 SHA-256：
+每次 Windows 打包会清理旧的 Windows 交付文件，并把安装包和卸载脚本一起放入 ZIP。macOS 的 DMG、ZIP 和 blockmap 统一放在 `apps/desktop/dist/mac/`，文件名使用 `Starlight-Harness-macOS-<architecture>.*`。测试交付前计算 Windows ZIP 的 SHA-256：
 
 ```sh
-shasum -a 256 apps/desktop/dist/Starlight-Harness-Desktop-Windows-x64-*-Setup.exe
+shasum -a 256 apps/desktop/dist/windows/Starlight-Harness-Windows-*.zip
 ```
 
 Windows 测试重点检查自定义安装目录、桌面快捷方式、开始菜单、运行中卸载、重新安装，以及是否仍能启动 Host。未配置 Authenticode 时，核对 SHA-256 后可在 SmartScreen 中选择“更多信息”→“仍要运行”，不应关闭 Defender。
@@ -80,8 +94,15 @@ pnpm --filter @deepseek-ai/dsh-desktop run typecheck
 @deepseek-ai/dsh-client-ui-project-brain/src/
 ```
 
+Windows 上 Host 通常会在 Harness profile fallback 中创建 junction。如果安全软件拦截未签名进程创建 junction，启动流程会复制目标包并写入标记，后续启动可复用该复制目录；没有标记的真实目录仍会明确报错。
+
 如果安装后出现 `Cannot find module .../src/project-data.ts`，不要通过复制 `src/` 目录掩盖问题。应重新构建 `@deepseek-ai/dsh-client-ui-project-brain` 的 `lib/scenario.js`，再重建 Project Brain Demo 和安装包。
 
 ## 交付信息
 
 交付安装包时同时提供平台、版本、文件大小和 SHA-256。明确说明 Demo 未签名、macOS 未公证、Windows 未配置 Authenticode，以及在线更新暂不可用。安装包与已有 `DeepSeek Harness` 使用不同的应用身份、安装目录、快捷方式和用户数据根目录，可以并存。
+# Starlight Harness 桌面演示版配置
+
+桌面演示版首次启动不显示内测声明，固定使用官方原版背景，并默认启用唯一工作区。插件中心、插件发现、Preset 广场和应用中心默认隐藏；通过菜单栏“开发者模式”并输入 `Starlight2026@321` 后，可在“开发者配置”中分别打开这些入口。
+
+开发者模式只影响当前运行会话，不自动打开 DevTools。安装包更新后需重新安装新生成的 macOS 或 Windows 产物。

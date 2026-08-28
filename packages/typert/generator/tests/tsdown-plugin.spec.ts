@@ -72,6 +72,12 @@ describe('typertPlugin', () => {
       .not.toContain('@sealed')
   })
 
+  it('lowers decorators retained in compiled JavaScript dependencies', () => {
+    const plugin = typertPlugin()
+    expect(plugin.transform('@sealed\nexport class Example {}\n', '/workspace/lib/example.js')?.code)
+      .not.toContain('@sealed')
+  })
+
   it('skips outputs that do not identify a Typert contributor', async () => {
     const plugin = typertPlugin()
     expect(plugin.name).toBe('dsh-typert-generator')

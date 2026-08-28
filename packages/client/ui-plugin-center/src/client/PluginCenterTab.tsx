@@ -1,5 +1,5 @@
 import {
-  useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode,
+  useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode,
 } from 'react'
 import {
   Button, IconChevronRightOutline14, IconDownloadOutline16, IconEllipsisOutline16,
@@ -56,6 +56,7 @@ import {
   isMutationBlockingOperationPhase, isTerminalOperationPhase, isTrustedInstallPhase,
 } from './operation-phases.ts'
 import css from './PluginCenterTab.module.css'
+import { productEntryVisibility, subscribeProductEntryVisibility } from './entry-visibility.ts'
 
 /** Registration-side fixed Desktop read face. */
 export interface PluginCenterTabInjected {
@@ -409,6 +410,8 @@ export function PluginCenterTab({
   onRecoveryState = NO_RECOVERY_STATE,
   t,
 }: PluginCenterTabProps): ReactNode {
+  const visible = useSyncExternalStore(subscribeProductEntryVisibility, () => productEntryVisibility()['plugin-center'])
+  if (!visible) return null
   const kindTabsId = useId()
   const kindRefs = useRef<Array<HTMLButtonElement | null>>([])
   const detailOpener = useRef<HTMLButtonElement | null>(null)

@@ -12,6 +12,10 @@ export interface SettingsValues {
   readonly platformBaseUrl?: string
   readonly demoApiBaseUrl?: string
   readonly fixedWorkspace?: boolean
+  readonly showPluginCenter?: boolean
+  readonly showPluginDiscovery?: boolean
+  readonly showPresetSquare?: boolean
+  readonly showAppCenter?: boolean
 }
 
 /** Line tone of the connectivity probe output: ok/error carry the green/red accents. */
@@ -28,16 +32,21 @@ export interface PlatformSettingsInjected {
 }
 
 /**
- * Settings → 开发者配置: visible only while the temporary dev mode is on
- * (`toStarlightDev()` in the console; it fades after a reload — no close
- * button, nothing persists). Edits the business platform origin, the separate
- * demo-status API base, and the fixed-workspace toggle.
+ * Settings → 开发者配置 is visible only after the desktop menu password is
+ * accepted. It edits platform endpoints, demo switches, workspace policy, and
+ * desktop product-entry visibility.
  */
 export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JSX.Element | null {
   const [devMode, setDevMode] = useState(isProjectBrainDevMode)
   const [base, setBase] = useState<string>(() => scope?.getSnapshot().value?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL)
   const [apiBase, setApiBase] = useState<string>(() => scope?.getSnapshot().value?.demoApiBaseUrl ?? DEFAULT_DEMO_API_BASE_URL)
-  const [fixed, setFixed] = useState<boolean>(() => scope?.getSnapshot().value?.fixedWorkspace ?? false)
+  const [fixed, setFixed] = useState<boolean>(() => scope?.getSnapshot().value?.fixedWorkspace ?? true)
+  const [entries, setEntries] = useState(() => ({
+    showPluginCenter: scope?.getSnapshot().value?.showPluginCenter ?? false,
+    showPluginDiscovery: scope?.getSnapshot().value?.showPluginDiscovery ?? false,
+    showPresetSquare: scope?.getSnapshot().value?.showPresetSquare ?? false,
+    showAppCenter: scope?.getSnapshot().value?.showAppCenter ?? false,
+  }))
   const [probeLines, setProbeLines] = useState<readonly ProbeLine[]>([])
   const [probing, setProbing] = useState(false)
   const appliedBase = scope?.getSnapshot().value?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL
@@ -54,6 +63,12 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
     if (resolved?.platformBaseUrl !== undefined) setBase(resolved.platformBaseUrl)
     if (resolved?.demoApiBaseUrl !== undefined) setApiBase(resolved.demoApiBaseUrl)
     if (resolved?.fixedWorkspace !== undefined) setFixed(resolved.fixedWorkspace)
+    setEntries({
+      showPluginCenter: resolved?.showPluginCenter ?? false,
+      showPluginDiscovery: resolved?.showPluginDiscovery ?? false,
+      showPresetSquare: resolved?.showPresetSquare ?? false,
+      showAppCenter: resolved?.showAppCenter ?? false,
+    })
   }), [scope])
 
   if (!devMode) return null
@@ -71,6 +86,10 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
   const commitFixed = (checked: boolean): void => {
     setFixed(checked)
     void scope?.set('fixedWorkspace', checked)
+  }
+  const commitEntry = (field: keyof typeof entries, checked: boolean): void => {
+    setEntries(current => ({ ...current, [field]: checked }))
+    void scope?.set(field, checked)
   }
 
   /** Current 接口地址 input value, defaulted and trailing-slash-normalized for probing. */
@@ -184,6 +203,20 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
             ))}
           </ul>
         )}
+      </div>
+      <div aria-label="桌面入口显示设置">
+        <strong>桌面入口显示</strong>
+        {([
+          ['showPluginCenter', '插件中心'],
+          ['showPluginDiscovery', '插件发现'],
+          ['showPresetSquare', 'Preset 广场'],
+          ['showAppCenter', '应用中心'],
+        ] as const).map(([field, label]) => (
+          <label className={css.toggle} key={field}>
+            <input type="checkbox" checked={entries[field]} onChange={(event) => { commitEntry(field, event.target.checked) }} />
+            <span>{label}</span>
+          </label>
+        ))}
       </div>
       <label className={css.toggle}>
         <input

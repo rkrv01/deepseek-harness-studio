@@ -1,0 +1,84 @@
+.trigger,
+.confirm,
+.cancel {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.trigger:hover,
+.confirm:hover:not(:disabled),
+.cancel:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.gate {
+  display: grid;
+  gap: 8px;
+}
+
+.sessionMarker {
+  display: block;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.label {
+  display: grid;
+  gap: 5px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.label input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 7px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  outline: none;
+}
+
+.label input:focus {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.error {
+  color: var(--dsw-alias-state-danger-primary);
+  font-size: 11px;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.confirm,
+.cancel {
+  min-height: 28px;
+}
+
+.confirm {
+  background: var(--dsw-alias-state-business-primary);
+  border-color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-white);
+}
+
+.confirm:disabled {
+  cursor: default;
+  opacity: 0.5;
+}

@@ -18,6 +18,8 @@ Windows runner 会提取已验收的跨平台应用载荷，暂存其中的 Host
 
 暂存的 Host 保留已发布的 JavaScript 与包元数据，但不包含工作区的 `src/` 目录。需要复用 Project Brain UI 场景数据的 Host 代码因此通过 UI 包已发布的 `./scenario` 入口导入。Electron Builder 的 `afterPack` 检查会拒绝 Project Brain Host 入口仍引用该未随包分发的 UI 源码路径的应用。
 
+如果 Windows 策略拒绝未签名 Host 进程创建 junction，profile fallback 会复制目标包并记录所有权标记。带标记的复制目录会在后续启动中复用，并在安装目标移动时替换；没有标记的真实目录仍视为错误。
+
 ## Alternatives considered
 
 **每次预览都使用签名发布工作流。** 普通预览会被 Apple 公证和 Windows Authenticode 密钥阻塞，而且 macOS 评审必须等待两个平台任务都完成。

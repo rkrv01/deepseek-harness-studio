@@ -65,6 +65,7 @@ function declare(slots: SlotRegistry): () => void {
         'settings.header': { kind: 'single', scope: 'root' },
         'settings.action': { kind: 'list', scope: 'root' },
         'settings.close': { kind: 'single', scope: 'root' },
+        'settings.footer': { kind: 'list', scope: 'root' },
         'settings.section': { kind: 'list', scope: 'root' },
         'settings.onboarding': { kind: 'list', scope: 'root' },
       },
@@ -102,6 +103,7 @@ describe('ui-settings-general apply', () => {
     const actionInjected = (action.inject as unknown as () => SettingsDocumentActionInjected)()
     expect(actionInjected.controller.store.getSnapshot().status).toBe('idle')
     expect(actionInjected.hooks.snapshot).toBe(actionInjected.controller.store)
+    expect(actionInjected.enabled).toBe(true)
     // Copy rides the standard locale seat: every seat declares the namespace.
     for (const [name] of SEATS) {
       expect(before.slots.entries(name)[0]!.locale).toBe('settings')

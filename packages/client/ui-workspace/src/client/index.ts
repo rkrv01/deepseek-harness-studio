@@ -70,7 +70,7 @@ export function apply(ctx: ClientContext): void {
     ),
   })
   const fixedLockedSource: HostObservable<boolean> = {
-    getSnapshot: () => fixedScope?.getSnapshot().value?.fixedWorkspace ?? false,
+    getSnapshot: () => fixedScope?.getSnapshot().value?.fixedWorkspace ?? true,
     subscribe: listener => fixedScope?.subscribe(listener) ?? (() => {}),
   }
   // Toggling the fixed-workspace switch re-lists workspaces so the tree and

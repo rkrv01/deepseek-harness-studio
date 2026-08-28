@@ -76,7 +76,11 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
   const platformScope = ctx.settings?.register(settingsNamespace(PROJECT_BRAIN_SETTINGS_NS), z.object({
     platformBaseUrl: z.string().default(DEFAULT_PLATFORM_BASE_URL),
     demoApiBaseUrl: z.string().default(DEFAULT_DEMO_API_BASE_URL),
-    fixedWorkspace: z.boolean().default(false),
+    fixedWorkspace: z.boolean().default(true),
+    showPluginCenter: z.boolean().default(false),
+    showPluginDiscovery: z.boolean().default(false),
+    showPresetSquare: z.boolean().default(false),
+    showAppCenter: z.boolean().default(false),
   }))
   // Server-side sync of the scripted-reply links; the demo-status getter reads the scope live below.
   const syncPlatformBase = (): void => {
@@ -87,7 +91,7 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
   // Fixed-workspace switch: ensure the one directory/registry row exists FIRST,
   // then arm the gateway enforcement (list/create filter against a real record).
   const syncFixedWorkspace = async (): Promise<void> => {
-    const enabled = platformScope?.get()?.fixedWorkspace ?? false
+    const enabled = platformScope?.get()?.fixedWorkspace ?? true
     if (enabled) {
       try {
         mkdirSync(starlightFixedWorkspaceDir(), { recursive: true })

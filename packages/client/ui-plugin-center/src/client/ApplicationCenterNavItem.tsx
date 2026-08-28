@@ -1,6 +1,8 @@
 import { IconDataOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './PluginCenterNavItem.module.css'
+import { useSyncExternalStore } from 'react'
+import { productEntryVisibility, subscribeProductEntryVisibility } from './entry-visibility.ts'
 
 /** Registration-side navigation action for the independent Application Center. */
 export interface ApplicationCenterNavInjected {
@@ -16,6 +18,8 @@ export type ApplicationCenterNavProps =
 
 /** First-level sidebar entry that opens Application Center. */
 export function ApplicationCenterNavItem({ wide, primaryPage, pageId, open, t }: ApplicationCenterNavProps) {
+  const visible = useSyncExternalStore(subscribeProductEntryVisibility, () => productEntryVisibility()['application-center'])
+  if (!visible) return null
   const selected = primaryPage === pageId
   return (
     <Tooltip label={t('applicationTitle')} delayMs={500} disabled={wide}>

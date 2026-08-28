@@ -42,6 +42,7 @@ import {
 
 const bridge: DesktopBridge = Object.freeze({
   platform: process.platform,
+  packaged: process.argv.includes('--dsh-packaged'),
   workspace: Object.freeze({
     pickDirectory: () =>
       ipcRenderer.invoke(DESKTOP_CHANNELS.workspacePickDirectory) as Promise<string | null>,
@@ -51,6 +52,10 @@ const bridge: DesktopBridge = Object.freeze({
     save: (settings: DesktopAppearanceSettings) =>
       ipcRenderer.invoke(DESKTOP_CHANNELS.appearanceSave, settings) as Promise<DesktopAppearanceSettings>,
     reset: () => ipcRenderer.invoke(DESKTOP_CHANNELS.appearanceReset) as Promise<DesktopAppearanceSettings>,
+  }),
+  developerMode: Object.freeze({
+    unlock: (password: string) =>
+      ipcRenderer.invoke(DESKTOP_CHANNELS.developerModeUnlock, password) as Promise<boolean>,
   }),
   updates: Object.freeze({
     getState: () => ipcRenderer.invoke(DESKTOP_CHANNELS.updatesGet) as Promise<DesktopUpdateState>,

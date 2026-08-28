@@ -1,5 +1,5 @@
 import {
-  useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode,
+  useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode,
 } from 'react'
 import {
   Button, IconCheckOutline14, IconCloseOutline16, IconRefreshOutline16,
@@ -23,6 +23,7 @@ import { PluginInstallConfirmation, PluginOperationDialog } from './PluginInstal
 import type { PluginCenterLocaleKey } from './locales.ts'
 import { isTerminalOperationPhase, isTrustedInstallPhase } from './operation-phases.ts'
 import css from './PluginDiscoveryPage.module.css'
+import { productEntryVisibility, subscribeProductEntryVisibility } from './entry-visibility.ts'
 
 /** Registration-side read and trusted-install face for Plugin Discovery. */
 export interface PluginDiscoveryInjected {
@@ -647,6 +648,8 @@ export function PluginDiscoveryPage({
   available, development, list, refresh, detail, checkCompatibility, listInstalled,
   mutationsEnabled, install, getOperation, onOperationState, openPluginCenter, findWithAgent, t,
 }: PluginDiscoveryPageProps): ReactNode {
+  const visible = useSyncExternalStore(subscribeProductEntryVisibility, () => productEntryVisibility()['plugin-discovery'])
+  if (!visible) return null
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<DiscoveryMode>('overview')
   const [categoryId, setCategoryId] = useState<string>('all')

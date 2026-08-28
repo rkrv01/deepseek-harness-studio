@@ -81,6 +81,7 @@ export interface DesktopAppearanceSettings {
 /** Renderer-safe API exposed through contextBridge. */
 export interface DesktopBridge {
   readonly platform: NodeJS.Platform
+  readonly packaged: boolean
   readonly workspace: {
     /** Open the operating system's single-directory picker. */
     pickDirectory(): Promise<string | null>
@@ -89,6 +90,9 @@ export interface DesktopBridge {
     get(): Promise<DesktopAppearanceSettings>
     save(settings: DesktopAppearanceSettings): Promise<DesktopAppearanceSettings>
     reset(): Promise<DesktopAppearanceSettings>
+  }
+  readonly developerMode: {
+    unlock(password: string): Promise<boolean>
   }
   readonly updates: {
     getState(): Promise<DesktopUpdateState>
@@ -143,6 +147,7 @@ export const DESKTOP_CHANNELS = {
   appearanceGet: 'dsh-desktop:appearance:get',
   appearanceSave: 'dsh-desktop:appearance:save',
   appearanceReset: 'dsh-desktop:appearance:reset',
+  developerModeUnlock: 'dsh-desktop:developer-mode:unlock',
   updatesGet: 'dsh-desktop:updates:get',
   updatesCheck: 'dsh-desktop:updates:check',
   updatesDownload: 'dsh-desktop:updates:download',

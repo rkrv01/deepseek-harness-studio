@@ -33,6 +33,7 @@ type PanelProps = {
   activeId: string | undefined
   onSelect: (id: string) => void
   onClose: () => void
+  openSection: (id: string) => void
 }
 
 /**
@@ -40,7 +41,7 @@ type PanelProps = {
  * header button, a mask click, and document-level Escape (mounted only while
  * open, so the listener lifetime is the panel's).
  */
-function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelProps) {
+function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose, openSection }: PanelProps) {
   // Entries can unmount underneath the requested id, so the render-time
   // projection falls back to the first row when the id is gone.
   const active = rows.find(r => r.id === activeId)?.id ?? rows[0]?.id
@@ -77,6 +78,9 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
                 <span className={css.navLabel}>{row.label}</span>
               </button>
             ))}
+          </div>
+          <div className={css.navFooter}>
+            {renderSlot('settings.footer', { openSection, activeSectionId: active })}
           </div>
         </nav>
         <div className={css.content}>
@@ -128,6 +132,10 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   // freshly localized text on locale change, and the trigger/header/close
   // seats re-render through their own outlets' subscriptions.
   const rows = useSections(s => s)
+  useEffect(() => {
+    if (!open || activeId === undefined || rows.some(row => row.id === activeId)) return
+    setActiveId(rows[0]?.id)
+  }, [activeId, open, rows])
   const onboardingSteps = useOnboardingSteps(s => s)
   const onboardingActive = useSessions(state =>
     state.phase === 'ready'
@@ -166,6 +174,7 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
           activeId={activeId}
           onSelect={setActiveId}
           onClose={close}
+          openSection={openSection}
         />
       )}
       {/* Dialog chrome and `#root` inert ownership live inside each step's
