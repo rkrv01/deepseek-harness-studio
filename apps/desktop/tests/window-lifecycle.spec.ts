@@ -42,9 +42,9 @@ const loadHost = (): Promise<void> => Promise.resolve()
 
 describe('desktop window lifecycle', () => {
   it('recognizes only the exact private installer quit argument', () => {
-    expect(isInstallerQuitRequest(['DeepSeek Harness.exe', INSTALLER_QUIT_ARGUMENT])).toBe(true)
-    expect(isInstallerQuitRequest(['DeepSeek Harness.exe', `${INSTALLER_QUIT_ARGUMENT}=true`])).toBe(false)
-    expect(isInstallerQuitRequest(['DeepSeek Harness.exe'])).toBe(false)
+    expect(isInstallerQuitRequest(['Starlight Harness.exe', INSTALLER_QUIT_ARGUMENT])).toBe(true)
+    expect(isInstallerQuitRequest(['Starlight Harness.exe', `${INSTALLER_QUIT_ARGUMENT}=true`])).toBe(false)
+    expect(isInstallerQuitRequest(['Starlight Harness.exe'])).toBe(false)
   })
 
   it('hides an ordinary close without disposing the Host', () => {

@@ -1,8 +1,8 @@
-# DeepSeek Harness Studio · Desktop App
+# Starlight Harness · Desktop Demo
 
 English | [中文](README.zh.md)
 
-The desktop app supervises the existing loopback Web Host and keeps it alive from the system tray when its window is closed.
+The desktop demo supervises the existing loopback Web Host and keeps it alive from the system tray when its window is closed.
 
 ## Development
 
@@ -58,11 +58,17 @@ The local packaging command first rebuilds the bundled FF–LLM Wiki application
 pnpm run package:desktop
 ```
 
-Packaged applications run the staged `@deepseek-ai/dsh` CLI in a separate process through Electron's Node mode. The application therefore retains the supervised-Host lifecycle without shipping a second Node executable. An `afterPack` check rejects the package before signing when the staged CLI entry, Web frontend entry, generic HTTPS update provider, or explicit update channel is absent. It also verifies the macOS arm64 or Windows x64 Sharp native module required by the Harness image pipeline. The same hook writes `app-update.yml` for every target, including the unpacked directory used by preview archives. Preview packages therefore request the published `rc-mac.yml` or `rc.yml` manifest instead of Electron's nonexistent default channel and can resolve a same-version feed as up to date. Both macOS and Windows derive their platform icons from the tracked transparent, rounded `apps/desktop/build/icon.png`; the repository does not commit separate platform-specific variants.
+Packaged applications run the staged `@deepseek-ai/dsh` CLI in a separate process through Electron's Node mode. The application therefore retains the supervised-Host lifecycle without shipping a second Node executable. An `afterPack` check rejects the package before signing when the staged CLI entry or Web frontend entry is absent. It also verifies the macOS arm64 or Windows x64 Sharp native module required by the Harness image pipeline. The Starlight Harness demo intentionally ships without an online-update feed, so the hook writes no `app-update.yml` unless a future release configures a generic HTTPS provider. Both macOS and Windows derive their platform icons from the tracked transparent, rounded `apps/desktop/build/icon.png`; the repository does not commit separate platform-specific variants.
 
-### Signed macOS DMG and ZIP
+### macOS demo DMG and ZIP
 
-The macOS distribution command produces the DMG used for installation and the ZIP required by the auto-updater. It requires a valid `Developer ID Application` identity whose certificate and private key are both installed in the build user's Keychain. It also requires one complete notarization credential source. A Keychain profile keeps the app-specific password out of the repository and shell history:
+The macOS distribution command produces the DMG used for installation and the ZIP archive. When signing and notarization credentials are absent, it builds an unsigned demo artifact for temporary distribution:
+
+```sh
+pnpm run dist:mac:desktop
+```
+
+Unsigned demo builds can trigger macOS security prompts on another machine. For a formal release, install a valid `Developer ID Application` identity whose certificate and private key are both available to the build user, then provide one complete notarization credential source. A Keychain profile keeps the app-specific password out of the repository and shell history:
 
 ```sh
 xcrun notarytool store-credentials "dsh-notary" --apple-id "<Apple ID>" --team-id "<Team ID>"
@@ -84,13 +90,13 @@ Electron Builder imports that Base64 PKCS#12 certificate into its temporary Keyc
 
 The release preflight runs before the repository build. It fails if the host is not macOS, the supplied identity is not a `Developer ID Application` identity, signing credentials are incomplete, signing discovery is disabled, or notarization credentials are missing or incomplete. Without the PKCS#12 group, it requires a usable `Developer ID Application` identity and private key in the Keychain. Instead of a Keychain profile, the command accepts the complete Apple ID group (`APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`) or App Store Connect API key group (`APPLE_API_KEY`, `APPLE_API_KEY_ID`, and `APPLE_API_ISSUER`).
 
-After a successful build, mount the generated DMG and verify the installed application signature, Gatekeeper assessment, and stapled notarization ticket:
+After a signed build, mount the generated DMG and verify the installed application signature, Gatekeeper assessment, and stapled notarization ticket:
 
 ```sh
 DMG_PATH="$(find apps/desktop/dist -maxdepth 1 -type f -name '*.dmg' -print -quit)"
 MOUNT_POINT="$(mktemp -d)"
 hdiutil attach "$DMG_PATH" -mountpoint "$MOUNT_POINT" -nobrowse -readonly
-APP_PATH="$MOUNT_POINT/DeepSeek Harness.app"
+APP_PATH="$MOUNT_POINT/Starlight Harness.app"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 spctl --assess --type execute --verbose=4 "$APP_PATH"
 xcrun stapler validate "$APP_PATH"
@@ -98,9 +104,9 @@ hdiutil detach "$MOUNT_POINT"
 rmdir "$MOUNT_POINT"
 ```
 
-### Publishing updates
+### Online updates
 
-Desktop installations check the Beyondata OSS feed configured in this package; they never replace this customized application with an upstream DeepSeek Harness artifact. Electron Builder's generic provider generates channel metadata but does not upload it. After `ALIYUN_OSS_ACCESS_KEY_ID` and `ALIYUN_OSS_ACCESS_KEY_SECRET` have been injected through a protected environment mechanism, the release maintainer publishes one or more platform output directories whose installers have passed the platform signing and acceptance checks:
+The Starlight Harness demo does not enable online updates. The settings page reports that online updates are unavailable, and packaged demo builds do not require a generic provider. A future release can restore the existing publish flow by configuring a dedicated Starlight update feed and publishing one or more platform output directories whose installers have passed platform signing and acceptance checks:
 
 ```sh
 pnpm run publish:desktop-update -- \
@@ -122,7 +128,7 @@ pnpm run dist:win:desktop
 
 The assisted flow defaults to the current user, allows an all-users installation, and lets the user choose the installation directory. The command builds the complete workspace, stages a Windows-targeted Host runtime, removes declarations and source maps that Node never loads, verifies the required Koffi, Sharp, and node-pty x64 native modules, then creates the `.exe` installer, blockmap, and update metadata. macOS cross-builds expose Electron Builder's NSIS templates through a short temporary path because NSIS still uses a fixed 260-character POSIX include buffer; the temporary symlink is removed after the build.
 
-Before replacement or removal, NSIS asks the running single instance to enter the ordinary explicit-quit path, waits up to five seconds for the supervised Host to settle, then makes two bounded attempts to terminate any remaining `DeepSeek Harness.exe` process tree. A process that still owns the installation directory fails the operation explicitly instead of leaving a partial uninstall. If a manual deletion or failed uninstall leaves a broken registration and a partial dedicated `DeepSeek Harness` application directory, the replacement removes that residue, bypasses the unusable old uninstaller, installs a clean payload, and recreates the uninstall registration. Public `0.1.0-rc.5` through `0.1.0-rc.9` installations use the same repair path. Profile data remains outside the application directory.
+Before replacement or removal, NSIS asks the running single instance to enter the ordinary explicit-quit path, waits up to five seconds for the supervised Host to settle, then makes two bounded attempts to terminate any remaining `Starlight Harness.exe` process tree. A process that still owns the installation directory fails the operation explicitly instead of leaving a partial uninstall. If a manual deletion or failed uninstall leaves a broken registration and a partial dedicated `Starlight Harness` application directory, the replacement removes that residue, bypasses the unusable old uninstaller, installs a clean payload, and recreates the uninstall registration. Profile data remains outside the application directory.
 
 Internal test installers remain unsigned until a Windows Authenticode certificate is configured. SmartScreen may therefore require **More info → Run anyway** after the tester verifies the published SHA-256. Do not disable Defender. The native Windows lifecycle workflow installs into a non-default directory, starts the packaged Host, uninstalls while the application is running, reinstalls into the same directory, simulates a manually deleted application directory with retained registry state, repairs it, and repeats the launch and uninstall check.
 
@@ -132,7 +138,7 @@ The first desktop assembly uses a loopback HTTP Host. The renderer and Host prot
 
 Browser progress remains simulation evidence only; real search, package mutation, Host restart, and uninstall require Desktop. The public npm index is a community distribution channel, not a DeepSeek security review. This first live source accepts prebuilt npm DSH Bundles and rejects packages without `dsh.bundle`, unsafe archives, mismatched immutable evidence, or install lifecycle scripts; GitHub-only source builds are not installed by the one-click path.
 
-macOS has a signed and notarized distribution path. Windows has an x64 NSIS installer path, but production Authenticode signing remains release work. Linux still creates an unpacked application and has no installer format or distribution-signing path yet.
+macOS and Windows x64 have demo distribution paths. The current Starlight Harness demo does not enable online updates, macOS notarization, or Windows Authenticode signing. Linux still creates an unpacked application and has no installer format or distribution-signing path yet.
 
 ## Model Experience
 

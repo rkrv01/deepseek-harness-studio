@@ -1,6 +1,6 @@
 node_modules/
-lib/
-dist/
-runtime/
+/lib/
+/dist/
+/runtime/
 .application-build/
 *.tsbuildinfo

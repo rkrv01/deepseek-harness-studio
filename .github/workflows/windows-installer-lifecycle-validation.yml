@@ -78,7 +78,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $unpacked = Join-Path $env:GITHUB_WORKSPACE 'apps\desktop\dist\win-unpacked'
-          $application = Join-Path $unpacked 'DeepSeek Harness.exe'
+          $application = Join-Path $unpacked 'Starlight Harness.exe'
           $smoke = Join-Path $unpacked 'sharp-runtime-smoke.cjs'
           @'
           const sharp = require('./resources/host/node_modules/sharp')
@@ -229,7 +229,7 @@ jobs:
           }
 
           function Start-Harness([string] $label) {
-            $application = Join-Path $installDirectory 'DeepSeek Harness.exe'
+            $application = Join-Path $installDirectory 'Starlight Harness.exe'
             if (-not (Test-Path -LiteralPath $application -PathType Leaf)) {
               throw "$label application is missing from the selected installation directory."
             }
@@ -399,7 +399,7 @@ jobs:
       - name: Upload the verified Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: DeepSeek-Harness-Desktop-${{ github.sha }}-windows-installer-validation
+          name: Starlight-Harness-Desktop-${{ github.sha }}-windows-installer-validation
           path: |
             apps/desktop/dist/*Setup.exe
             apps/desktop/dist/*Setup.exe.blockmap

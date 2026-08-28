@@ -1,4 +1,4 @@
-/** Build a signed and notarized macOS DMG from validated release credentials. */
+/** Build a macOS DMG and ZIP, signed and notarized when release credentials are present. */
 
 import { spawnSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
@@ -53,6 +53,13 @@ function run(command: string, args: readonly string[], cwd: string, env: NodeJS.
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} exited with ${String(result.status)}`)
 }
 
+function hasMacReleaseCredentials(env: NodeJS.ProcessEnv): boolean {
+  return env.APPLE_KEYCHAIN_PROFILE !== undefined
+    || (env.MAC_CERT_P12_BASE64 !== undefined && env.MACOS_SIGN_IDENTITY !== undefined && env.CSC_KEY_PASSWORD !== undefined)
+    || (env.APPLE_ID !== undefined && env.APPLE_APP_SPECIFIC_PASSWORD !== undefined && env.APPLE_TEAM_ID !== undefined)
+    || (env.APPLE_API_KEY !== undefined && env.APPLE_API_KEY_ID !== undefined && env.APPLE_API_ISSUER !== undefined)
+}
+
 /**
  * Build the macOS artifact while exposing release secrets only to Electron Builder.
  * @param argv - Optional target architecture argument.
@@ -60,14 +67,20 @@ function run(command: string, args: readonly string[], cwd: string, env: NodeJS.
 export function releaseMac(argv: readonly string[] = []): void {
   const architecture = resolveMacReleaseArchitecture(argv, process.arch)
   const releaseEnvironment = adaptMacReleaseEnvironment(process.env)
-  const result = assertMacReleaseReady({
-    env: releaseEnvironment,
-    platform: process.platform,
-    listCodeSigningIdentities,
-  })
-  console.log(
-    `macOS release preflight passed: ${result.identity}; signing via ${result.signing}; notarization via ${result.notarization}`,
-  )
+  const signedRelease = hasMacReleaseCredentials(releaseEnvironment)
+  if (signedRelease) {
+    const result = assertMacReleaseReady({
+      env: releaseEnvironment,
+      platform: process.platform,
+      listCodeSigningIdentities,
+    })
+    console.log(
+      `macOS release preflight passed: ${result.identity}; signing via ${result.signing}; notarization via ${result.notarization}`,
+    )
+  } else {
+    if (process.platform !== 'darwin') throw new Error('unsigned macOS demo builds must run on macOS')
+    console.log('macOS demo release: signing and notarization credentials absent; building an unsigned demo artifact.')
+  }
   const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
   const buildEnvironment = sanitizedEnvironment({
     ...releaseEnvironment,
@@ -79,11 +92,15 @@ export function releaseMac(argv: readonly string[] = []): void {
   ], resolve(desktopRoot, '../..'), buildEnvironment)
   run('pnpm', ['--workspace-root', 'run', 'build'], desktopRoot, buildEnvironment)
   run('node', ['--import', 'tsx', 'scripts/stage-runtime.ts'], desktopRoot, buildEnvironment)
+  const builderEnvironment = signedRelease
+    ? releaseEnvironment
+    : { ...releaseEnvironment, CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
   run('pnpm', [
     'exec', 'electron-builder', '--mac', 'dmg', 'zip',
     `--${architecture}`,
-    '--config.forceCodeSigning=true', '--config.mac.notarize=true',
-  ], desktopRoot, releaseEnvironment)
+    signedRelease ? '--config.forceCodeSigning=true' : '--config.forceCodeSigning=false',
+    signedRelease ? '--config.mac.notarize=true' : '--config.mac.notarize=false',
+  ], desktopRoot, builderEnvironment)
 }
 
 const invokedPath = process.argv[1]

@@ -9,6 +9,8 @@ interface DesktopPackage {
   readonly scripts: Readonly<Record<string, string>>
   readonly build: {
     readonly afterPack: string
+    readonly appId: string
+    readonly productName: string
     readonly extraResources: readonly {
       readonly from: string
       readonly to: string
@@ -98,9 +100,14 @@ describe('desktop packaging configuration', () => {
 
     expect(icon[25]).toBe(6)
     expect(createHash('sha256').update(icon).digest('hex'))
-      .toBe('68616368acc6b96a14b8975ad6a1c5755187129e26b032e60c69252f8826c197')
+      .toBe('ca20b03534406c92ee07b1335ba75cf1d4bfb36cfeb9d81f7858aa99377cee0e')
     expect(desktopPackage.build.mac.icon).toBe('build/icon.png')
     expect(desktopPackage.build.win.icon).toBe('build/icon.png')
+  })
+
+  it('uses an independent Starlight Harness desktop identity', () => {
+    expect(desktopPackage.build.appId).toBe('ai.starlight.harness.desktop')
+    expect(desktopPackage.build.productName).toBe('Starlight Harness')
   })
 
   it('builds and stages the complete workspace before local packaging', () => {
@@ -120,19 +127,21 @@ describe('desktop packaging configuration', () => {
     expect(desktopPackage.scripts['dev:rebuild'])
       .toBe('node --import tsx scripts/dev-desktop.ts --rebuild')
     expect(rootPackage.scripts['dev:desktop'])
-      .toBe('pnpm --filter @deepseek-ai/dsh-desktop run dev')
+      .toBe('pnpm --filter @deepseek-ai/dsh-desktop run dev -- --web')
     expect(rootPackage.scripts['dev:desktop:rebuild'])
       .toBe('pnpm --filter @deepseek-ai/dsh-desktop run dev:rebuild')
   })
 
-  it('makes the macOS DMG and ZIP update path signed, hardened, and notarized', () => {
+  it('makes the macOS DMG and ZIP path usable for unsigned demo builds', () => {
     const command = desktopPackage.scripts['dist:mac']
 
     expect(command).toBe('node --import tsx scripts/release-mac.ts')
     expect(macReleaseScript).toContain("'@fufan/dsh-plugin-llm-wiki', 'run', 'build:application'")
     expect(macReleaseScript).toContain("'--mac', 'dmg', 'zip'")
+    expect(macReleaseScript).toContain('--config.forceCodeSigning=false')
+    expect(macReleaseScript).toContain("CSC_IDENTITY_AUTO_DISCOVERY: 'false'")
     expect(desktopPackage.build.mac.hardenedRuntime).toBe(true)
-    expect(desktopPackage.build.mac.notarize).toBe(true)
+    expect(desktopPackage.build.mac.notarize).toBe(false)
   })
 
   it('builds a per-user Windows x64 NSIS installer from a Windows-targeted runtime', () => {
@@ -143,7 +152,7 @@ describe('desktop packaging configuration', () => {
     expect(builderPatch).toContain('ELECTRON_BUILDER_NSIS_TEMPLATE_DIR')
     expect(desktopPackage.build.win.target).toEqual(['nsis'])
     expect(desktopPackage.build.win.artifactName)
-      .toBe('DeepSeek-Harness-Desktop-Windows-x64-${version}-Setup.${ext}')
+      .toBe('Starlight-Harness-Desktop-Windows-x64-${version}-Setup.${ext}')
     expect(desktopPackage.build.toolsets.nsis).toBe('1.2.1')
     expect(desktopPackage.build.nsis).toMatchObject({
       oneClick: false,
@@ -152,7 +161,7 @@ describe('desktop packaging configuration', () => {
       include: 'build/installer.nsh',
       createDesktopShortcut: 'always',
       createStartMenuShortcut: true,
-      shortcutName: 'DeepSeek Harness',
+      shortcutName: 'Starlight Harness',
     })
     expect(windowsInstallerInclude).toContain('--dsh-installer-quit')
     expect(windowsInstallerInclude).not.toContain('!macro customInit')

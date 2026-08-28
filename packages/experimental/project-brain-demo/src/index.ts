@@ -15,9 +15,12 @@ import {
 import { resolveProjectBrainReply, setDemoPlatformBase } from './scenario.ts'
 import type { ProjectBrainReply, ProjectBrainReplyKind } from './scenario.ts'
 import { createDemoStatusFetch, DemoStatusSynchronizer } from './demo-status.ts'
-import { projectBrainScenario } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
-import type { ProjectBrainScenarioDefinition, ProjectBrainScenarioId } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
-import { DEFAULT_DEMO_API_BASE_URL, DEFAULT_PLATFORM_BASE_URL } from '@deepseek-ai/dsh-client-ui-project-brain/src/client/platform-config.ts'
+import {
+  DEFAULT_DEMO_API_BASE_URL,
+  DEFAULT_PLATFORM_BASE_URL,
+  projectBrainScenario,
+} from '@deepseek-ai/dsh-client-ui-project-brain/scenario'
+import type { ProjectBrainScenarioDefinition, ProjectBrainScenarioId } from '@deepseek-ai/dsh-client-ui-project-brain/scenario'
 import z from '@deepseek-ai/schemastery'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import '@deepseek-ai/dsh-settings'

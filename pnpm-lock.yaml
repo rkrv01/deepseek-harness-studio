@@ -742,6 +742,9 @@ importers:
       '@deepseek-ai/dsh-host-frontend-static':
         specifier: workspace:^
         version: link:../../../packages/host/frontend-static
+      '@deepseek-ai/dsh-host-plugin-center':
+        specifier: workspace:^
+        version: link:../../../packages/host/plugin-center
       '@deepseek-ai/dsh-host-plugin-inventory':
         specifier: workspace:^
         version: link:../../../packages/host/plugin-inventory

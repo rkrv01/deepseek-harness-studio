@@ -1,4 +1,4 @@
-/** Electron application shell for the loopback DeepSeek Harness Web Host. */
+/** Electron application shell for the loopback Starlight Harness Web Host. */
 
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -88,7 +88,9 @@ import {
   withPresetRuntimeEnvironment,
 } from './preset-square/runtime-controller.ts'
 
-const APP_NAME = 'DeepSeek Harness'
+const APP_ID = 'ai.starlight.harness.desktop'
+const APP_NAME = 'Starlight Harness'
+const DEMO_UPDATES_ENABLED = false
 const WINDOW_WIDTH = 1440
 const WINDOW_HEIGHT = 920
 const DESKTOP_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -452,6 +454,7 @@ function registerDesktopBridge(): PluginCenterBackend {
     app.getVersion(),
     manifestVersion(paths.cliManifest),
     app.isPackaged,
+    DEMO_UPDATES_ENABLED,
   )
   updateController.subscribe((state) => {
     for (const window of BrowserWindow.getAllWindows()) {
@@ -841,10 +844,13 @@ async function boot(): Promise<void> {
   pluginRecoveryStartupBlocked = pluginStartup.mode === 'recovery-failed'
   createTray()
   await lifecycle.showWindow()
-  if (app.isPackaged && !pluginRecoveryStartupBlocked) {
+  if (app.isPackaged && DEMO_UPDATES_ENABLED && !pluginRecoveryStartupBlocked) {
     setTimeout(() => { void updateController?.check() }, 5_000)
   }
 }
+
+app.setName(APP_NAME)
+app.setAppUserModelId(APP_ID)
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()

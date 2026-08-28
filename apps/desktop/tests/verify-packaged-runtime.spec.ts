@@ -5,7 +5,7 @@ import { load } from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 import { afterPack } from '../scripts/verify-packaged-runtime.ts'
 
-const UPDATE_URL = 'https://ml2022.oss-cn-hangzhou.aliyuncs.com/deepseek-harness-desktop/releases'
+const UPDATE_URL = 'https://updates.example.test/starlight-harness/releases'
 
 function context(
   appOutDir: string,
@@ -17,8 +17,8 @@ function context(
     electronPlatformName,
     packager: {
       appInfo: {
-        productFilename: 'DeepSeek Harness',
-        updaterCacheDirName: 'deepseek-harness-updater',
+        productFilename: 'Starlight Harness',
+        updaterCacheDirName: 'starlight-harness-updater',
       },
       config: { publish },
     },
@@ -26,9 +26,10 @@ function context(
 }
 
 async function writeRequiredMacRuntime(appOutDir: string): Promise<void> {
-  const modules = join(appOutDir, 'DeepSeek Harness.app', 'Contents', 'Resources', 'host', 'node_modules')
+  const modules = join(appOutDir, 'Starlight Harness.app', 'Contents', 'Resources', 'host', 'node_modules')
   const required = [
     ['@deepseek-ai', 'dsh', 'lib', 'bin.js'],
+    ['@deepseek-ai', 'dsh-experimental-project-brain-demo', 'lib', 'index.js'],
     ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'index.html'],
     ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'dsh-desktop', 'default-background.webp'],
     ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'dsh-desktop', 'cloud-cat-background.webp'],
@@ -48,15 +49,33 @@ async function writeRequiredMacRuntime(appOutDir: string): Promise<void> {
 }
 
 describe('packaged desktop runtime verification', () => {
-  it('accepts the packaged runtime and writes its update configuration', async () => {
+  it('accepts the packaged runtime without an update feed for demo builds', async () => {
     const appOutDir = await mkdtemp(join(tmpdir(), 'dsh-packaged-runtime-'))
+    try {
+      await writeRequiredMacRuntime(appOutDir)
+
+      await expect(afterPack(context(appOutDir, 'darwin', null))).resolves.toBeUndefined()
+      await expect(readFile(join(
+        appOutDir,
+        'Starlight Harness.app',
+        'Contents',
+        'Resources',
+        'app-update.yml',
+      ), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      await rm(appOutDir, { recursive: true, force: true })
+    }
+  })
+
+  it('writes updater configuration when a feed is configured', async () => {
+    const appOutDir = await mkdtemp(join(tmpdir(), 'dsh-packaged-runtime-update-config-'))
     try {
       await writeRequiredMacRuntime(appOutDir)
 
       await expect(afterPack(context(appOutDir))).resolves.toBeUndefined()
       const updateConfiguration = load(await readFile(join(
         appOutDir,
-        'DeepSeek Harness.app',
+        'Starlight Harness.app',
         'Contents',
         'Resources',
         'app-update.yml',
@@ -64,7 +83,7 @@ describe('packaged desktop runtime verification', () => {
       expect(updateConfiguration).toEqual({
         provider: 'generic',
         url: UPDATE_URL,
-        updaterCacheDirName: 'deepseek-harness-updater',
+        updaterCacheDirName: 'starlight-harness-updater',
         channel: 'rc',
       })
     } finally {
@@ -72,12 +91,10 @@ describe('packaged desktop runtime verification', () => {
     }
   })
 
-  it('rejects missing or insecure update providers', async () => {
+  it('rejects invalid configured update providers', async () => {
     const appOutDir = await mkdtemp(join(tmpdir(), 'dsh-packaged-runtime-update-'))
     try {
       await writeRequiredMacRuntime(appOutDir)
-      await expect(afterPack(context(appOutDir, 'darwin', null)))
-        .rejects.toThrow('packaged desktop requires one generic HTTPS update provider')
       await expect(afterPack(context(appOutDir, 'darwin', [{
         provider: 'generic',
         url: 'http://updates.example.test',
@@ -100,7 +117,7 @@ describe('packaged desktop runtime verification', () => {
       await writeRequiredMacRuntime(appOutDir)
       const sharp = join(
         appOutDir,
-        'DeepSeek Harness.app',
+        'Starlight Harness.app',
         'Contents',
         'Resources',
         'host',
@@ -118,12 +135,38 @@ describe('packaged desktop runtime verification', () => {
     }
   })
 
+  it('rejects a Project Brain demo that imports UI source files', async () => {
+    const appOutDir = await mkdtemp(join(tmpdir(), 'dsh-packaged-runtime-project-brain-'))
+    try {
+      await writeRequiredMacRuntime(appOutDir)
+      const entry = join(
+        appOutDir,
+        'Starlight Harness.app',
+        'Contents',
+        'Resources',
+        'host',
+        'node_modules',
+        '@deepseek-ai',
+        'dsh-experimental-project-brain-demo',
+        'lib',
+        'index.js',
+      )
+      await writeFile(entry, "import '@deepseek-ai/dsh-client-ui-project-brain/src/project-data.ts'\n")
+
+      await expect(afterPack(context(appOutDir)))
+        .rejects.toThrow('packaged Project Brain demo imports unshipped UI source files')
+    } finally {
+      await rm(appOutDir, { recursive: true, force: true })
+    }
+  })
+
   it('rejects a packaged shell whose package manager is absent or not pinned', async () => {
     const appOutDir = await mkdtemp(join(tmpdir(), 'dsh-packaged-runtime-pnpm-'))
     try {
-      const modules = join(appOutDir, 'DeepSeek Harness.app', 'Contents', 'Resources', 'host', 'node_modules')
+      const modules = join(appOutDir, 'Starlight Harness.app', 'Contents', 'Resources', 'host', 'node_modules')
       const required = [
         ['@deepseek-ai', 'dsh', 'lib', 'bin.js'],
+        ['@deepseek-ai', 'dsh-experimental-project-brain-demo', 'lib', 'index.js'],
         ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'index.html'],
         ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'dsh-desktop', 'default-background.webp'],
         ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'dsh-desktop', 'cloud-cat-background.webp'],
@@ -162,6 +205,7 @@ describe('packaged desktop runtime verification', () => {
       const modules = join(appOutDir, 'resources', 'host', 'node_modules')
       const required = [
         ['@deepseek-ai', 'dsh', 'lib', 'bin.js'],
+        ['@deepseek-ai', 'dsh-experimental-project-brain-demo', 'lib', 'index.js'],
         ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'index.html'],
         ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'dsh-desktop', 'default-background.webp'],
         ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'dsh-desktop', 'cloud-cat-background.webp'],

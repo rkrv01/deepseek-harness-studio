@@ -1,11 +1,16 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { replyStreamScenario, splitTrailingPrivateMarkers, streamScenarioText } from '../src/index.ts'
 import { PROJECT_BRAIN_PLAN, projectPlanRevisionPayload, resolveProjectBrainReply } from '../src/scenario.ts'
-import { parseProjectBrainSurfacePayload, projectBrainScenarioPayload } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
+import { parseProjectBrainSurfacePayload, projectBrainScenarioPayload } from '@deepseek-ai/dsh-client-ui-project-brain/scenario'
 
 describe('project brain scripted scenario', () => {
+  it.skipIf(!existsSync(new URL('../lib/index.js', import.meta.url)))('does not retain source imports in its published entry', () => {
+    const entry = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+    expect(entry).not.toContain('@deepseek-ai/dsh-client-ui-project-brain/src/')
+  })
+
   it('resolves stream pacing from the owning scenario for every reply kind', () => {
     expect(replyStreamScenario(resolveProjectBrainReply('帮我启动智慧园区建设项目。')).id).toBe('project-launch')
     expect(replyStreamScenario(resolveProjectBrainReply('帮我整理这个项目的会议纪要')).id).toBe('meeting-actions')
