@@ -24,41 +24,56 @@ export class DesktopUpdateController {
   private readonly listeners = new Set<(state: DesktopUpdateState) => void>()
   private readonly updater: UpdaterDriver
   private readonly packaged: boolean
+  private readonly enabled: boolean
 
   /**
    * @param updater - electron-updater singleton or a test driver.
    * @param currentVersion - running app version.
    * @param harnessVersion - Harness core version embedded in the Host runtime.
    * @param packaged - false for source development runs, where real update installation is unavailable.
+   * @param enabled - false for demo builds that intentionally ship without an update feed.
    */
   constructor(
     updater: UpdaterDriver,
     currentVersion: string,
     harnessVersion: string,
     packaged: boolean,
+    enabled = true,
   ) {
     this.updater = updater
     this.packaged = packaged
-    this.state = packaged
-      ? { phase: 'idle', currentVersion, harnessVersion }
-      : {
-        phase: 'development',
+    this.enabled = enabled
+    this.state = !enabled
+      ? {
+        phase: 'disabled',
         currentVersion,
         harnessVersion,
-        message: '当前为开发版；正式安装包生成后即可从发布源检查更新。',
+        message: '当前演示版未启用在线更新，请从发布方获取新的安装包。',
       }
+      : packaged
+        ? { phase: 'idle', currentVersion, harnessVersion }
+        : {
+          phase: 'development',
+          currentVersion,
+          harnessVersion,
+          message: '当前为开发版；正式安装包生成后即可从发布源检查更新。',
+        }
     updater.autoDownload = false
     updater.autoInstallOnAppQuit = true
     updater.on('checking-for-update', () => {
+      if (!this.enabled) return
       this.publish({ phase: 'checking', currentVersion, harnessVersion })
     })
     updater.on('update-available', (info) => {
+      if (!this.enabled) return
       this.publish({ phase: 'available', currentVersion, harnessVersion, availableVersion: info.version })
     })
     updater.on('update-not-available', () => {
+      if (!this.enabled) return
       this.publish({ phase: 'up-to-date', currentVersion, harnessVersion })
     })
     updater.on('download-progress', (info) => {
+      if (!this.enabled) return
       this.publish({
         phase: 'downloading',
         currentVersion,
@@ -68,6 +83,7 @@ export class DesktopUpdateController {
       })
     })
     updater.on('update-downloaded', (info) => {
+      if (!this.enabled) return
       this.publish({
         phase: 'ready',
         currentVersion,
@@ -77,6 +93,7 @@ export class DesktopUpdateController {
       })
     })
     updater.on('error', (error) => {
+      if (!this.enabled) return
       this.fail(error, this.state.phase === 'downloading' ? 'download' : 'check')
     })
   }
@@ -94,7 +111,7 @@ export class DesktopUpdateController {
 
   /** Check the configured release provider. Development builds remain explicit no-ops. */
   async check(): Promise<DesktopUpdateState> {
-    if (!this.packaged) return this.state
+    if (!this.packaged || !this.enabled) return this.state
     try {
       await this.updater.checkForUpdates()
     } catch (error) {
@@ -105,7 +122,7 @@ export class DesktopUpdateController {
 
   /** Download an update that the preceding check reported. */
   async download(): Promise<DesktopUpdateState> {
-    if (!this.packaged) return this.state
+    if (!this.packaged || !this.enabled) return this.state
     if (this.state.phase !== 'available' && this.state.phase !== 'error') return this.state
     this.publish({
       phase: 'downloading',

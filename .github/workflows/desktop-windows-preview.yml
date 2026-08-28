@@ -59,7 +59,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $version = node -p "require('./apps/desktop/package.json').version"
           $expectedTag = "desktop-preview-v$version"
-          $expectedAsset = "DeepSeek-Harness-Desktop-$version-macos-arm64-preview.zip"
+          $expectedAsset = "Starlight-Harness-Desktop-$version-macos-arm64-preview.zip"
           if ($env:RELEASE_TAG -ne $expectedTag) {
             throw "Release tag must be $expectedTag; received $env:RELEASE_TAG."
           }
@@ -97,14 +97,14 @@ jobs:
           $archive = Join-Path $env:RUNNER_TEMP "accepted-preview\$env:MACOS_PREVIEW_ASSET"
           $expanded = Join-Path $env:RUNNER_TEMP 'accepted-preview-expanded'
           $payloadPaths = @(
-            'DeepSeek Harness.app/Contents/Resources/app.asar',
-            'DeepSeek Harness.app/Contents/Resources/host/*',
-            'DeepSeek Harness.app/Contents/Resources/desktop-resources/*'
+            'Starlight Harness.app/Contents/Resources/app.asar',
+            'Starlight Harness.app/Contents/Resources/host/*',
+            'Starlight Harness.app/Contents/Resources/desktop-resources/*'
           )
           7z x $archive "-o$expanded" -y $payloadPaths | Out-Host
           if ($LASTEXITCODE -notin @(0, 1)) { throw "7z exited with $LASTEXITCODE." }
 
-          $resources = Join-Path $expanded 'DeepSeek Harness.app\Contents\Resources'
+          $resources = Join-Path $expanded 'Starlight Harness.app\Contents\Resources'
           $appAsar = Join-Path $resources 'app.asar'
           if (-not (Test-Path -LiteralPath $appAsar -PathType Leaf)) {
             throw "Accepted app.asar is missing at $appAsar."
@@ -198,7 +198,7 @@ jobs:
           Invoke-HarnessInstaller 'fresh'
 
           $applications = @(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs') `
-            -Recurse -File -Filter 'DeepSeek Harness.exe' -ErrorAction SilentlyContinue)
+            -Recurse -File -Filter 'Starlight Harness.exe' -ErrorAction SilentlyContinue)
           if ($applications.Count -ne 1) {
             throw "Expected exactly one installed application; found $($applications.Count)."
           }
@@ -254,14 +254,14 @@ jobs:
 
           Invoke-HarnessInstaller 'residual-seed'
           $seedApplications = @(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs') `
-            -Recurse -File -Filter 'DeepSeek Harness.exe' -ErrorAction SilentlyContinue)
+            -Recurse -File -Filter 'Starlight Harness.exe' -ErrorAction SilentlyContinue)
           if ($seedApplications.Count -ne 1) {
             throw "Expected one residual-seed application; found $($seedApplications.Count)."
           }
           Remove-ApplicationFilesButKeepRegistration ($seedApplications[0].DirectoryName)
           Invoke-HarnessInstaller 'residual-repair'
           $repairedApplications = @(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs') `
-            -Recurse -File -Filter 'DeepSeek Harness.exe' -ErrorAction SilentlyContinue)
+            -Recurse -File -Filter 'Starlight Harness.exe' -ErrorAction SilentlyContinue)
           if ($repairedApplications.Count -ne 1) {
             throw "Expected one repaired application; found $($repairedApplications.Count)."
           }
@@ -294,7 +294,7 @@ jobs:
       - name: Preserve verified Windows preview as an Actions artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DeepSeek-Harness-Desktop-${{ inputs.release_tag }}-windows-x64-preview
+          name: Starlight-Harness-Desktop-${{ inputs.release_tag }}-windows-x64-preview
           path: |
             apps/desktop/dist/*Setup.exe
             apps/desktop/dist/*Setup.exe.blockmap

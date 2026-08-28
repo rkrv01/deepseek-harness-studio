@@ -28,9 +28,9 @@ export function UpdateSection({ bridge }: UpdateSectionProps): ReactNode {
         <p className={css.intro}>在线更新暂未开放。需要更新时，请暂时从软件发布页下载最新安装包。</p>
       </div>
       <div className={css.updateCard}>
-        <div className={css.updateIcon}>DSH</div>
+        <div className={css.updateIcon}>SH</div>
         <div className={css.updateIdentity}>
-          <strong>DeepSeek Harness Desktop</strong>
+          <strong>Starlight Harness Desktop</strong>
           <span>Studio Desktop {state?.currentVersion ?? '读取中…'}</span>
           <span>Harness 核心 {state?.harnessVersion ?? '读取中…'}</span>
         </div>

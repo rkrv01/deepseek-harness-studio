@@ -21,10 +21,10 @@ describe('fixed Plugin Center package manager', () => {
     {
       name: 'macOS packaged runtime',
       platform: 'darwin' as const,
-      executable: '/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness',
-      entry: '/Applications/DeepSeek Harness.app/Contents/Resources/host/node_modules/pnpm/bin/pnpm.cjs',
+      executable: '/Applications/Starlight Harness.app/Contents/MacOS/Starlight Harness',
+      entry: '/Applications/Starlight Harness.app/Contents/Resources/host/node_modules/pnpm/bin/pnpm.cjs',
       profile: '/Users/fixture/.dsh/profiles/web',
-      store: '/Users/fixture/Library/Application Support/DeepSeek Harness/plugin-store',
+      store: '/Users/fixture/Library/Application Support/Starlight Harness/plugin-store',
       home: '/Users/fixture',
       electronRunAsNode: true,
       inherited: { TMPDIR: '/private/tmp', SECRET_TOKEN: 'must-not-cross' },
@@ -32,10 +32,10 @@ describe('fixed Plugin Center package manager', () => {
     {
       name: 'Windows packaged runtime',
       platform: 'win32' as const,
-      executable: 'C:\\Program Files\\DeepSeek Harness\\DeepSeek Harness.exe',
-      entry: 'C:\\Program Files\\DeepSeek Harness\\resources\\host\\node_modules\\pnpm\\bin\\pnpm.cjs',
+      executable: 'C:\\Program Files\\Starlight Harness\\Starlight Harness.exe',
+      entry: 'C:\\Program Files\\Starlight Harness\\resources\\host\\node_modules\\pnpm\\bin\\pnpm.cjs',
       profile: 'C:\\Users\\fixture\\.dsh\\profiles\\web',
-      store: 'C:\\Users\\fixture\\AppData\\Local\\DeepSeek Harness\\plugin-store',
+      store: 'C:\\Users\\fixture\\AppData\\Local\\Starlight Harness\\plugin-store',
       home: 'C:\\Users\\fixture',
       electronRunAsNode: true,
       inherited: { SystemRoot: 'C:\\Windows', TEMP: 'C:\\Temp', SECRET_TOKEN: 'must-not-cross' },
@@ -152,10 +152,10 @@ describe('fixed Plugin Center package manager', () => {
   it('re-materializes an old Profile without rewriting an incompatible frozen lockfile', async () => {
     const captured: PackageManagerInvocation[] = []
     const options = {
-      executable: 'C:\\Program Files\\DeepSeek Harness\\DeepSeek Harness.exe',
-      packageManagerEntry: 'C:\\Program Files\\DeepSeek Harness\\resources\\host\\node_modules\\pnpm\\bin\\pnpm.cjs',
+      executable: 'C:\\Program Files\\Starlight Harness\\Starlight Harness.exe',
+      packageManagerEntry: 'C:\\Program Files\\Starlight Harness\\resources\\host\\node_modules\\pnpm\\bin\\pnpm.cjs',
       profileDirectory: 'C:\\Users\\fixture\\.dsh\\profiles\\web',
-      storeDirectory: 'C:\\Users\\fixture\\AppData\\Local\\DeepSeek Harness\\plugin-store',
+      storeDirectory: 'C:\\Users\\fixture\\AppData\\Local\\Starlight Harness\\plugin-store',
       homeDirectory: 'C:\\Users\\fixture',
       electronRunAsNode: true,
       platform: 'win32' as const,

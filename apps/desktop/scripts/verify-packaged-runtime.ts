@@ -1,4 +1,4 @@
-/** Validate the staged Desktop runtime and materialize its updater configuration. */
+/** Validate the staged Desktop runtime and materialize optional updater configuration. */
 
 import { access, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -11,6 +11,7 @@ import {
 
 const REQUIRED_HOST_FILES = [
   ['@deepseek-ai', 'dsh', 'lib', 'bin.js'],
+  ['@deepseek-ai', 'dsh-experimental-project-brain-demo', 'lib', 'index.js'],
   ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'index.html'],
   ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'dsh-desktop', 'default-background.webp'],
   ['@deepseek-ai', 'dsh-web-frontend', 'dist', 'dsh-desktop', 'cloud-cat-background.webp'],
@@ -35,10 +36,10 @@ interface GenericUpdateConfiguration {
 }
 
 /**
- * Verify the Host files required before the application can start and write the
- * updater configuration for every target, including unpacked preview builds.
+ * Verify the Host files required before the application can start. Release
+ * builds with a configured update feed also receive updater configuration.
  * @param context - Electron Builder's completed application directory.
- * @returns A promise that rejects when the runtime or generic HTTPS update provider is invalid.
+ * @returns A promise that rejects when the runtime or configured generic HTTPS update provider is invalid.
  */
 export async function afterPack(context: AfterPackContext): Promise<void> {
   const resources = context.electronPlatformName === 'darwin'
@@ -48,6 +49,16 @@ export async function afterPack(context: AfterPackContext): Promise<void> {
     await access(join(resources, 'host', 'node_modules', ...segments))
   }
   const modules = join(resources, 'host', 'node_modules')
+  const projectBrainEntry = await readFile(join(
+    modules,
+    '@deepseek-ai',
+    'dsh-experimental-project-brain-demo',
+    'lib',
+    'index.js',
+  ), 'utf8')
+  if (projectBrainEntry.includes('@deepseek-ai/dsh-client-ui-project-brain/src/')) {
+    throw new Error('packaged Project Brain demo imports unshipped UI source files')
+  }
   await access(join(modules, ...PACKAGE_MANAGER_ENTRY_SEGMENTS))
   const packageManager = JSON.parse(await readFile(join(modules, 'pnpm/package.json'), 'utf8')) as {
     readonly version?: unknown
@@ -70,14 +81,20 @@ export async function afterPack(context: AfterPackContext): Promise<void> {
       throw new Error('macOS arm64 Sharp native module is missing from the packaged Host runtime')
     }
   }
-  await writeFile(
-    join(resources, 'app-update.yml'),
-    dump(resolveUpdateConfiguration(context), { lineWidth: -1, noRefs: true }),
-  )
+  const updateConfiguration = resolveUpdateConfiguration(context)
+  if (updateConfiguration !== null) {
+    await writeFile(
+      join(resources, 'app-update.yml'),
+      dump(updateConfiguration, { lineWidth: -1, noRefs: true }),
+    )
+  }
 }
 
-function resolveUpdateConfiguration(context: AfterPackContext): GenericUpdateConfiguration {
+function resolveUpdateConfiguration(context: AfterPackContext): GenericUpdateConfiguration | null {
   const configured: unknown = context.packager.config.publish
+  if (configured === undefined || configured === null || (Array.isArray(configured) && configured.length === 0)) {
+    return null
+  }
   const candidate = Array.isArray(configured) ? configured[0] : configured
   if (!isRecord(candidate) || candidate.provider !== 'generic' || typeof candidate.url !== 'string') {
     throw new Error('packaged desktop requires one generic HTTPS update provider')

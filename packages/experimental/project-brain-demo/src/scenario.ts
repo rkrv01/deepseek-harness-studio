@@ -1,10 +1,23 @@
 /** Shared deterministic project data and rich replies for the Project Brain demo. */
 
-import { PROJECT_BRAIN_COPILOT_DEMO, PROJECT_BRAIN_MY_DAY_DEMO, PROJECT_BRAIN_PLAN, MEETING_ANALYSIS_MOCK, MEETING_MINUTES_TEXT } from '@deepseek-ai/dsh-client-ui-project-brain/src/project-data.ts'
-import type { ProjectBrainPlanData, ProjectBrainMeetingAnalysis, ProjectBrainMeetingActionItem } from '@deepseek-ai/dsh-client-ui-project-brain/src/project-data.ts'
-import { matchProjectBrainScenario, parseProjectBrainScenarioPayload, projectBrainScenarioPayload, projectBrainSurfacePayload } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
-import type { ProjectBrainScenarioId } from '@deepseek-ai/dsh-client-ui-project-brain/src/scenario-registry.ts'
-import { DEFAULT_PLATFORM_BASE_URL } from '@deepseek-ai/dsh-client-ui-project-brain/src/client/platform-config.ts'
+import {
+  DEFAULT_PLATFORM_BASE_URL,
+  MEETING_ANALYSIS_MOCK,
+  MEETING_MINUTES_TEXT,
+  matchProjectBrainScenario,
+  parseProjectBrainScenarioPayload,
+  PROJECT_BRAIN_COPILOT_DEMO,
+  PROJECT_BRAIN_MY_DAY_DEMO,
+  PROJECT_BRAIN_PLAN,
+  projectBrainScenarioPayload,
+  projectBrainSurfacePayload,
+} from '@deepseek-ai/dsh-client-ui-project-brain/scenario'
+import type {
+  ProjectBrainMeetingActionItem,
+  ProjectBrainMeetingAnalysis,
+  ProjectBrainPlanData,
+  ProjectBrainScenarioId,
+} from '@deepseek-ai/dsh-client-ui-project-brain/scenario'
 
 export type ProjectBrainReplyKind = 'launch-plan' | 'launch-receipt' | 'platform-retry' | 'meeting-analysis' | 'meeting-receipt' | 'executive-briefing' | 'briefing-receipt' | 'handoff' | 'note' | 'fallback'
 

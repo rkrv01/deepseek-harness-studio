@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-desktop",
-  "description": "DeepSeek Harness desktop application with tray-owned Host lifecycle",
+  "description": "Starlight Harness desktop demo application with tray-owned Host lifecycle",
   "version": "0.1.0-rc.16",
   "private": true,
   "type": "module",
@@ -47,8 +47,8 @@
     "vitest": "^4.1.8"
   },
   "build": {
-    "appId": "ai.deepseek.harness.desktop",
-    "productName": "DeepSeek Harness",
+    "appId": "ai.starlight.harness.desktop",
+    "productName": "Starlight Harness",
     "afterPack": "./scripts/verify-packaged-runtime.ts",
     "asar": true,
     "files": [
@@ -69,13 +69,6 @@
         "to": "host/node_modules"
       }
     ],
-    "publish": [
-      {
-        "provider": "generic",
-        "url": "https://ml2022.oss-cn-hangzhou.aliyuncs.com/deepseek-harness-desktop/releases",
-        "channel": "rc"
-      }
-    ],
     "toolsets": {
       "nsis": "1.2.1"
     },
@@ -83,14 +76,14 @@
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
       "icon": "build/icon.png",
-      "notarize": true,
+      "notarize": false,
       "target": [
         "dir"
       ]
     },
     "win": {
       "icon": "build/icon.png",
-      "artifactName": "DeepSeek-Harness-Desktop-Windows-x64-${version}-Setup.${ext}",
+      "artifactName": "Starlight-Harness-Desktop-Windows-x64-${version}-Setup.${ext}",
       "target": [
         "nsis"
       ]
@@ -102,7 +95,7 @@
       "include": "build/installer.nsh",
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "DeepSeek Harness"
+      "shortcutName": "Starlight Harness"
     },
     "linux": {
       "category": "Development",

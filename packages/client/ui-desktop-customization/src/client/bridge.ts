@@ -1,7 +1,7 @@
 /** Structural renderer view of the fixed Electron preload bridge. */
 
 export type DesktopUpdatePhase =
-  | 'development' | 'idle' | 'checking' | 'available' | 'downloading'
+  | 'development' | 'disabled' | 'idle' | 'checking' | 'available' | 'downloading'
   | 'ready' | 'up-to-date' | 'error'
 
 /** Immutable update state supplied by the Electron main process. */

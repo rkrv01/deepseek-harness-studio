@@ -36,6 +36,7 @@ import type {
 /** Update lifecycle exposed to the sandboxed renderer. */
 type DesktopUpdatePhase =
   | 'development'
+  | 'disabled'
   | 'idle'
   | 'checking'
   | 'available'

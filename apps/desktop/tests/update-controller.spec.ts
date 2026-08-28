@@ -42,6 +42,23 @@ describe('desktop update controller', () => {
     expect(updater.quitAndInstall).toHaveBeenCalledWith(false, true)
   })
 
+  it('keeps demo update builds disabled without contacting a release provider', async () => {
+    const updater = new FakeUpdater()
+    const controller = new DesktopUpdateController(updater, '1.0.0-demo', '2.0.0', true, false)
+    expect(controller.getState()).toMatchObject({
+      phase: 'disabled',
+      currentVersion: '1.0.0-demo',
+      harnessVersion: '2.0.0',
+    })
+    await controller.check()
+    await controller.download()
+    updater.emit('checking-for-update')
+    updater.emit('update-available', { version: '1.0.1-demo' })
+    expect(updater.checkForUpdates).not.toHaveBeenCalled()
+    expect(updater.downloadUpdate).not.toHaveBeenCalled()
+    expect(controller.getState().phase).toBe('disabled')
+  })
+
   it('normalizes updater failures without throwing through the renderer bridge', async () => {
     const updater = new FakeUpdater()
     updater.checkForUpdates.mockRejectedValueOnce(new Error('feed unavailable'))
