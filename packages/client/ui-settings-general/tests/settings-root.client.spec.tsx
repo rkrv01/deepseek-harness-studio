@@ -16,6 +16,7 @@ const SEAT_CONTENT: Record<string, string> = {
   'settings.header': 'Settings Title',
   'settings.action': 'Open configuration file',
   'settings.close': 'Close',
+  'settings.footer': 'Developer mode',
 }
 
 function mount({
@@ -124,6 +125,17 @@ describe('SettingsPanel chrome seats', () => {
     openPanel()
     expect(screen.getByText('Open configuration file')).toBeTruthy()
     expect(renderSlot).toHaveBeenCalledWith('settings.action', {})
+  })
+
+  it('renders the settings footer after the navigation list', () => {
+    const { renderSlot } = mount()
+    openPanel()
+    const nav = screen.getByRole('dialog').querySelector('nav')!
+    expect(nav.textContent).toContain('Developer mode')
+    expect(renderSlot).toHaveBeenCalledWith('settings.footer', expect.objectContaining({
+      openSection: expect.any(Function),
+      activeSectionId: 'general',
+    }))
   })
 })
 

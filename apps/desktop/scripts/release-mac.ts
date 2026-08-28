@@ -1,9 +1,11 @@
 /** Build a macOS DMG and ZIP, signed and notarized when release credentials are present. */
 
 import { spawnSync } from 'node:child_process'
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { adaptMacReleaseEnvironment, assertMacReleaseReady } from './release-preflight.ts'
+import { zipSync } from 'fflate'
 
 const RELEASE_VARIABLES = [
   'APPLE_API_ISSUER', 'APPLE_API_KEY', 'APPLE_API_KEY_ID',
@@ -60,6 +62,36 @@ function hasMacReleaseCredentials(env: NodeJS.ProcessEnv): boolean {
     || (env.APPLE_API_KEY !== undefined && env.APPLE_API_KEY_ID !== undefined && env.APPLE_API_ISSUER !== undefined)
 }
 
+function organizeMacArtifacts(desktopRoot: string, architecture: MacReleaseArchitecture): void {
+  const distDirectory = resolve(desktopRoot, 'dist')
+  const deliveryDirectory = resolve(distDirectory, 'mac')
+  rmSync(deliveryDirectory, { recursive: true, force: true })
+  mkdirSync(deliveryDirectory, { recursive: true })
+  const scriptPath = resolve(desktopRoot, 'uninstall-starlight-harness.command')
+  const deliveryScriptPath = resolve(deliveryDirectory, 'uninstall.command')
+  copyFileSync(scriptPath, deliveryScriptPath)
+  chmodSync(deliveryScriptPath, 0o755)
+  const deliveryFiles: Record<string, Buffer> = {
+    'uninstall.command': readFileSync(deliveryScriptPath),
+  }
+  for (const name of readdirSync(distDirectory)) {
+    if (!name.startsWith('Starlight Harness-')) continue
+    const suffix = name.endsWith('.dmg.blockmap') ? 'dmg.blockmap'
+      : name.endsWith('.zip.blockmap') ? 'zip.blockmap'
+        : name.endsWith('.dmg') ? 'dmg'
+          : name.endsWith('.zip') ? 'zip' : undefined
+    if (suffix === undefined) continue
+    const source = resolve(distDirectory, name)
+    const target = resolve(deliveryDirectory, `Starlight-Harness-macOS-${architecture}.${suffix}`)
+    copyFileSync(source, target)
+    rmSync(source, { force: true })
+    if (suffix === 'dmg') deliveryFiles[`Starlight-Harness-macOS-${architecture}.dmg`] = readFileSync(target)
+  }
+  const archivePath = resolve(deliveryDirectory, `Starlight-Harness-macOS-${architecture}-delivery.zip`)
+  writeFileSync(archivePath, zipSync(deliveryFiles, { level: 0 }))
+  console.log(`macOS delivery archive written to ${archivePath}`)
+}
+
 /**
  * Build the macOS artifact while exposing release secrets only to Electron Builder.
  * @param argv - Optional target architecture argument.
@@ -101,6 +133,7 @@ export function releaseMac(argv: readonly string[] = []): void {
     signedRelease ? '--config.forceCodeSigning=true' : '--config.forceCodeSigning=false',
     signedRelease ? '--config.mac.notarize=true' : '--config.mac.notarize=false',
   ], desktopRoot, builderEnvironment)
+  organizeMacArtifacts(desktopRoot, architecture)
 }
 
 const invokedPath = process.argv[1]

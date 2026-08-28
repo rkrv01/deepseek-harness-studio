@@ -97,6 +97,7 @@ const DESKTOP_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const REPOSITORY_ROOT = resolve(DESKTOP_DIR, '../..')
 
 let mainWindow: BrowserWindow | undefined
+const DEVELOPER_MODE_PASSWORD = 'Starlight2026@321'
 let tray: Tray | undefined
 let host: HostSupervisor | undefined
 let lifecycle: DesktopLifecycle | undefined
@@ -343,9 +344,8 @@ async function createMainWindow(): Promise<BrowserWindow> {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     frame: process.platform === 'win32',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
     ...(process.platform === 'darwin' ? {} : {
       titleBarOverlay: {
         color: '#00000000',
@@ -354,9 +354,8 @@ async function createMainWindow(): Promise<BrowserWindow> {
       },
     }),
     ...(process.platform === 'darwin' ? {
+      titleBarStyle: 'hiddenInset' as const,
       trafficLightPosition: { x: 16, y: 18 },
-      vibrancy: 'sidebar' as const,
-      visualEffectState: 'followWindow' as const,
     } : {}),
     ...(process.platform === 'win32' ? {
       backgroundMaterial: 'acrylic' as const,
@@ -373,6 +372,7 @@ async function createMainWindow(): Promise<BrowserWindow> {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      additionalArguments: [app.isPackaged ? '--dsh-packaged' : '--dsh-development'],
       preload: join(DESKTOP_DIR, 'lib/preload.cjs'),
     },
   })
@@ -488,6 +488,10 @@ function registerDesktopBridge(): PluginCenterBackend {
       origin: currentHostOrigin(),
     })
   }
+  ipcMain.handle(DESKTOP_CHANNELS.developerModeUnlock, (event, value: unknown) => {
+    assertDesktopSender(event)
+    return typeof value === 'string' && value === DEVELOPER_MODE_PASSWORD
+  })
   ipcMain.handle(DESKTOP_CHANNELS.workspacePickDirectory, async (event) => {
     assertDesktopSender(event)
     const owner = mainWindow

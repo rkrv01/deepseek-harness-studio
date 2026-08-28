@@ -1,13 +1,21 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it } from 'vitest'
 import { PluginCenterNavItem, type PluginCenterNavProps } from '../src/client/PluginCenterNavItem.tsx'
 import { PluginCenterTab, type PluginCenterTabProps } from '../src/client/PluginCenterTab.tsx'
 import { en, type PluginCenterLocaleKey } from '../src/client/locales.ts'
 import { compatibilityDecision, installedListResult, listResult } from './fixtures.ts'
+import { setProductEntryVisibility } from '../src/client/entry-visibility.ts'
 
-afterEach(cleanup)
+beforeEach(() => {
+  setProductEntryVisibility({ showPluginCenter: true })
+})
+
+afterEach(() => {
+  cleanup()
+  setProductEntryVisibility({ showPluginCenter: false })
+})
 
 const t = ((key: PluginCenterLocaleKey): string => en[key]) as PluginCenterTabProps['t']
 const neverHook = (() => { throw new Error('test component must not read global hooks') }) as never

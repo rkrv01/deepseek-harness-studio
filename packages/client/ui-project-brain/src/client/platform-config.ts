@@ -28,9 +28,16 @@ export function isProjectBrainDevMode(): boolean {
   return devMode
 }
 
-/** Turn the temporary developer mode on for this page session. */
+/** Turn the temporary developer mode on for one settings access session. */
 export function enableProjectBrainDevMode(): void {
   devMode = true
+  window.dispatchEvent(new Event(PROJECT_BRAIN_DEV_MODE_EVENT))
+}
+
+/** Revoke the current developer settings access session. */
+export function disableProjectBrainDevMode(): void {
+  if (!devMode) return
+  devMode = false
   window.dispatchEvent(new Event(PROJECT_BRAIN_DEV_MODE_EVENT))
 }
 

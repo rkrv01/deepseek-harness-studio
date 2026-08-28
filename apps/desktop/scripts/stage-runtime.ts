@@ -8,7 +8,7 @@ import {
   PACKAGE_MANAGER_ENTRY_SEGMENTS,
   PINNED_PACKAGE_MANAGER_VERSION,
 } from '../src/plugin-center/package-manager.ts'
-import { pruneRuntimeMetadata } from './runtime-staging-pruner.ts'
+import { pruneRuntime } from './runtime-staging-pruner.ts'
 
 const desktopRoot = resolve(import.meta.dirname, '..')
 const repositoryRoot = resolve(desktopRoot, '../..')
@@ -164,7 +164,7 @@ async function main(): Promise<void> {
   await restoreLegacyHoists()
   await materializeLinks()
   await restoreReviewedIgnoredBuild()
-  const prunedMetadataFiles = await pruneRuntimeMetadata(join(staging, 'node_modules'))
+  const prunedFiles = await pruneRuntime(join(staging, 'node_modules'), { platform: targetPlatform, arch: targetArch })
   await removeBuildMachinePaths(staging)
   if (!existsSync(entry)) throw new Error(`desktop Host entry missing after staging: ${entry}`)
   if (!existsSync(frontend)) throw new Error(`desktop Web frontend missing after staging: ${frontend}`)
@@ -173,7 +173,9 @@ async function main(): Promise<void> {
   if (packageManager.version !== PINNED_PACKAGE_MANAGER_VERSION) {
     throw new Error(`desktop package-manager version must be ${PINNED_PACKAGE_MANAGER_VERSION}`)
   }
-  console.log(`desktop runtime staged for ${targetPlatform}-${targetArch} at ${staging}; removed ${String(prunedMetadataFiles)} compile-time metadata files`)
+  console.log(
+    `desktop runtime staged for ${targetPlatform}-${targetArch} at ${staging}; removed ${String(prunedFiles.metadataFiles)} metadata, ${String(prunedFiles.nonRuntimeFiles)} non-runtime entries, and ${String(prunedFiles.platformFiles)} non-target platform entries`,
+  )
 }
 
 await main()

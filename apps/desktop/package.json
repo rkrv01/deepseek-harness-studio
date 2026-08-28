@@ -51,6 +51,7 @@
     "productName": "Starlight Harness",
     "afterPack": "./scripts/verify-packaged-runtime.ts",
     "asar": true,
+    "compression": "normal",
     "files": [
       "lib/**",
       "package.json"
@@ -83,7 +84,7 @@
     },
     "win": {
       "icon": "build/icon.png",
-      "artifactName": "Starlight-Harness-Desktop-Windows-x64-${version}-Setup.${ext}",
+      "artifactName": "Starlight-Harness-Windows-${version}.${ext}",
       "target": [
         "nsis"
       ]

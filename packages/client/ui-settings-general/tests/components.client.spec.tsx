@@ -66,6 +66,18 @@ describe('GeneralSection', () => {
 })
 
 describe('SettingsDocumentAction', () => {
+  it('stays hidden when the desktop build disables configuration-file access', () => {
+    const controller = derivedDocumentStore({ settings: { describe: vi.fn(), openDocument: vi.fn() } })
+    render(<SettingsDocumentAction
+      {...kit}
+      t={t}
+      enabled={false}
+      controller={controller}
+      useSnapshot={bindSnapshotSelector(controller.store)}
+    />)
+    expect(screen.queryByRole('button', { name: 'Open configuration file' })).toBeNull()
+  })
+
   it('appears only for a file-backed provider and requests its Host-owned document', async () => {
     const openDocument = vi.fn(() => Promise.resolve({
       rpcId: 'document-open' as never,
@@ -86,6 +98,7 @@ describe('SettingsDocumentAction', () => {
     render(<SettingsDocumentAction
       {...kit}
       t={t}
+      enabled
       controller={controller}
       useSnapshot={bindSnapshotSelector(controller.store)}
     />)
@@ -110,6 +123,7 @@ describe('SettingsDocumentAction', () => {
     const first = render(<SettingsDocumentAction
       {...kit}
       t={t}
+      enabled
       controller={controller}
       useSnapshot={bindSnapshotSelector(controller.store)}
     />)
@@ -119,6 +133,7 @@ describe('SettingsDocumentAction', () => {
     render(<SettingsDocumentAction
       {...kit}
       t={t}
+      enabled
       controller={controller}
       useSnapshot={bindSnapshotSelector(controller.store)}
     />)
@@ -150,6 +165,7 @@ describe('SettingsDocumentAction', () => {
     render(<SettingsDocumentAction
       {...kit}
       t={t}
+      enabled
       controller={controller}
       useSnapshot={bindSnapshotSelector(controller.store)}
     />)

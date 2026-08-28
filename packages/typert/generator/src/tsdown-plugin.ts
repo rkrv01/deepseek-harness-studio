@@ -42,7 +42,7 @@ export function typertPlugin(pluginOptions: TypertPluginOptions = {}): TypertPlu
     name: 'dsh-typert-generator',
     transform(code, id) {
       const file = id.split('?', 1)[0] ?? id
-      if (!/\.[cm]?tsx?$/.test(file) || !DECORATOR_SYNTAX.test(code)) return
+      if (!/\.[cm]?[jt]sx?$/.test(file) || !DECORATOR_SYNTAX.test(code)) return
       const result = ts.transpileModule(code, {
         fileName: file,
         compilerOptions: {

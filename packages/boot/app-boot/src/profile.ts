@@ -24,7 +24,7 @@
 
 import { createRequire } from 'node:module'
 import {
-  existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, unlinkSync, writeFileSync,
+  cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync,
 } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
@@ -193,8 +193,11 @@ export function initProfile(dir: string, bundles: readonly string[]): void {
   if (!existsSync(workspacePath)) writeFileSync(workspacePath, PROFILE_PNPM_WORKSPACE)
 }
 
-/** Ensure `link` is a symlink to `target`, replacing a wrong or dangling link; a real directory throws. */
+const COPY_FALLBACK_MARKER = '.dsh-copy-fallback.json'
+
+/** Ensure `link` is a symlink to `target`, or a marked copy when Windows blocks junction creation. */
 function ensureSymlink(link: string, target: string): void {
+  const marker = join(dirname(link), `${COPY_FALLBACK_MARKER}.${basename(link)}`)
   let stat
   try {
     stat = lstatSync(link)
@@ -205,12 +208,21 @@ function ensureSymlink(link: string, target: string): void {
   }
   if (stat !== undefined) {
     if (!stat.isSymbolicLink()) {
-      throw new Error(`dsh: ${link} exists and is not a symlink; remove it so dsh can manage the installation fallback`)
+      const markedTarget = stat.isDirectory() ? readCopyFallbackTarget(marker) : undefined
+      if (markedTarget === undefined) {
+        throw new Error(`dsh: ${link} exists and is not a symlink; remove it so dsh can manage the installation fallback`)
+      }
+      if (markedTarget.target === target && sameCopyFallbackVersion(markedTarget, target)) return
+      rmSync(link, { recursive: true, force: true })
+      unlinkSync(marker)
+      stat = undefined
     }
-    if (readlinkSync(link) === target) return
-    // unlink deletes the reparse point itself on Windows too; rmSync treats a
-    // junction as a directory and throws EISDIR unless recursive.
-    unlinkSync(link)
+    if (stat !== undefined) {
+      if (readlinkSync(link) === target) return
+      // unlink deletes the reparse point itself on Windows too; rmSync treats a
+      // junction as a directory and throws EISDIR unless recursive.
+      unlinkSync(link)
+    }
   }
   try {
     symlinkSync(target, link, 'junction')
@@ -220,11 +232,43 @@ function ensureSymlink(link: string, target: string): void {
     // The window between the lstat miss above and this write cannot be
     // staged deterministically from the public API.
     /* v8 ignore next 4 */
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST'
-      || !lstatSync(link).isSymbolicLink() || readlinkSync(link) !== target) {
-      throw error
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'EPERM' || code === 'EACCES') {
+      cpSync(target, link, { recursive: true, dereference: true, errorOnExist: true })
+      writeFileSync(marker, JSON.stringify(copyFallbackVersion(target)) + '\n')
+      return
     }
+    if (code !== 'EEXIST' || !lstatSync(link).isSymbolicLink() || readlinkSync(link) !== target) throw error
   }
+}
+
+interface CopyFallbackVersion {
+  readonly target: string
+  readonly packageJsonMtimeMs: number
+  readonly packageJsonSize: number
+}
+
+function copyFallbackVersion(target: string): CopyFallbackVersion {
+  const packageJson = statSync(join(target, 'package.json'))
+  return { target, packageJsonMtimeMs: packageJson.mtimeMs, packageJsonSize: packageJson.size }
+}
+
+function readCopyFallbackTarget(marker: string): CopyFallbackVersion | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(marker, 'utf8')) as Partial<CopyFallbackVersion>
+    return typeof parsed.target === 'string'
+      && typeof parsed.packageJsonMtimeMs === 'number'
+      && typeof parsed.packageJsonSize === 'number'
+      ? parsed as CopyFallbackVersion
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function sameCopyFallbackVersion(marker: CopyFallbackVersion, target: string): boolean {
+  const current = copyFallbackVersion(target)
+  return current.packageJsonMtimeMs === marker.packageJsonMtimeMs && current.packageJsonSize === marker.packageJsonSize
 }
 
 /**

@@ -11,6 +11,7 @@ interface DesktopPackage {
     readonly afterPack: string
     readonly appId: string
     readonly productName: string
+    readonly compression: string
     readonly extraResources: readonly {
       readonly from: string
       readonly to: string
@@ -47,6 +48,9 @@ const repositoryRoot = resolve(desktopRoot, '../..')
 const workspaceConfiguration = readFileSync(resolve(repositoryRoot, 'pnpm-workspace.yaml'), 'utf8')
 const builderPatch = readFileSync(resolve(repositoryRoot, 'patches/app-builder-lib@26.15.3.patch'), 'utf8')
 const macReleaseScript = readFileSync(resolve(desktopRoot, 'scripts/release-mac.ts'), 'utf8')
+const windowsReleaseScript = readFileSync(resolve(desktopRoot, 'scripts/release-win.ts'), 'utf8')
+const macReleaseOrganizer = readFileSync(resolve(desktopRoot, 'scripts/release-mac.ts'), 'utf8')
+const macUninstallScript = readFileSync(resolve(desktopRoot, 'uninstall-starlight-harness.command'), 'utf8')
 const windowsInstallerInclude = readFileSync(resolve(desktopRoot, 'build/installer.nsh'), 'utf8')
 const desktopPackage = JSON.parse(
   readFileSync(resolve(desktopRoot, 'package.json'), 'utf8'),
@@ -97,12 +101,18 @@ describe('desktop packaging configuration', () => {
 
   it('keeps the rounded RGBA icon byte-for-byte and shares it across macOS and Windows', () => {
     const icon = readFileSync(resolve(desktopRoot, 'build/icon.png'))
+    const trayIcon = readFileSync(resolve(desktopRoot, 'resources/trayTemplate.png'))
+    const trayIcon2x = readFileSync(resolve(desktopRoot, 'resources/trayTemplate@2x.png'))
 
     expect(icon[25]).toBe(6)
     expect(createHash('sha256').update(icon).digest('hex'))
       .toBe('ca20b03534406c92ee07b1335ba75cf1d4bfb36cfeb9d81f7858aa99377cee0e')
     expect(desktopPackage.build.mac.icon).toBe('build/icon.png')
     expect(desktopPackage.build.win.icon).toBe('build/icon.png')
+    expect(createHash('sha256').update(trayIcon).digest('hex'))
+      .toBe('83f1e7fc1e322caa64ff7c271e55546ffe957d3e81570339550582763627a5df')
+    expect(createHash('sha256').update(trayIcon2x).digest('hex'))
+      .toBe('284a03cc9fd485a465896459828defb8aae3ce56fab5acacfc1224c47d601fc2')
   })
 
   it('uses an independent Starlight Harness desktop identity', () => {
@@ -140,6 +150,13 @@ describe('desktop packaging configuration', () => {
     expect(macReleaseScript).toContain("'--mac', 'dmg', 'zip'")
     expect(macReleaseScript).toContain('--config.forceCodeSigning=false')
     expect(macReleaseScript).toContain("CSC_IDENTITY_AUTO_DISCOVERY: 'false'")
+    expect(macReleaseOrganizer).toContain('organizeMacArtifacts')
+    expect(macReleaseOrganizer).toContain('Starlight-Harness-macOS-${architecture}.${suffix}')
+    expect(macReleaseScript).toContain('uninstall-starlight-harness.command')
+    expect(macReleaseScript).toContain("'uninstall.command': readFileSync(deliveryScriptPath)")
+    expect(macReleaseScript).toContain('macOS-${architecture}-delivery.zip')
+    expect(macUninstallScript).toContain('DeepSeek Harness 未被修改')
+    expect(macUninstallScript).toContain('$HOME/.dsh/profiles/web')
     expect(desktopPackage.build.mac.hardenedRuntime).toBe(true)
     expect(desktopPackage.build.mac.notarize).toBe(false)
   })
@@ -151,8 +168,9 @@ describe('desktop packaging configuration', () => {
     expect(desktopPackage.scripts['dist:win']).toContain('scripts/release-win.ts')
     expect(builderPatch).toContain('ELECTRON_BUILDER_NSIS_TEMPLATE_DIR')
     expect(desktopPackage.build.win.target).toEqual(['nsis'])
+    expect(desktopPackage.build.compression).toBe('normal')
     expect(desktopPackage.build.win.artifactName)
-      .toBe('Starlight-Harness-Desktop-Windows-x64-${version}-Setup.${ext}')
+      .toBe('Starlight-Harness-Windows-${version}.${ext}')
     expect(desktopPackage.build.toolsets.nsis).toBe('1.2.1')
     expect(desktopPackage.build.nsis).toMatchObject({
       oneClick: false,
@@ -167,6 +185,10 @@ describe('desktop packaging configuration', () => {
     expect(windowsInstallerInclude).not.toContain('!macro customInit')
     expect(windowsInstallerInclude).toContain('!macro customCheckAppRunning')
     expect(windowsInstallerInclude).toContain('!ifdef BUILD_UNINSTALLER')
+    expect(windowsReleaseScript).toContain('removePreviousWindowsArtifacts')
+    expect(windowsReleaseScript).toContain('archiveLatestWindowsInstaller')
+    expect(windowsReleaseScript).toContain('copyFileSync(scriptSource, scriptPath)')
+    expect(windowsReleaseScript).toContain("'uninstall.bat': readFileSync(scriptPath)")
     expect(windowsInstallerInclude).toContain(
       'ReadRegStr $3 HKCU "${INSTALL_REGISTRY_KEY}" "InstallLocation"',
     )

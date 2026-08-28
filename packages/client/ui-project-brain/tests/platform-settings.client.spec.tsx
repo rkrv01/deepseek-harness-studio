@@ -6,11 +6,15 @@ import { PlatformSettingsSection } from '../src/client/PlatformSettingsSection.t
 import {
   DEFAULT_DEMO_API_BASE_URL,
   DEFAULT_PLATFORM_BASE_URL,
+  disableProjectBrainDevMode,
   enableProjectBrainDevMode,
   isProjectBrainDevMode,
 } from '../src/client/platform-config.ts'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  disableProjectBrainDevMode()
+})
 
 interface ScopeValue {
   readonly platformBaseUrl?: string
@@ -69,6 +73,6 @@ describe('PlatformSettingsSection', () => {
     expect(scope.set).toHaveBeenCalledWith('demoApiBaseUrl', DEFAULT_DEMO_API_BASE_URL)
 
     fireEvent.click(view.getByLabelText('固定唯一工作区'))
-    expect(scope.set).toHaveBeenCalledWith('fixedWorkspace', true)
+    expect(scope.set).toHaveBeenCalledWith('fixedWorkspace', false)
   })
 })

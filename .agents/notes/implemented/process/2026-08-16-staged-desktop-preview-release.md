@@ -18,6 +18,8 @@ The Windows runner extracts the accepted platform-neutral application payload, s
 
 The staged Host retains published JavaScript and package metadata, but omits workspace `src/` trees. Host code that reuses Project Brain UI scenario data therefore imports the UI package's published `./scenario` entry. The Electron Builder `afterPack` check rejects an application whose Project Brain Host entry still imports that unshipped UI source path.
 
+When Windows policy denies junction creation for the unsigned Host process, the profile fallback copies the target package and records an ownership marker. Marked copies are reused across launches and replaced when the installation target moves; unmarked real directories remain errors.
+
 ## Alternatives considered
 
 **Use the signed release workflow for every preview.** This blocks ordinary preview delivery on Apple notarization and Windows Authenticode secrets and delays macOS review until both platform jobs finish.

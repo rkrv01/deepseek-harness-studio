@@ -39,6 +39,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * the button without an accessible name (broken-composition state).
      */
     'settings.close': { kind: 'single'; scope: 'root'; owner: SettingsHeaderOwnerProps }
+    /** Optional settings navigation footer, rendered below the section list. */
+    'settings.footer': { kind: 'list'; scope: 'root'; owner: SettingsFooterOwnerProps }
     /**
      * One settings page per list entry. Registrant options carry the nav
      * identity: `id` (section key, drives `only` filtering), `order` (nav
@@ -110,6 +112,14 @@ export interface SettingsTriggerOwnerProps {
 export interface SettingsHeaderOwnerProps {
   /** Marker field: header owner props are intentionally empty. */
   children?: never
+}
+
+/** Owner share of a settings navigation footer. */
+export interface SettingsFooterOwnerProps {
+  /** Open a settings section while keeping the modal open. */
+  openSection: (id: string) => void
+  /** Currently rendered settings section, or undefined before selection. */
+  activeSectionId: string | undefined
 }
 
 /**

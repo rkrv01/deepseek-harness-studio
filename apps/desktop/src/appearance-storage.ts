@@ -14,11 +14,11 @@ const HEX_COLOR = /^#[0-9a-f]{6}$/iu
 
 /** Appearance shown before a learner selects a custom image. */
 export const DEFAULT_APPEARANCE: DesktopAppearanceSettings = Object.freeze({
-  builtinTheme: 'whale-maid',
+  builtinTheme: 'official',
   imageDataUrl: null,
   focusY: 50,
   glassStrength: 72,
-  palette: Object.freeze(['#587ac2', '#253555', '#d9e5f7', '#8ba5d6'] as const),
+  palette: Object.freeze(['#2563EB', '#1F2937', '#D1D5DB', '#60A5FA'] as const),
 })
 
 function finiteRange(value: unknown, minimum: number, maximum: number, label: string): number {
@@ -42,23 +42,15 @@ function imageDataUrl(value: unknown): string | null {
 }
 
 function builtinTheme(value: unknown, image: string | null): DesktopBuiltinAppearanceTheme | null {
-  if (value === undefined) return image === null ? 'whale-maid' : null
-  if (value === null) {
-    if (image === null) throw new Error('custom desktop appearance must contain a WebP image')
-    return null
-  }
-  if (
-    value !== 'official'
+  if (value !== undefined && value !== null
+    && value !== 'official'
     && value !== 'whale-maid'
     && value !== 'cloud-cat'
     && value !== 'jiutian-deep-space'
     && value !== 'jiutian-quantum-glass'
-    && value !== 'jiutian-dawn-horizon'
-  ) {
-    throw new Error('desktop bundled theme is not supported')
-  }
-  if (image !== null) throw new Error('bundled desktop appearance must not contain a custom image')
-  return value
+    && value !== 'jiutian-dawn-horizon') throw new Error('desktop bundled theme is not supported')
+  if (value === null && image === null) throw new Error('custom desktop appearance must contain a WebP image')
+  return 'official'
 }
 
 function palette(value: unknown): DesktopAppearancePalette {
@@ -81,7 +73,7 @@ export function parseAppearance(value: unknown): DesktopAppearanceSettings {
   const image = imageDataUrl(input.imageDataUrl)
   return Object.freeze({
     builtinTheme: builtinTheme(input.builtinTheme, image),
-    imageDataUrl: image,
+    imageDataUrl: null,
     focusY: finiteRange(input.focusY, 0, 100, 'focusY'),
     glassStrength: finiteRange(input.glassStrength, 35, 92, 'glassStrength'),
     palette: palette(input.palette),

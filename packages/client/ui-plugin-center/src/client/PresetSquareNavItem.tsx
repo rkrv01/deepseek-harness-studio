@@ -1,6 +1,8 @@
 import { IconAgentPresetOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './PluginCenterNavItem.module.css'
+import { useSyncExternalStore } from 'react'
+import { productEntryVisibility, subscribeProductEntryVisibility } from './entry-visibility.ts'
 
 /** Registration-side navigation action for the independent Preset Square. */
 export interface PresetSquareNavInjected {
@@ -16,6 +18,8 @@ export type PresetSquareNavProps =
 
 /** First-level sidebar entry that opens Preset Square. */
 export function PresetSquareNavItem({ wide, primaryPage, pageId, open, t }: PresetSquareNavProps) {
+  const visible = useSyncExternalStore(subscribeProductEntryVisibility, () => productEntryVisibility()['preset-square'])
+  if (!visible) return null
   const selected = primaryPage === pageId
   return (
     <Tooltip label={t('presetTitle')} delayMs={500} disabled={wide}>

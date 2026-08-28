@@ -1,15 +1,15 @@
 /** In-app background chooser over the proven Harness image-skin pipeline. */
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import type { ChangeEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { AppearanceController } from './appearance-controller.ts'
 import {
   BUNDLED_APPEARANCE_THEMES,
   DEFAULT_BUILTIN_APPEARANCE_THEME,
   resolveAppearanceBackground,
 } from './appearance-themes.ts'
-import { extractPalette, loadImage, renderBackground, validateImageFile } from './background-image.ts'
-import type { AppearanceSettings, BuiltinAppearanceTheme } from './bridge.ts'
+import { extractPalette, loadImage, renderBackground } from './background-image.ts'
+import type { BuiltinAppearanceTheme } from './bridge.ts'
 import css from './DesktopCustomization.module.css'
 
 export interface AppearanceSectionInjected {
@@ -17,36 +17,6 @@ export interface AppearanceSectionInjected {
 }
 
 export type AppearanceSectionProps = Partial<AppearanceSectionInjected>
-
-const THEME_COPY: Readonly<Record<BuiltinAppearanceTheme, {
-  readonly name: string
-  readonly description: string
-}>> = Object.freeze({
-  official: Object.freeze({
-    name: '官方原版',
-    description: '不使用背景图片，恢复 Starlight Harness 原生界面。',
-  }),
-  'whale-maid': Object.freeze({
-    name: '大肥鱼拟人',
-    description: '蓝白鲸灵助手与明亮宫殿，中央留白适配对话区。',
-  }),
-  'cloud-cat': Object.freeze({
-    name: '云端猫咪',
-    description: '柔和蓝白猫咪背景，清爽、安静、低干扰。',
-  }),
-  'jiutian-deep-space': Object.freeze({
-    name: '九天·深空算力穹顶',
-    description: '深空环形算力场，沉稳冷峻，适合深色科技演示。',
-  }),
-  'jiutian-quantum-glass': Object.freeze({
-    name: '九天·量子玻璃实验室',
-    description: '珍珠白与冰蓝玻璃结构，纯净理性、低干扰。',
-  }),
-  'jiutian-dawn-horizon': Object.freeze({
-    name: '九天·晨曦算力网络',
-    description: '象牙白、浅蓝与香槟金光轨，明亮而有发布会气质。',
-  }),
-})
 
 /** Render the background selection, crop focus, glass, save, and reset controls. */
 export function AppearanceSection({ controller }: AppearanceSectionProps): ReactNode {
@@ -62,10 +32,8 @@ function LoadedAppearance({ controller }: AppearanceSectionInjected): ReactNode 
   const [draftDirty, setDraftDirty] = useState(false)
   const [focusY, setFocusY] = useState(snapshot.settings.focusY)
   const [glassStrength, setGlassStrength] = useState(snapshot.settings.glassStrength)
-  const [fileLabel, setFileLabel] = useState(appearanceLabel(snapshot.settings))
   const [localMessage, setLocalMessage] = useState<string | undefined>(undefined)
   const busy = snapshot.status === 'saving'
-  const originalSelected = selectedUrl === undefined && draftTheme === 'official'
 
   useEffect(() => {
     if (draftDirty) return
@@ -73,7 +41,6 @@ function LoadedAppearance({ controller }: AppearanceSectionInjected): ReactNode 
     setDraftTheme(snapshot.settings.builtinTheme)
     setFocusY(snapshot.settings.focusY)
     setGlassStrength(snapshot.settings.glassStrength)
-    setFileLabel(appearanceLabel(snapshot.settings))
   }, [draftDirty, snapshot.settings])
 
   useEffect(() => () => {
@@ -86,35 +53,6 @@ function LoadedAppearance({ controller }: AppearanceSectionInjected): ReactNode 
       : `linear-gradient(90deg, rgba(4, 12, 22, ${String(0.18 + glassStrength / 220)}) 0%, rgba(7, 20, 34, 0.08) 50%, rgba(4, 12, 22, 0.30) 100%), url("${previewUrl}")`,
     backgroundPosition: previewUrl === null ? 'center' : `center, center ${String(focusY)}%`,
   }), [focusY, glassStrength, previewUrl])
-
-  const selectFile = (event: ChangeEvent<HTMLInputElement>): void => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (file === undefined) return
-    const invalid = validateImageFile(file)
-    if (invalid !== undefined) { setLocalMessage(invalid); return }
-    if (selectedUrl !== undefined) URL.revokeObjectURL(selectedUrl)
-    const url = URL.createObjectURL(file)
-    setSelectedUrl(url)
-    setDraftTheme(null)
-    setDraftDirty(true)
-    setPreviewUrl(url)
-    setFocusY(50)
-    setFileLabel(`${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB`)
-    setLocalMessage('图片只在本机处理，不会上传。')
-  }
-
-  const selectBuiltinTheme = (themeId: BuiltinAppearanceTheme): void => {
-    const theme = BUNDLED_APPEARANCE_THEMES[themeId]
-    setSelectedUrl(undefined)
-    setDraftTheme(themeId)
-    setDraftDirty(true)
-    setPreviewUrl(theme.imageUrl)
-    setFocusY(theme.focusY)
-    setGlassStrength(theme.glassStrength)
-    setFileLabel(`内置皮肤 · ${THEME_COPY[themeId].name}`)
-    setLocalMessage('已预览这套皮肤，点击“保存并应用”完成切换。')
-  }
 
   const save = async (): Promise<void> => {
     setLocalMessage('正在处理 1920 × 1080 WebP…')
@@ -151,7 +89,7 @@ function LoadedAppearance({ controller }: AppearanceSectionInjected): ReactNode 
       setPreviewUrl(theme.imageUrl)
       setFocusY(theme.focusY)
       setGlassStrength(theme.glassStrength)
-      setLocalMessage('已恢复大肥鱼拟人默认皮肤。')
+      setLocalMessage('已恢复官方原版界面。')
     } catch (error) {
       setLocalMessage(error instanceof Error ? error.message : String(error))
     }
@@ -161,38 +99,7 @@ function LoadedAppearance({ controller }: AppearanceSectionInjected): ReactNode 
     <section className={css.section}>
       <div>
         <h2 className={css.title}>皮肤与界面氛围</h2>
-        <p className={css.intro}>切换内置皮肤，或选择自己的图片；Harness 会在本机完成裁切和配色，并自动适配浅色、深色界面。</p>
-      </div>
-      <div>
-        <h3 className={css.themeHeading}>内置皮肤</h3>
-        <div className={css.themeGrid} role="group" aria-label="内置皮肤">
-          {(Object.keys(BUNDLED_APPEARANCE_THEMES) as BuiltinAppearanceTheme[]).map((themeId) => {
-            const theme = BUNDLED_APPEARANCE_THEMES[themeId]
-            const selected = selectedUrl === undefined && draftTheme === themeId
-            return (
-              <button
-                key={themeId}
-                type="button"
-                className={css.themeCard}
-                aria-pressed={selected}
-                disabled={busy}
-                onClick={() => { selectBuiltinTheme(themeId) }}
-              >
-                <span
-                  className={`${css.themeThumbnail}${theme.imageUrl === null ? ` ${css.originalThemeThumbnail}` : ''}`}
-                  style={{ backgroundImage: theme.imageUrl === null ? 'none' : `url("${theme.imageUrl}")` }}
-                >
-                  {theme.imageUrl === null && <span className={css.originalThemeLabel}>原版界面</span>}
-                  {selected && <span className={css.themeSelected}>当前选择</span>}
-                </span>
-                <span className={css.themeDetails}>
-                  <strong>{THEME_COPY[themeId].name}{themeId === DEFAULT_BUILTIN_APPEARANCE_THEME ? ' · 默认' : ''}</strong>
-                  <small>{THEME_COPY[themeId].description}</small>
-                </span>
-              </button>
-            )
-          })}
-        </div>
+        <p className={css.intro}>桌面演示版固定使用官方原版界面，其他皮肤和自定义背景暂不可用。</p>
       </div>
       <div className={css.preview} style={previewStyle} role="img" aria-label="当前背景预览">
         <div className={css.previewChrome}>
@@ -205,22 +112,15 @@ function LoadedAppearance({ controller }: AppearanceSectionInjected): ReactNode 
         </div>
       </div>
       <div className={css.fileRow}>
-        <div>
-          <strong>{fileLabel}</strong>
-          <small>支持 PNG、JPG、WebP，原图不超过 16 MB</small>
-        </div>
-        <label className={css.secondaryButton}>
-          选择图片
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={selectFile} />
-        </label>
+        <div><strong>官方原版背景</strong><small>演示版本固定使用官方原版界面。</small></div>
       </div>
       <label className={css.rangeRow}>
         <span><b>主体焦点</b><output>{focusY}%</output></span>
-        <input type="range" min="0" max="100" value={focusY} disabled={busy || originalSelected} onChange={(event) => { setFocusY(Number(event.target.value)) }} />
+        <input type="range" min="0" max="100" value={focusY} disabled />
       </label>
       <label className={css.rangeRow}>
         <span><b>界面玻璃层</b><output>{glassStrength}%</output></span>
-        <input type="range" min="35" max="92" value={glassStrength} disabled={busy || originalSelected} onChange={(event) => { setGlassStrength(Number(event.target.value)) }} />
+        <input type="range" min="35" max="92" value={glassStrength} disabled />
       </label>
       {(localMessage ?? snapshot.message) !== undefined && (
         <p className={snapshot.status === 'error' ? css.error : css.notice}>{localMessage ?? snapshot.message}</p>
@@ -235,9 +135,4 @@ function LoadedAppearance({ controller }: AppearanceSectionInjected): ReactNode 
       </div>
     </section>
   )
-}
-
-function appearanceLabel(settings: AppearanceSettings): string {
-  if (settings.builtinTheme !== null) return `内置皮肤 · ${THEME_COPY[settings.builtinTheme].name}`
-  return '当前使用自定义背景'
 }

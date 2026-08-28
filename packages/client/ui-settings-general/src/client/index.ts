@@ -71,7 +71,9 @@ export function apply(ctx: ClientContext): void {
   const settingsNavigation = ctx.settingsNavigation
   // The action follows the shared describe mirror, whose owning plugin
   // already refreshes it on document commits and reconnects.
-  const documentController = connection.isLoopback
+  const packaged = (typeof window !== 'undefined'
+    && (window as unknown as { dshDesktop?: { packaged?: boolean } }).dshDesktop?.packaged === true)
+  const documentController = connection.isLoopback && !packaged
     ? new SettingsDocumentStore(connection.api, ctx.settingsScope.describe())
     : undefined
   const documentInjected = documentController === undefined
@@ -79,6 +81,7 @@ export function apply(ctx: ClientContext): void {
     : (): SettingsDocumentActionInjected => ({
       controller: documentController,
       hooks: { snapshot: documentController.store },
+      enabled: true,
     })
   ctx.effect(() => () => { documentController?.dispose() }, 'ui-settings-general: document action directory')
   // The settings shell: this package occupies the sidebar-owned hole and
@@ -147,6 +150,7 @@ export function apply(ctx: ClientContext): void {
       'settings.header': { kind: 'single', scope: 'root' },
       'settings.action': { kind: 'list', scope: 'root' },
       'settings.close': { kind: 'single', scope: 'root' },
+      'settings.footer': { kind: 'list', scope: 'root' },
       'settings.section': { kind: 'list', scope: 'root' },
       'settings.onboarding': { kind: 'list', scope: 'root' },
     },

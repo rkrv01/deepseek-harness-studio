@@ -4,7 +4,6 @@
  */
 
 import { isDeepStrictEqual } from 'node:util'
-import { FiberState } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { GoalMessageSource, GoalRef, GoalView } from '@deepseek-ai/dsh-goal'
@@ -17,6 +16,8 @@ export { renderGoalRoundPrompt } from './prompt.ts'
 
 export const name = 'goal-round-driver'
 export const inject = ['agents', 'goals', 'sessions']
+
+const FIBER_ACTIVE = 2
 
 /** Identity reserved before a goal continuation enters the agent inbox. */
 interface RoundIdentity {
@@ -101,7 +102,7 @@ export function apply(ctx: Context): void {
 
   /** Whether this exact lifecycle is quiescent with no competing prompt. */
   function readyToDrive(state: DriverState): boolean {
-    return ctx.fiber.state === FiberState.ACTIVE
+    return ctx.fiber.state === FIBER_ACTIVE
       && !state.stopping
       && ctx.agents.get(state.agent.id) === state.agent
       && state.agent.status === 'idle'
@@ -338,7 +339,7 @@ export function apply(ctx: Context): void {
     ): boolean {
       const attempt = state.attempt
       const goal = currentGoal(state)
-      return ctx.fiber.state === FiberState.ACTIVE
+      return ctx.fiber.state === FIBER_ACTIVE
         && !state.stopping && attempt !== undefined && attempt.phase === 'claimed'
       && !attempt.stale && sameQueued(content, source, attempt)
       && goal !== undefined && goal.id === source.goalId && goal.revision === source.revision
