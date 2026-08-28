@@ -14,6 +14,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { createFixedWorkspaceControl } from './fixed-workspace.ts'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type { ApiProxy } from './api/index.ts'
 import { createApiProxy, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES } from './api-proxy.ts'
@@ -30,6 +31,7 @@ export { AbstractApiClient, InProcessApiClient } from './fetch/client.ts'
 export type { IApiClient } from './fetch/client.ts'
 export { createApiProxy } from './api-proxy.ts'
 export type { ApiProxyDefaults } from './api-proxy.ts'
+export { FIXED_WORKSPACE_TITLE, createFixedWorkspaceControl, starlightFixedWorkspaceDir } from './fixed-workspace.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -97,6 +99,10 @@ export class ApiProxyService extends Service implements ApiProxy {
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'apiProxy')
+    // Install the default (off) fixed-workspace switch so the gateway can
+    // always read it; the project-brain demo controls it via the developer
+    // settings toggle.
+    ctx.provide('fixedWorkspaceControl', createFixedWorkspaceControl())
     const visionEnhancement = installVisionEnhancement(ctx)
     const api = createApiProxy(ctx, {
       defaultModelSelection: () => ctx.agentDefaultModel.currentSelection(),

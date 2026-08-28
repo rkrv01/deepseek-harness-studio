@@ -6,8 +6,8 @@ import { PlatformSettingsSection } from '../src/client/PlatformSettingsSection.t
 import {
   DEFAULT_DEMO_API_BASE_URL,
   DEFAULT_PLATFORM_BASE_URL,
-  PROJECT_BRAIN_DEV_MODE_EVENT,
-  PROJECT_BRAIN_DEV_MODE_KEY,
+  enableProjectBrainDevMode,
+  isProjectBrainDevMode,
 } from '../src/client/platform-config.ts'
 
 afterEach(cleanup)
@@ -15,6 +15,7 @@ afterEach(cleanup)
 interface ScopeValue {
   readonly platformBaseUrl?: string
   readonly demoApiBaseUrl?: string
+  readonly fixedWorkspace?: boolean
 }
 
 function stubScope(value?: ScopeValue): SettingsScope<ScopeValue | undefined> {
@@ -29,17 +30,20 @@ function stubScope(value?: ScopeValue): SettingsScope<ScopeValue | undefined> {
 }
 
 describe('PlatformSettingsSection', () => {
-  it('stays hidden until the console dev command enables it', () => {
+  it('dev mode is temporary: hidden until the console command, and no close button exists', () => {
     const view = render(<PlatformSettingsSection scope={stubScope({ platformBaseUrl: 'https://example.test' })} />)
     expect(view.queryByLabelText('智脑平台地址')).toBeNull()
+    expect(view.queryByRole('button', { name: '关闭开发者模式' })).toBeNull()
 
-    window.localStorage.setItem(PROJECT_BRAIN_DEV_MODE_KEY, '1')
-    act(() => { window.dispatchEvent(new Event(PROJECT_BRAIN_DEV_MODE_EVENT)) })
+    act(() => { enableProjectBrainDevMode() })
+    expect(isProjectBrainDevMode()).toBe(true)
     expect(view.getByLabelText('智脑平台地址')).toBeTruthy()
+    // 临时模式的天然终点是刷新/重开，不提供关闭按钮
+    expect(view.queryByRole('button', { name: '关闭开发者模式' })).toBeNull()
   })
 
   it('renders both configured addresses and writes edits through the scope', () => {
-    window.localStorage.setItem(PROJECT_BRAIN_DEV_MODE_KEY, '1')
+    act(() => { enableProjectBrainDevMode() })
     const scope = stubScope({ platformBaseUrl: 'https://example.test', demoApiBaseUrl: 'https://api.example.test/demo-control' })
     const view = render(<PlatformSettingsSection scope={scope} />)
     expect((view.getByLabelText('智脑平台地址') as HTMLInputElement).value).toBe('https://example.test')
@@ -54,8 +58,8 @@ describe('PlatformSettingsSection', () => {
     expect(scope.set).toHaveBeenCalledWith('demoApiBaseUrl', 'https://new.api.test/demo-control')
   })
 
-  it('falls back to defaults on empty edits and hides again after closing dev mode', () => {
-    window.localStorage.setItem(PROJECT_BRAIN_DEV_MODE_KEY, '1')
+  it('falls back to defaults on empty edits and mirrors the fixed-workspace toggle', () => {
+    act(() => { enableProjectBrainDevMode() })
     const scope = stubScope()
     const view = render(<PlatformSettingsSection scope={scope} />)
     expect((view.getByLabelText('智脑平台地址') as HTMLInputElement).value).toBe(DEFAULT_PLATFORM_BASE_URL)
@@ -65,8 +69,7 @@ describe('PlatformSettingsSection', () => {
     fireEvent.blur(view.getByLabelText('接口地址'))
     expect(scope.set).toHaveBeenCalledWith('demoApiBaseUrl', DEFAULT_DEMO_API_BASE_URL)
 
-    fireEvent.click(view.getByRole('button', { name: '关闭开发者模式' }))
-    expect(window.localStorage.getItem(PROJECT_BRAIN_DEV_MODE_KEY)).toBeNull()
-    expect(view.queryByLabelText('接口地址')).toBeNull()
+    fireEvent.click(view.getByLabelText('固定唯一工作区'))
+    expect(scope.set).toHaveBeenCalledWith('fixedWorkspace', true)
   })
 })

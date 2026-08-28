@@ -5,7 +5,7 @@
       "id": "project-launch",
       "priority": 10,
       "title": "一句话启动一个项目",
-      "suggestion": "帮我启动智慧园区建设项目。",
+      "suggestion": "帮我启动智慧园区建设项目",
       "triggers": [
         { "all": ["项目"], "any": ["启动", "创建", "新建", "初始化"] }
       ],

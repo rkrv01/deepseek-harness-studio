@@ -245,13 +245,15 @@ type SessionTreeProps = Pick<
   onSessionArchive: (sessionId: SessionNode['id']) => void
   /** Session order behavior: fixed after edits, or additionally promoted by user activity. */
   orderBy: SessionOrderBy
+  /** Fixed-workspace lock: hide workspace rename/delete actions. */
+  fixedLocked: boolean
 }
 
 /** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
 function SessionTree({
   useSessions, startSession, open, forkSession, workspaces, archivedSessionIds,
   onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive,
-  insertWorkspaceBefore, insertSessionBefore, orderBy,
+  insertWorkspaceBefore, insertSessionBefore, orderBy, fixedLocked,
   groupExpansion, setGroupExpanded,
   sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t,
 }: SessionTreeProps) {
@@ -467,7 +469,7 @@ function SessionTree({
                   }
                 }}
                 drag={workspaceDragProps}
-                actions={group.workspaceId === undefined
+                actions={group.workspaceId === undefined || fixedLocked
                   ? undefined
                   : {
                     rename: () => {
@@ -762,16 +764,17 @@ export function WorkspaceBrowser({
   searchResultLimit,
   useDirectoryFlow,
   useHostDescription,
+  useFixedLocked,
   renderSlot,
   t,
 }: WorkspaceBrowserProps) {
   const home = useHostDescription(description => description?.home)
+  // Lock flags declared early: the row-menu actions below reference them.
+  const fixedLocked = useFixedLocked(locked => locked)
+  const directoryFlowAvailable = useDirectoryFlow(occupied => occupied)
   const workspaces = useWorkspaces(state => state.items)
   const workspacePhase = useWorkspaces(state => state.phase)
   const archivedSessionIds = useWorkspaces(state => state.archivedSessionIds)
-  // Live occupancy of this surface's directory-flow hole (the same source the
-  // flow reads): a composition without a picking affordance can add nothing.
-  const directoryFlowAvailable = useDirectoryFlow(occupied => occupied)
   const groupBy = useStore(s => s.groupBy)
   const orderBy = useStore(s => s.orderBy)
   const groupExpansion = useStore(s => s.groupExpansion)
@@ -1085,7 +1088,7 @@ export function WorkspaceBrowser({
           {/* Adding is the button's one action, so a composition with no
               picking affordance has nothing to offer here: the region hides the
               button rather than leaving a dead one in the header. */}
-          {directoryFlowAvailable && (
+          {directoryFlowAvailable && !fixedLocked && (
             <Tooltip label={t('workspace.add')} side="bottom" delayMs={500}>
               <button
                 ref={wsPlusRef}
@@ -1109,6 +1112,7 @@ export function WorkspaceBrowser({
           useWorkspaces={useWorkspaces}
           createWorkspace={createWorkspace}
           useDirectoryFlow={useDirectoryFlow}
+          useFixedLocked={useFixedLocked}
           renderDirectoryFlow={owner => renderSlot('sidebar.workspaces.directoryFlow', owner)}
           addOnly
           side="right"
@@ -1187,6 +1191,7 @@ export function WorkspaceBrowser({
                 insertWorkspaceBefore={insertWorkspaceBefore}
                 insertSessionBefore={insertSessionBefore}
                 orderBy={orderBy}
+                fixedLocked={fixedLocked}
                 home={home}
                 t={t}
                 onRenameRequest={(workspaceId, currentTitle) => {

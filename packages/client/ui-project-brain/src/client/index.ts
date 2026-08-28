@@ -16,7 +16,7 @@ import { ProjectBrainWorkbench } from './ProjectBrainWorkbench.tsx'
 import type { ProjectBrainWorkbenchInjected } from './ProjectBrainWorkbench.tsx'
 import { ProjectBrainTurnTail } from './ProjectBrainTurnTail.tsx'
 import { isProjectBrainPlatformUrl, openProjectBrainPlatform } from './platform-window.ts'
-import { setPlatformBaseProvider, setDemoApiBaseProvider, DEFAULT_PLATFORM_BASE_URL, DEFAULT_DEMO_API_BASE_URL, PROJECT_BRAIN_DEV_MODE_EVENT, PROJECT_BRAIN_DEV_MODE_KEY, isProjectBrainDevMode } from './platform-config.ts'
+import { setPlatformBaseProvider, setDemoApiBaseProvider, DEFAULT_PLATFORM_BASE_URL, DEFAULT_DEMO_API_BASE_URL, PROJECT_BRAIN_DEV_MODE_EVENT, enableProjectBrainDevMode, isProjectBrainDevMode } from './platform-config.ts'
 import { PlatformSettingsSection } from './PlatformSettingsSection.tsx'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 
@@ -45,12 +45,9 @@ export function apply(ctx: ClientContext): void {
   })
   setPlatformBaseProvider(() => platformScope?.getSnapshot().value?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL)
   setDemoApiBaseProvider(() => platformScope?.getSnapshot().value?.demoApiBaseUrl ?? DEFAULT_DEMO_API_BASE_URL)
-  // Console escape hatch: `toStarlightDev()` reveals the developer settings section;
-  // closing it from the section hides it until the command runs again.
-  window.toStarlightDev = (): void => {
-    window.localStorage.setItem(PROJECT_BRAIN_DEV_MODE_KEY, '1')
-    window.dispatchEvent(new Event(PROJECT_BRAIN_DEV_MODE_EVENT))
-  }
+  // Console escape hatch: `toStarlightDev()` turns on the temporary developer
+  // mode; it is session-resident only and cannot be persisted.
+  window.toStarlightDev = (): void => enableProjectBrainDevMode()
   const brainFor = (sessionId: SessionId): EngineStoreInstance<ProjectBrainState, {}> => {
     const existing = stores.get(sessionId)
     if (existing !== undefined) return existing
@@ -212,8 +209,8 @@ export function apply(ctx: ClientContext): void {
     },
   })
 
-  // The developer settings section only exists while dev mode is on: `toStarlightDev()`
-  // registers it, the section's 关闭开发者模式 button unregisters it until the command runs again.
+  // The developer settings section only exists while the temporary dev mode is on;
+  // it unregisters itself once the session ends.
   ctx.effect(() => {
     let unregister: (() => void) | undefined
     const sync = (): void => {
@@ -232,10 +229,8 @@ export function apply(ctx: ClientContext): void {
     }
     sync()
     window.addEventListener(PROJECT_BRAIN_DEV_MODE_EVENT, sync)
-    window.addEventListener('storage', sync)
     return () => {
       window.removeEventListener(PROJECT_BRAIN_DEV_MODE_EVENT, sync)
-      window.removeEventListener('storage', sync)
       unregister?.()
     }
   }, 'project-brain: developer settings section')

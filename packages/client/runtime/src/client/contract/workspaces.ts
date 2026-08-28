@@ -77,6 +77,11 @@ export interface IWorkspaces {
    */
   insertBefore(workspaceId: WorkspaceId, beforeWorkspaceId?: WorkspaceId): Promise<void>
   /**
+   * Re-list the workspace baseline from the Host (applied when a deployment
+   * switch, e.g. the fixed-workspace toggle, changes what the Host serves).
+   */
+  refresh(): Promise<void>
+  /**
    * Move an accounted session within/into a Workspace's ordered list.
    * @param workspaceId - target workspace.
    * @param sessionId - accounted session to move.

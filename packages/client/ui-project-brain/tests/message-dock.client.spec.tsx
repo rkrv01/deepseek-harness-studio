@@ -34,10 +34,10 @@ describe('ProjectBrainMessageDock', () => {
       <ProjectBrainMessageDock {...props} />,
     )
 
-    fireEvent.click(view.getByRole('button', { name: '帮我启动智慧园区建设项目。' }))
+    fireEvent.click(view.getByRole('button', { name: '帮我启动智慧园区建设项目' }))
     await Promise.resolve()
 
-    expect(setDraft).toHaveBeenCalledWith('帮我启动智慧园区建设项目。')
+    expect(setDraft).toHaveBeenCalledWith('帮我启动智慧园区建设项目')
     expect(submit).toHaveBeenCalledTimes(1)
     expect(brain.getSnapshot().phase).toBe('idle')
     expect(brain.getSnapshot().messages).toHaveLength(0)
@@ -98,7 +98,7 @@ describe('ProjectBrainMessageDock', () => {
     } as unknown as ComponentProps<typeof ProjectBrainMessageDock>
     const view = render(<ProjectBrainMessageDock {...props} />)
     const prompts = [
-      '帮我启动智慧园区建设项目。',
+      '帮我启动智慧园区建设项目',
       '帮我整理这个项目的会议纪要',
       '智慧园区建设项目现状怎么样？',
       '看看我今天该做什么',

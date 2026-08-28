@@ -16,13 +16,22 @@ export const PROJECT_BRAIN_APP_PATH = '/business-xmzn'
 /** Endpoint path appended to the demo-status API base. */
 export const PROJECT_BRAIN_DEMO_STATUS_PATH = '/api/demo/config'
 
-/** localStorage key and window event name gating the developer settings section. */
-export const PROJECT_BRAIN_DEV_MODE_KEY = 'starlight:dev-mode'
+/** Window event name announcing a developer-mode change. */
 export const PROJECT_BRAIN_DEV_MODE_EVENT = 'starlight:dev-mode'
 
-/** Whether the console-activated developer mode is currently on. */
+// Developer mode is strictly temporary: session-resident only, so a reload or
+// re-open always starts closed and there is no persistent "leave it on" state.
+let devMode = false
+
+/** Whether the console-activated developer mode is currently on (session-resident). */
 export function isProjectBrainDevMode(): boolean {
-  return window.localStorage.getItem(PROJECT_BRAIN_DEV_MODE_KEY) === '1'
+  return devMode
+}
+
+/** Turn the temporary developer mode on for this page session. */
+export function enableProjectBrainDevMode(): void {
+  devMode = true
+  window.dispatchEvent(new Event(PROJECT_BRAIN_DEV_MODE_EVENT))
 }
 
 let baseProvider: () => string = () => DEFAULT_PLATFORM_BASE_URL

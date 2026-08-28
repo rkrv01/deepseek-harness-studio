@@ -3,13 +3,11 @@
  * slot without defining a service.
  */
 import type { Context } from '@deepseek-ai/cordis'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: the 'conversation.view' SlotMap row (declared by the slot's
 // owning package) must be in the program for the register calls to type.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { createTrajectoryDurationStore } from './duration-store.ts'
 import { en, NS, zh } from './locales.ts'
 import { registerTrajectoryAssistantDefinition } from './trajectory-assistant-definition.ts'
 import { registerTrajectoryCompactionDefinitions } from './trajectory-compaction-definition.ts'
@@ -17,7 +15,6 @@ import { registerTrajectoryMessageDefinitions } from './trajectory-message-defin
 import { registerTrajectoryRequestHeaderDefinition } from './trajectory-request-header-definition.ts'
 import { registerTrajectoryConversationView } from './trajectory-snapshot-builder.ts'
 import { registerTrajectoryToolDefinition } from './trajectory-tool-definition.ts'
-import { TrajectoryView, type TrajectoryViewInjected } from './TrajectoryView.tsx'
 
 /** Required services: the conversation slot, registries, ordinary Session paging, and the locale service. */
 export const inject = ['slots', 'conversationEvents', 'conversationViews', 'sessions', 'locale']
@@ -32,34 +29,13 @@ export function apply(ctx: Context): void {
   // Registration-time text (the view tab label) reads through the bound
   // translate as a thunk, so it follows the active locale without
   // re-registration.
-  const t = ctx.locale.bind(NS)
-  const duration = createTrajectoryDurationStore()
   registerTrajectoryMessageDefinitions(ctx)
   registerTrajectoryRequestHeaderDefinition(ctx)
   registerTrajectoryAssistantDefinition(ctx)
   registerTrajectoryToolDefinition(ctx)
   registerTrajectoryCompactionDefinitions(ctx)
   registerTrajectoryConversationView(ctx)
-  ctx.slots.inject('conversation.view', () => ctx.slots.register({
-    name: 'conversation.view',
-    id: 'trajectory',
-    order: 10,
-    locale: NS,
-    label: () => t('view.trajectory'),
-    inject: (sessionId: SessionId): TrajectoryViewInjected => {
-      const session = ctx.sessions.binding(sessionId)?.session
-      if (session === undefined) {
-        throw new Error(`ui-trajectory: session "${sessionId}" is unavailable`)
-      }
-      return {
-        hooks: { duration },
-        loadOlder: async () => {
-          const before = session.getSnapshot().views.get('trajectory')
-          await session.loadOlder()
-          return session.getSnapshot().views.get('trajectory') !== before
-        },
-        setActualDuration: (value) => { duration.set(value) },
-      }
-    },
-  }, TrajectoryView))
+  // 演示收敛：不注册「轨迹」视图 tab（数据视图定义保留，会话日志投影不受影响）。
+  // 只剩 Chat 一个视图时 ConversationSession 不再渲染 tab 行。如需要恢复，
+  // 在此重新注册 conversation.view（id 'trajectory'）即可。
 }

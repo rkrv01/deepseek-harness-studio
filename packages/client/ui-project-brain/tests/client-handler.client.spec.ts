@@ -11,6 +11,7 @@ describe('project brain client submit handler', () => {
     const sessionId = 'brain-session' as SessionId
     const ctx = {
       effect: (register: () => () => void) => register(),
+      provide: () => {},
       get: () => ({
         registerSubmitHandler: (handler: (request: unknown) => undefined) => {
           submitHandler = handler

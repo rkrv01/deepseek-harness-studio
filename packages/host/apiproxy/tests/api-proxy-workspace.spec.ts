@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { Inbox } from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentFactory } from '@deepseek-ai/dsh-agent'
@@ -16,7 +16,7 @@ import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
 import type { HostFrame, WorkspaceId } from '@deepseek-ai/dsh-host-apiproxy/api'
 import type { RpcRequest, RpcResponse } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
 import { RpcId } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
-import { createApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
+import { createApiProxy, createFixedWorkspaceControl, FIXED_WORKSPACE_TITLE, starlightFixedWorkspaceDir } from '@deepseek-ai/dsh-host-apiproxy'
 import { MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
 
 let nextRpc = 1
@@ -102,13 +102,14 @@ async function harness(
   // Structural picker fake: the gateway only reads capability(); a stable
   // object per harness mirrors the seam's stability contract.
   ctx.provide('directoryPicker', { capability: () => picker } as never)
+  ctx.provide('fixedWorkspaceControl', createFixedWorkspaceControl())
   const api = createApiProxy(ctx, {
     defaultModelSelection: () => ({ provider: 'test', model: 'test-model' }),
     cwd: root,
     ...extras.openPath === undefined ? {} : { openPath: extras.openPath },
     ...extras.canOpenPath === undefined ? {} : { canOpenPath: extras.canOpenPath },
   })
-  return { api, ctx, storageDomain, root }
+  return { api, ctx, storageDomain, root, fixedWorkspaceControl: ctx.get('fixedWorkspaceControl') }
 }
 
 /** Stage one directory under the harness root for path adoption. */
@@ -567,5 +568,48 @@ describe('Host Workspace increments', () => {
       error: { code: 'session-not-found', details: { sessionId: 'session-ghost' } },
     })
     abort.abort()
+  })
+})
+
+describe('fixed workspace switch', () => {
+  const fixedDir = starlightFixedWorkspaceDir()
+
+  beforeAll(() => { mkdirSync(fixedDir, { recursive: true }) })
+  afterAll(() => {})
+
+  it('locks create/rename/delete to the single fixed workspace while enabled', async () => {
+    try {
+      const { api, root, fixedWorkspaceControl } = await harness()
+      fixedWorkspaceControl.setEnabled(true)
+      const other = stageDir(root, 'stray')
+      // 创建忽略入参路径，恒指向固定目录并取名「项目智脑」
+      const created = expectOk(await api.workspace.create(request({ path: other })))
+      expect(created.workspace.path).toBe(realpathSync.native(fixedDir))
+      expect(created.workspace.title).toBe(FIXED_WORKSPACE_TITLE)
+
+      // 列表只回固定工作区
+      const listed = expectOk(await api.workspace.list(request({})))
+      expect(listed.items).toHaveLength(1)
+      expect(listed.items[0]?.workspaceId).toBe(created.workspace.workspaceId)
+
+      // 重命名与删除均被拒绝
+      const renameRefused = await api.workspace.rename(request({
+        workspaceId: created.workspace.workspaceId,
+        title: '改名',
+      }))
+      expect(renameRefused.result).toMatchObject({ ok: false, error: { code: 'workspace-readonly' } })
+      const deleteRefused = await api.workspace.delete(request({ workspaceId: created.workspace.workspaceId }))
+      expect(deleteRefused.result).toMatchObject({ ok: false, error: { code: 'workspace-readonly' } })
+    } finally {
+    }
+  })
+
+  it('restores default behavior once the switch is off', async () => {
+    const { api, root, fixedWorkspaceControl } = await harness()
+    fixedWorkspaceControl.setEnabled(false)
+    const target = stageDir(root, 'free')
+    const created = expectOk(await api.workspace.create(request({ path: target })))
+    expect(created.workspace.path).toBe(target)
+    expect(expectOk(await api.workspace.list(request({}))).items).toHaveLength(1)
   })
 })

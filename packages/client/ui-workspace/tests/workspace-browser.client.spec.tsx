@@ -80,6 +80,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
     insertSessionBefore: vi.fn(async () => {}),
     createWorkspace: vi.fn(async () => workspace('created', [])),
     useDirectoryFlow: bindSnapshotSelector({ getSnapshot: () => true, subscribe: () => () => {} }),
+    useFixedLocked: bindSnapshotSelector({ getSnapshot: () => false, subscribe: () => () => {} }),
     useHostDescription: selector => selector(undefined),
     renderSlot: ((_name: string, owner: { open: boolean }) => (owner.open ? <div data-testid="directory-flow" /> : null)) as never,
     t,
@@ -828,6 +829,7 @@ describe('WorkspaceBrowser', () => {
     mount({
       useWorkspaces: hook(workspaceState([workspace('alpha', [])])),
       useDirectoryFlow: bindSnapshotSelector({ getSnapshot: () => false, subscribe: () => () => {} }),
+      useFixedLocked: bindSnapshotSelector({ getSnapshot: () => false, subscribe: () => () => {} }),
     })
     // Nothing to add with, so the header offers no dead button.
     expect(screen.queryByRole('button', { name: '添加工作区' })).toBeNull()

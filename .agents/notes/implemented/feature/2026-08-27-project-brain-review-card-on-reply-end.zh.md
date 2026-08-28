@@ -81,3 +81,9 @@
 ## 同日第八批：看板内联前置 + 小结真实文本
 
 托管小结重新成为真正的 assistant 消息，且顺序为看板优先：回复以 surface 标记开头，ui-conversation 新增可选 `assistantSurface` 服务（与 `chatFileMentions` 同构），`AssistantMarkdown` 在首个文本块以完整 `project-brain:surface` 标记开头时调用它——载荷渲染为消息顶部的内联看板，其后被剥离的正文以普通 markdown 流式呈现在看板下方。turnTail 对 copilot surface 回合返回 null 避免重复，其他 surface（my-day 尾部标记）仍走 turnTail。`streamScenarioText` 新增对称的前导标记规则：开头连续私有标记不分速，看板在首个可见字符之前挂载。看板容器由窄化出血类改为 `.surfaceInline`（占满消息宽、不出血）。同时移除上一版的气泡变体；`.copilotGrid` 的 padding 改为 `20px 0`（保留垂直方向）；项目全貌新增状态对比：方案包卡按状态加左侧色条、状态/风险数值按档位着色（完成/正常/低风险绿、临期/中风险橙、滞后/高风险红）。
+
+## 同日第九批：框架收敛——入口隐藏、临时开发者模式、可选固定工作区
+
+- 侧栏只保留「插件中心/插件发现」：Preset 广场与应用中心的侧栏入口及其主页面不再注册（它们本是 ui-plugin-center 里的无条件注册；client 插件拿不到 cordis patch 配置，故为源码级演示收敛而非配置开关）。轨迹对话 tab 同样不再注册（数据视图、压缩定义与会话日志投影保留——仅 UI tab 移除，ConversationSession 的 `tabs.length > 1` 规则随之隐藏整行 tab）。
+- 开发者模式改为严格临时：`isProjectBrainDevMode()` 为会话内状态（模块布尔 + 事件），刷新必然关闭；「关闭开发者模式」按钮删除——没有可持久化的东西，也无法被留在开启状态。
+- 固定工作区开关为 `project-brain` 设置字段（`fixedWorkspace`，默认 false），在开发者分区中展示。开启后 demo 插件创建 `~/starlight_xmzn` 及同名工作区记录，网关随即加锁：create 忽略请求路径、rename/delete 返回新增的 `workspace-readonly` 错误码、list 只回固定目录。`fixedWorkspaceControl` 以 cordis service 承载开关，使 tsdown demo 产物与源码运行的网关共享同一实例（模块状态会跨两个模块图分裂）；`IWorkspaces` 新增公开 `refresh()` 以便开关切换时浏览器重新拉取列表。

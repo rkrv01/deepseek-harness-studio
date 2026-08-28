@@ -36,6 +36,8 @@ export interface WorkspacePickFlowProps {
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
   /** Bound occupancy selector hook for this surface's directory-flow hole (empty leaves the surface with no add action). */
   useDirectoryFlow: SnapshotSelectorHook<boolean>
+  /** Bound selector hook over the fixed-workspace lock (true hides the add action). */
+  useFixedLocked: SnapshotSelectorHook<boolean>
   /** Render this surface's directory-flow hole with the owner conversation (the entry's narrowed renderSlot). */
   renderDirectoryFlow: (owner: DirectoryFlowOwnerProps) => ReactNode
   /** A real Workspace was picked or created. */
@@ -62,6 +64,7 @@ export function WorkspacePickFlow({
   useWorkspaces,
   createWorkspace,
   useDirectoryFlow,
+  useFixedLocked,
   renderDirectoryFlow,
   onPick,
   onClose,
@@ -84,6 +87,7 @@ export function WorkspacePickFlow({
   // menu action stays disabled — a late outcome must not race a concurrent
   // selection or adoption.
   const flowBusy = flowOpen || pickingFolder
+  const fixedLocked = useFixedLocked(locked => locked)
 
   // The occupied hole gates the picking affordance: with no composed flow the
   // entry simply is not there (the seam's documented no-flow default). The
@@ -98,7 +102,7 @@ export function WorkspacePickFlow({
   useEffect(() => {
     if (flowOpen && !flowAvailable) setFlowOpen(false)
   }, [flowOpen, flowAvailable])
-  const addEntries: MenuEntry[] = flowAvailable
+  const addEntries: MenuEntry[] = flowAvailable && !fixedLocked
     ? [{ id: ADD_WORKSPACE, label: t('menu.addWorkspace'), icon: <IconPlusOutline16 size={16} />, disabled: flowBusy }]
     : []
   // With workspaces listed, the add action pins below the scroll region
@@ -231,6 +235,7 @@ export function WorkspacePicker({
   onClose,
   createWorkspace,
   useDirectoryFlow,
+  useFixedLocked,
   renderSlot,
   t,
 }: WorkspacePickerProps) {
@@ -242,6 +247,7 @@ export function WorkspacePicker({
       useWorkspaces={useWorkspaces}
       createWorkspace={createWorkspace}
       useDirectoryFlow={useDirectoryFlow}
+      useFixedLocked={useFixedLocked}
       renderDirectoryFlow={owner => renderSlot('conversation.hero.workspace.directoryFlow', owner)}
       selectedId={selectedId}
       onPick={onPick}

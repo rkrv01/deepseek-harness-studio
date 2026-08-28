@@ -69,7 +69,7 @@ describe('tsdown client artifact', () => {
     ])
   })
 
-  it.skipIf(code === undefined)('mounted as an object plugin, apply registers the view tab on the real ring', async () => {
+  it.skipIf(code === undefined)('mounted as an object plugin, apply leaves the view ring with only the platform chat owner (demo convergence)', async () => {
     const { exports } = await loadArtifact()
     const ctx = new Context()
     const slots = new SlotRegistry(ctx)
@@ -94,7 +94,7 @@ describe('tsdown client artifact', () => {
     await fiber.await()
     const events = ctx.get('conversationEvents') as ConversationEventRegistry
     const views = ctx.get('conversationViews') as ConversationViewRegistry
-    expect(slots.entries('conversation.view').map(e => e.options.id)).toEqual(['trajectory'])
+    expect(slots.entries('conversation.view').map(e => e.options.id)).toEqual([])
     expect(events.entries().length).toBeGreaterThan(0)
     expect(views.entries()).toHaveLength(1)
     await fiber.dispose()
@@ -103,9 +103,9 @@ describe('tsdown client artifact', () => {
     expect(views.entries()).toEqual([])
   })
 
-  it.skipIf(code === undefined)('injects plugin-tagged module CSS during factory execution', async () => {
+  it.skipIf(code === undefined)('loads the artifact without injecting orphan view CSS (trajectory tab not composed)', async () => {
     await loadArtifact()
     const tags = document.querySelectorAll(`style[data-plugin=${JSON.stringify(PLUGIN_ID)}]`)
-    expect(tags.length).toBeGreaterThan(0)
+    expect(tags.length).toBe(0)
   })
 })

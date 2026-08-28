@@ -14,6 +14,8 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: ctx.settingsScope (developer-config bind) for the fixed-workspace lock.
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { WorkspaceBrowserInjected, WorkspacePickerInjected } from './contract/slots.ts'
 import { createWorkspaceViewStore } from './stores.ts'
 import { WorkspaceBrowser } from './WorkspaceBrowser.tsx'
@@ -44,7 +46,7 @@ const NS = 'workspace'
  * provides a waitable service. apply therefore depends on each slot
  * declaration through `slots.inject()` instead of assuming order.
  */
-export const inject = ['slots', 'sessions', 'workspaces', 'layout', 'locale', 'connection']
+export const inject = ['slots', 'sessions', 'workspaces', 'layout', 'locale', 'connection', 'settingsScope']
 
 /**
  * Register the browser and picker once their slot declarations are on the
@@ -56,6 +58,24 @@ export function apply(ctx: ClientContext): void {
   const connection = ctx.get('connection') as ConnectionHandle
   const hostDescription = connection.hostDescription
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')
+
+  // Fixed-workspace lock flag from the project-brain developer settings: while
+  // on, the browser hides workspace creation/deletion/rename entry points.
+  const fixedScope = ctx.settingsScope?.bind({
+    namespace: 'project-brain',
+    decode: (value: unknown) => (
+      typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? value as { readonly fixedWorkspace?: boolean }
+        : undefined
+    ),
+  })
+  const fixedLockedSource: HostObservable<boolean> = {
+    getSnapshot: () => fixedScope?.getSnapshot().value?.fixedWorkspace ?? false,
+    subscribe: listener => fixedScope?.subscribe(listener) ?? (() => {}),
+  }
+  // Toggling the fixed-workspace switch re-lists workspaces so the tree and
+  // lock result from the same server-side snapshot.
+  fixedScope?.subscribe(() => { void ctx.workspaces.refresh() })
 
   const searchSessions: WorkspaceBrowserInjected['searchSessions'] = async (query, signal) => {
     const result = await ctx.sessions.search(query, signal)
@@ -110,11 +130,11 @@ export function apply(ctx: ClientContext): void {
       await ctx.workspaces.insertSessionBefore(workspaceId, sessionId, beforeSessionId)
     },
     createWorkspace: input => ctx.workspaces.create(input),
-    hooks: { directoryFlow: browserFlowSource, hostDescription },
+    hooks: { directoryFlow: browserFlowSource, hostDescription, fixedLocked: fixedLockedSource },
   })
   const pickerInjected = (): WorkspacePickerInjected => ({
     createWorkspace: input => ctx.workspaces.create(input),
-    hooks: { directoryFlow: pickerFlowSource },
+    hooks: { directoryFlow: pickerFlowSource, fixedLocked: fixedLockedSource },
   })
   // Each registration declares its directory-flow child in the same call;
   // slot injection follows both the owner and declaration HMR lifetimes.

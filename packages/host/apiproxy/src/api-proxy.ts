@@ -11,6 +11,7 @@ import { dirname } from 'node:path'
 import { z } from 'zod'
 import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
+import { FIXED_WORKSPACE_TITLE, starlightFixedWorkspaceDir } from './fixed-workspace.ts'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { AttachmentError, admitEncodedImages } from '@deepseek-ai/dsh-attachment'
@@ -1674,6 +1675,24 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     return operation
   }
 
+  /** The fixed demo workspace record, when the switch is on (undefined otherwise). */
+  function fixedWorkspace(): Promise<Workspace | undefined> {
+    return (ctx.fixedWorkspaceControl?.isEnabled() ?? false)
+      ? ctx.workspaceRegistry.resolveByPath(starlightFixedWorkspaceDir())
+      : Promise.resolve(undefined)
+  }
+
+  /** Ensure the fixed directory exists as the one titled workspace, on the creation chain. */
+  function ensureFixedWorkspace(): Promise<{ workspace: Workspace; created: boolean }> {
+    const operation = workspaceCreationChain.then(async () => {
+      const existing = await ctx.workspaceRegistry.resolveByPath(starlightFixedWorkspaceDir())
+      if (existing !== undefined) return { workspace: existing, created: false }
+      return { workspace: await ctx.workspaceRegistry.create(starlightFixedWorkspaceDir(), FIXED_WORKSPACE_TITLE), created: true }
+    })
+    workspaceCreationChain = operation.then(() => undefined, () => undefined)
+    return operation
+  }
+
   /**
    * Build the session.list baseline shared by listing and search visibility.
    * Attached sessions come from memory; servable cold sessions merge from
@@ -2736,17 +2755,24 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     },
 
     workspace: {
-      list(request) {
+      async list(request) {
+        const all = ctx.workspaceRegistry.list()
+        const items = (ctx.fixedWorkspaceControl?.isEnabled() ?? false)
+          ? all.filter(workspace => workspace.path === starlightFixedWorkspaceDir())
+          : all
         return Promise.resolve(ok(request, {
-          items: ctx.workspaceRegistry.list().map(workspaceView),
+          items: items.map(workspaceView),
           archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds],
         }))
       },
 
       async create(request) {
-        const { path } = request.payload
+        const fixed = ctx.fixedWorkspaceControl?.isEnabled() ?? false
+        const path = fixed ? starlightFixedWorkspaceDir() : request.payload.path
         try {
-          const { workspace, created } = await ensureWorkspace(path)
+          const { workspace, created } = fixed
+            ? await ensureFixedWorkspace()
+            : await ensureWorkspace(path)
           return ok(request, { workspace: workspaceView(workspace), created })
         } catch (error: unknown) {
           // The registry rejects a path that does not resolve to an existing
@@ -2762,6 +2788,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
       async rename(request) {
         const { payload } = request
+        const fixed = await fixedWorkspace()
+        if (fixed !== undefined && fixed.id === brandWorkspaceId(payload.workspaceId)) {
+          return err(request, {
+            code: 'workspace-readonly',
+            message: 'the fixed demo workspace cannot be renamed',
+            details: { workspaceId: payload.workspaceId },
+          })
+        }
         const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(payload.workspaceId))
         if (workspace === undefined) return workspaceNotFound(request, payload.workspaceId)
         const title = payload.title.trim()
@@ -2794,6 +2828,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
       async delete(request) {
         const { workspaceId } = request.payload
+        const fixed = await fixedWorkspace()
+        if (fixed !== undefined && fixed.id === brandWorkspaceId(workspaceId)) {
+          return err(request, {
+            code: 'workspace-readonly',
+            message: 'the fixed demo workspace cannot be deleted',
+            details: { workspaceId },
+          })
+        }
         const operation = workspaceCreationChain.then(() =>
           ctx.workspaceRegistry.delete(brandWorkspaceId(workspaceId)))
         workspaceCreationChain = operation.then(() => undefined, () => undefined)

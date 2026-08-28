@@ -5,7 +5,7 @@ import { PROJECT_BRAIN_PLATFORM_TARGET } from './platform-window.ts'
 import { platformBusinessUrl, platformDemoStatusUrl } from './platform-config.ts'
 import css from './ProjectBrainMessageDock.module.css'
 
-const LAUNCH_PROMPT = '帮我启动智慧园区建设项目。'
+const LAUNCH_PROMPT = '帮我启动智慧园区建设项目'
 const MEETING_PROMPT = '帮我整理这个项目的会议纪要'
 const COPILOT_PROMPT = '智慧园区建设项目现状怎么样？'
 const MY_DAY_PROMPT = '看看我今天该做什么'

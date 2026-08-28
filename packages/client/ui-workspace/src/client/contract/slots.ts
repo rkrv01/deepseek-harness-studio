@@ -91,6 +91,8 @@ export type WorkspaceBrowserInjected = {
   hooks: DirectoryPickingInjected['hooks'] & {
     /** Current generation's Host description, bound by the slot renderer. */
     hostDescription: HostDescriptionSource
+    /** True while the fixed-workspace switch locks creation and deletion. */
+    fixedLocked: HostObservable<boolean>
   }
   /**
    * Start a New Session in a Workspace: reuse-or-create its blank session and
@@ -154,6 +156,10 @@ export type WorkspaceBrowserProps =
  * supplies the implicit index signature required by the registry.
  */
 export type WorkspacePickerInjected = DirectoryPickingInjected & {
+  hooks: DirectoryPickingInjected['hooks'] & {
+    /** True while the fixed-workspace switch locks creation. */
+    fixedLocked: HostObservable<boolean>
+  }
   /** Adopt a picked host directory as a real Workspace before targeting a Session. */
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
 }
@@ -168,4 +174,5 @@ export type WorkspacePickerProps =
   & PropsRenderSlots<'conversation.hero.workspace.directoryFlow'>
   & Omit<WorkspacePickerInjected, 'hooks'>
   & DirectoryPickingHooks
+  & PropsHooks<Pick<WorkspacePickerInjected['hooks'], 'fixedLocked'>>
   & PropsLocale<'workspace'>

@@ -19,7 +19,7 @@ import {
 } from '@deepseek-ai/dsh-client-runtime/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  ConversationSnapshot, RequestView,
+  ConversationSnapshot,
   SessionId, SessionListState, SnapshotStore, WorkspaceListState,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConvViewProps, ViewTab } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -299,298 +299,29 @@ function mount(slots: SlotRegistry, nodes: ConversationSnapshot['nodes'] = NODES
   )
 }
 
-describe('plugin registration', () => {
-  it('registers trajectory after chat on the ring', async () => {
+describe('plugin registration (demo convergence)', () => {
+  it('registers only the chat view: the trajectory tab is not composed by default', async () => {
     const b = await bench()
-    expect(tabsOf(b.slots)).toEqual([
-      { id: 'chat', label: 'Chat' },
-      { id: 'trajectory', label: 'Trajectory' },
-    ])
+    expect(tabsOf(b.slots).map(v => v.id)).toEqual(['chat'])
+    expect(b.slots.entries('conversation.view').find(c => c.options.id === 'trajectory')).toBeUndefined()
   })
 
-  it('fiber disposal removes the tab and leaves chat standing', async () => {
+  it('fiber disposal removes the plugin and leaves chat standing', async () => {
     const b = await bench()
     const events = b.ctx.get('conversationEvents') as ConversationEventRegistry
-    const views = b.ctx.get('conversationViews') as ConversationViewRegistry
     expect(events.entries().length).toBeGreaterThan(0)
-    expect(views.entries()).toHaveLength(1)
-
     await b.fiber.dispose()
-
     expect(tabsOf(b.slots).map(v => v.id)).toEqual(['chat'])
     expect(events.entries()).toEqual([])
-    expect(views.entries()).toEqual([])
   })
 
-  it('shares one browser-wide duration preference across session injections', async () => {
+  it('renders the chat-only tab row in ConversationRoot', async () => {
     const b = await bench()
-    const entry = b.slots.entries('conversation.view')
-      .find(candidate => candidate.options.id === 'trajectory')
-    expect(entry).toBeDefined()
-    const injectEntry = entry!.inject as unknown as (
-      sessionId: SessionId,
-    ) => TrajectoryViewInjected
-    const first = injectEntry(SID)
-    const second = injectEntry('s2' as SessionId)
-
-    expect(second.hooks.duration).toBe(first.hooks.duration)
-    first.setActualDuration(true)
-    expect(second.hooks.duration.getSnapshot()).toBe(true)
-    expect(localStorage.getItem('dsh.trajectory.duration')).toBe('true')
-    expect(localStorage.getItem(`dsh.trajectory.duration.${SID}`)).toBeNull()
-  })
-
-  it('reports whether loading older history changed the Trajectory snapshot', async () => {
-    const b = await bench()
-    const entry = b.slots.entries('conversation.view')
-      .find(candidate => candidate.options.id === 'trajectory')
-    const injectEntry = entry!.inject as unknown as (
-      sessionId: SessionId,
-    ) => TrajectoryViewInjected
-    const injected = injectEntry(SID)
-
-    expect(await injected.loadOlder()).toBe(false)
-
-    b.loadOlder.mockImplementationOnce(async () => {
-      b.sessionStore.set(historySnapshot([...NODES]))
-    })
-    expect(await injected.loadOlder()).toBe(true)
-  })
-})
-
-describe('tab switching in ConversationRoot', () => {
-  it('renders two tabs, defaults to chat, and switches to the trajectory ledger', async () => {
-    const b = await bench()
-    const view = mount(b.slots)
+    mount(b.slots)
     expect(screen.getByTestId('chat-body')).toBeTruthy()
-    expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Chat', 'Trajectory'])
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Trajectory' }))
-    expect(screen.queryByText(/turns ·/)).toBeNull()
-    expect(view.container.querySelectorAll('tr[data-turn-start="true"]')).toHaveLength(2)
-    expect(screen.queryByRole('columnheader')).toBeNull()
-    expect(screen.getByRole('toolbar', { name: '轨迹工具栏' })).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'Trajectory timeline' })).toBeTruthy()
-    expect(view.container.querySelector('[data-conversation-composer-overlay]')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse turns' }))
-    expect(view.container.querySelector('[data-collapsed-summary="turn"]')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Expand turns' }))
-    expect(screen.getByRole('row', { name: /USER/ })).toBeTruthy()
-    expect(screen.queryByTestId('chat-body')).toBeNull()
+    // 只剩 Chat 一个视图时 tab 行整行不渲染（ConversationSession 的 >1 判断）
+    expect(screen.queryByRole('tab')).toBeNull()
     expect(b.loadOlder).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('tab', { name: 'Chat' }))
-    expect(b.loadOlder).not.toHaveBeenCalled()
-  })
-
-  it('labels the trajectory tab in the active locale', async () => {
-    const b = await bench()
-    const labelOf = () => tabsOf(b.slots).find(tab => tab.id === 'trajectory')?.label
-    expect(labelOf()).toBe('Trajectory')
-    const locale = b.ctx.get('locale') as { setLocale(id: string): void }
-    locale.setLocale('zh')
-    expect(labelOf()).toBe('轨迹')
-    locale.setLocale('en')
-    expect(labelOf()).toBe('Trajectory')
-  })
-
-  it('opens a local record inspector and switches payload tabs without opening chat details', async () => {
-    const b = await bench()
-    mount(b.slots)
-    fireEvent.click(screen.getByRole('tab', { name: 'Trajectory' }))
-
-    fireEvent.keyDown(screen.getByRole('row', { name: /TOOL/ }), { key: 'Enter' })
-    expect(screen.getByRole('complementary', { name: 'Event details' })).toBeTruthy()
-    expect(screen.getByText('Turn 1 · Step 1')).toBeTruthy()
-    expect(screen.getByText('Completed')).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Result' })).toBeTruthy()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close details' }))
-    expect(screen.queryByRole('complementary', { name: 'Event details' })).toBeNull()
-  })
-
-  it('labels a standalone compaction as between-turn work in the ledger and inspector', async () => {
-    const nodes = [
-      { kind: 'user', seq: 1, time: 1_000, content: [], source: null },
-      {
-        kind: 'assistant', seq: 2, time: 2_000, turn: 1, step: 1,
-        blocks: [{ kind: 'text', text: 'before' }],
-      },
-      { kind: 'user', seq: 5, time: 5_000, content: [], source: null },
-      {
-        kind: 'assistant', seq: 6, time: 6_000, turn: 2, step: 1,
-        blocks: [{ kind: 'text', text: 'after' }],
-      },
-    ] as unknown as ConversationSnapshot['nodes']
-    const compaction: RequestView = {
-      purpose: 'compaction',
-      startSeq: 3,
-      turn: null,
-      step: 0,
-      startedAt: 3_000,
-      completedAt: 4_000,
-      status: 'complete',
-      summary: [{ type: 'text', text: 'standalone summary' }],
-    }
-    const b = await bench(historySnapshot(nodes, { requests: [compaction] }))
-    const view = mount(b.slots, nodes)
-    fireEvent.click(screen.getByRole('tab', { name: 'Trajectory' }))
-
-    expect(screen.getByText('Between turns')).toBeTruthy()
-    expect(view.container.textContent).not.toContain('Turn null')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Request #2 · Compaction' }))
-    expect(screen.getByText('Compaction · Between turns')).toBeTruthy()
-    expect(view.container.textContent).not.toContain('Turn null')
-  })
-
-  it('activates only the selected standalone compaction section', async () => {
-    const nodes = [
-      { kind: 'user', seq: 1, time: 1_000, content: [], source: null },
-      {
-        kind: 'assistant', seq: 2, time: 2_000, turn: 1, step: 1,
-        blocks: [{ kind: 'text', text: 'before first compaction' }],
-      },
-      { kind: 'user', seq: 5, time: 5_000, content: [], source: null },
-      {
-        kind: 'assistant', seq: 6, time: 6_000, turn: 2, step: 1,
-        blocks: [{ kind: 'text', text: 'between compactions' }],
-      },
-      { kind: 'user', seq: 9, time: 9_000, content: [], source: null },
-      {
-        kind: 'assistant', seq: 10, time: 10_000, turn: 3, step: 1,
-        blocks: [{ kind: 'text', text: 'after second compaction' }],
-      },
-    ] as unknown as ConversationSnapshot['nodes']
-    const compactions: RequestView[] = [
-      {
-        purpose: 'compaction',
-        startSeq: 3,
-        turn: null,
-        step: 0,
-        startedAt: 3_000,
-        completedAt: 4_000,
-        status: 'complete',
-        summary: [{ type: 'text', text: 'first standalone summary' }],
-      },
-      {
-        purpose: 'compaction',
-        startSeq: 7,
-        turn: null,
-        step: 0,
-        startedAt: 7_000,
-        completedAt: 8_000,
-        status: 'complete',
-        summary: [{ type: 'text', text: 'second standalone summary' }],
-      },
-    ]
-    const b = await bench(historySnapshot(nodes, { requests: compactions }))
-    mount(b.slots, nodes)
-    fireEvent.click(screen.getByRole('tab', { name: 'Trajectory' }))
-
-    const firstRequest = screen.getByRole('button', { name: 'Request #2 · Compaction' })
-    const secondRequest = screen.getByRole('button', { name: 'Request #4 · Compaction' })
-    const firstSection = firstRequest.closest('tr')?.querySelector('span')
-    const secondSection = secondRequest.closest('tr')?.querySelector('span')
-    expect(firstSection?.textContent).toBe('Between turns')
-    expect(secondSection?.textContent).toBe('Between turns')
-
-    fireEvent.click(firstRequest)
-    expect(firstSection?.className).toMatch(/turnLabelActive/)
-    expect(secondSection?.className).not.toMatch(/turnLabelActive/)
-    expect(screen.getByText('Request #2')).toBeTruthy()
-    expect(screen.getByText('Compaction · Between turns')).toBeTruthy()
-
-    fireEvent.click(secondRequest)
-    expect(firstSection?.className).not.toMatch(/turnLabelActive/)
-    expect(secondSection?.className).toMatch(/turnLabelActive/)
-    expect(screen.getByText('Request #4')).toBeTruthy()
-    expect(screen.getByText('Compaction · Between turns')).toBeTruthy()
-  })
-
-  it('dragging the overview focuses overlapping records without filtering the ledger', async () => {
-    const b = await bench()
-    mount(b.slots)
-    fireEvent.click(screen.getByRole('tab', { name: 'Trajectory' }))
-    const plot = screen.getByLabelText('Timeline overview; drag horizontally to focus events')
-    vi.spyOn(plot, 'getBoundingClientRect').mockReturnValue({
-      x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 72, width: 100, height: 72,
-      toJSON: () => ({}),
-    })
-    fireEvent.pointerDown(plot, { button: 0, clientX: 55, pointerId: 1 })
-    fireEvent.pointerMove(plot, { clientX: 95, pointerId: 1 })
-    fireEvent.pointerUp(plot, { clientX: 95, pointerId: 1 })
-
-    expect(screen.getByRole('row', { name: /USER/ }).getAttribute('data-timeline-focus'))
-      .toBe('outside')
-
-    const tablePane = screen.getByRole('table').parentElement
-    expect(tablePane).not.toBeNull()
-    fireEvent.click(tablePane as HTMLElement)
-    expect(screen.getByRole('row', { name: /USER/ }).getAttribute('data-timeline-focus'))
-      .toBeNull()
-
-    fireEvent.pointerDown(plot, { button: 0, clientX: 55, pointerId: 2 })
-    fireEvent.pointerMove(plot, { clientX: 95, pointerId: 2 })
-    fireEvent.pointerUp(plot, { clientX: 95, pointerId: 2 })
-    expect(screen.getByRole('row', { name: /USER/ }).getAttribute('data-timeline-focus'))
-      .toBe('outside')
-    fireEvent.contextMenu(plot)
-    expect(screen.getByRole('row', { name: /USER/ }).getAttribute('data-timeline-focus'))
-      .toBe('outside')
-  })
-
-  it('clicking a timeline block clears the range, selects the record, and opens its inspector', async () => {
-    const b = await bench()
-    const view = mount(b.slots)
-    fireEvent.click(screen.getByRole('tab', { name: 'Trajectory' }))
-    const plot = screen.getByLabelText('Timeline overview; drag horizontally to focus events')
-    vi.spyOn(plot, 'getBoundingClientRect').mockReturnValue({
-      x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 72, width: 100, height: 72,
-      toJSON: () => ({}),
-    })
-    const toolSpan = view.container.querySelector<HTMLElement>(
-      '[data-timeline-span="tool"]',
-    )
-    expect(toolSpan).not.toBeNull()
-    const recordIndex = toolSpan?.dataset.timelineRecordIndex
-    expect(recordIndex).toBeTruthy()
-
-    fireEvent.pointerMove(toolSpan as HTMLElement, { clientX: 50, pointerId: 1 })
-    expect(view.container.querySelector('[data-timeline-hover-line]')).toBeNull()
-    expect(toolSpan?.getAttribute('data-hovered')).toBe('true')
-
-    fireEvent.pointerDown(plot, { button: 0, clientX: 5, pointerId: 1 })
-    fireEvent.pointerMove(plot, { clientX: 95, pointerId: 1 })
-    fireEvent.pointerUp(plot, { clientX: 95, pointerId: 1 })
-    expect(view.container.querySelector('tr[data-timeline-focus]')).toBeTruthy()
-
-    fireEvent.pointerDown(toolSpan as HTMLElement, {
-      button: 0, clientX: 50, pointerId: 2,
-    })
-    fireEvent.pointerUp(toolSpan as HTMLElement, { clientX: 50, pointerId: 2 })
-
-    const selectedRow = view.container.querySelector<HTMLElement>(
-      `tr[data-record-index="${recordIndex}"]`,
-    )
-    expect(selectedRow?.getAttribute('aria-selected')).toBe('true')
-    expect(view.container.querySelector('tr[data-timeline-focus]')).toBeNull()
-    expect(screen.getByRole('complementary', { name: 'Event details' })).toBeTruthy()
-  })
-
-  it('empty window keeps the toolbar and reports no timing data', async () => {
-    const b = await bench(historySnapshot([]))
-    mount(b.slots)
-    fireEvent.click(screen.getByRole('tab', { name: 'Trajectory' }))
-    expect(screen.getByRole('toolbar', { name: '轨迹工具栏' })).toBeTruthy()
-    expect(screen.getByText('No timing data')).toBeTruthy()
-    expect(screen.getByRole<HTMLButtonElement>('button', {
-      name: 'Collapse turns',
-    }).disabled).toBe(false)
-    expect(screen.getByRole<HTMLButtonElement>('button', {
-      name: 'Collapse calls',
-    }).disabled).toBe(false)
-    expect(screen.queryByRole('row')).toBeNull()
-    expect(screen.queryByText(/turns ·/)).toBeNull()
   })
 })
 

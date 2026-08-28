@@ -1,6 +1,9 @@
 /** Deterministic, tool-free LLM adapter used only by the project-brain preset. */
 
+import { mkdirSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-workspace'
+import { FIXED_WORKSPACE_TITLE, starlightFixedWorkspaceDir } from '@deepseek-ai/dsh-host-apiproxy'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import {
   LlmAdapter,
@@ -64,6 +67,7 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
   const platformScope = ctx.settings?.register(settingsNamespace(PROJECT_BRAIN_SETTINGS_NS), z.object({
     platformBaseUrl: z.string().default(DEFAULT_PLATFORM_BASE_URL),
     demoApiBaseUrl: z.string().default(DEFAULT_DEMO_API_BASE_URL),
+    fixedWorkspace: z.boolean().default(false),
   }))
   // Server-side sync of the scripted-reply links; the demo-status getter reads the scope live below.
   const syncPlatformBase = (): void => {
@@ -71,11 +75,32 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
     console.info('[project-brain-demo] platform base:', configured)
     setDemoPlatformBase(configured)
   }
-  ctx.effect(() => {
+  // Fixed-workspace switch: ensure the one directory/registry row exists FIRST,
+  // then arm the gateway enforcement (list/create filter against a real record).
+  const syncFixedWorkspace = async (): Promise<void> => {
+    const enabled = platformScope?.get()?.fixedWorkspace ?? false
+    if (enabled) {
+      try {
+        mkdirSync(starlightFixedWorkspaceDir(), { recursive: true })
+        const existing = await ctx.workspaceRegistry.resolveByPath(starlightFixedWorkspaceDir())
+        if (existing === undefined) {
+          await ctx.workspaceRegistry.create(starlightFixedWorkspaceDir(), FIXED_WORKSPACE_TITLE)
+        }
+      } catch (error: unknown) {
+        console.warn('[project-brain-demo] fixed workspace ensure failed:', error)
+      }
+    }
+    ctx.fixedWorkspaceControl?.setEnabled(enabled)
+  }
+  const syncSettings = (): void => {
     syncPlatformBase()
-    const off = platformScope?.watch(() => { syncPlatformBase() })
+    void syncFixedWorkspace()
+  }
+  ctx.effect(() => {
+    syncSettings()
+    const off = platformScope?.watch(() => { syncSettings() })
     return () => { off?.() }
-  }, 'project-brain: platform base sync')
+  }, 'project-brain: platform + workspace sync')
 
   // Resolved per call from the settings scope so a developer-config change repoints synchronization without a restart.
   // Returns the API base; DemoStatusSynchronizer appends the endpoint path.
@@ -113,7 +138,7 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
 }
 
 export const name = 'project-brain-demo'
-export const inject = ['llm', 'settings']
+export const inject = ['llm', 'settings', 'workspaceRegistry', 'fixedWorkspaceControl']
 
 function latestUserText(options: GenerateOptions): string {
   for (let i = options.messages.length - 1; i >= 0; i -= 1) {

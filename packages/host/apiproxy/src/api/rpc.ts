@@ -41,6 +41,8 @@ export interface RpcErrorDetailsMap {
   'workspace-invalid-path': { path: string }
   'workspace-name-conflict': { name: string }
   'workspace-move-invalid': { workspaceId: string; sessionId: SessionId; beforeSessionId?: SessionId }
+  /** The fixed demo workspace rejects renames or deletion while the fixed-workspace switch is on. */
+  'workspace-readonly': { workspaceId: string }
   'directory-unreadable': { path: string }
   'directory-exists': { path: string }
   'directory-create-failed': { path: string }
