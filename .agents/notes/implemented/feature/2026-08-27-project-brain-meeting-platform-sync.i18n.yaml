@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-27-project-brain-meeting-platform-sync.md
-2026-08-27-project-brain-meeting-platform-sync.md: 211682738205357163c8067693dee0ced4f32a43
-2026-08-27-project-brain-meeting-platform-sync.zh.md: 51b483ea9173ff41f3f0821c55ef6fe926fcdb1e
+2026-08-27-project-brain-meeting-platform-sync.md: f93417eab6aea4761b29582d2203f7df8bd13c5d
+2026-08-27-project-brain-meeting-platform-sync.zh.md: 8e9840ea9f9ceb2c58bc27f94441c59a18fb9698

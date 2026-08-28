@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { ProjectBrainTurnTail } from '../src/client/ProjectBrainTurnTail.tsx'
 import { ProjectBrainScenarioSurface } from '../src/client/ProjectBrainScenarioSurface.tsx'
 import { ProjectReadyCard } from '../src/client/ProjectBrainMessageDock.tsx'
-import { createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingPlanReady as applyMeetingPlanReady, markProjectPlanReady as applyProjectPlanReady } from '../src/client/state.ts'
+import { createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingPlanReady as applyMeetingPlanReady, markProjectPlanReady as applyProjectPlanReady, restoreMeetingPlan as applyRestoreMeetingPlan } from '../src/client/state.ts'
 import type { ProjectBrainState } from '../src/client/state.ts'
 import { PROJECT_BRAIN_PLAN } from '../src/project-data.ts'
 import { PROJECT_BRAIN_PLATFORM_TARGET, isProjectBrainPlatformUrl } from '../src/client/platform-window.ts'
@@ -29,7 +29,6 @@ describe('ProjectBrainTurnTail', () => {
     const confirmPlan = vi.fn()
     const props = tailProps(brain, { openDetails: vi.fn(), confirmPlan })
     const view = render(<ProjectBrainTurnTail {...props} />)
-
     fireEvent.click(view.getByRole('button', { name: '确认方案，开始执行' }))
     expect(confirmPlan).toHaveBeenCalledTimes(1)
     expect(view.getByRole('button', { name: '编辑项目方案' })).toBeTruthy()
@@ -53,6 +52,35 @@ describe('ProjectBrainTurnTail', () => {
     // The fixture store hook is not reactive, so one rerender reflects the flipped phase.
     view.rerender(<ProjectBrainTurnTail {...props} turn={planTurn as never} />)
     expect(view.getByRole('button', { name: '确认方案，开始执行' })).toBeTruthy()
+  })
+
+  it('does not let a meeting restore turn rip an active launch scenario back to meeting', () => {
+    const brain = createProjectBrainStore().create()
+    launchMeetingScenario(brain)
+    brain.store.update((draft) => { draft.phase = 'review-ready' })
+    // A meeting turn mounted in history keeps meetingPlanTurn true for its own turn tail.
+    const meetingTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: '<!-- project-brain:meeting-plan -->' }] }]]) }] }
+    const extras = {
+      markPlanReady: () => applyProjectPlanReady(brain),
+      markMeetingPlanReady: () => applyMeetingPlanReady(brain),
+      restoreMeetingPlan: (items: Parameters<typeof applyRestoreMeetingPlan>[1]) => applyRestoreMeetingPlan(brain, items),
+      restorePlan: vi.fn(),
+      confirmPlan: vi.fn(),
+      confirmMeetingPlan: vi.fn(),
+      markExecuted: vi.fn(),
+      markExecutionFailed: vi.fn(),
+      markMeetingExecuted: vi.fn(),
+      retryPlatformData: vi.fn(),
+      continueProjectAction: vi.fn(),
+      openDetails: vi.fn(),
+      confirmBriefing: vi.fn(),
+    }
+    const view = render(<ProjectBrainTurnTail {...tailProps(brain, extras)} turn={meetingTurn as never} />)
+    // A later launch takes the scenario over.
+    act(() => { launchProjectScenario(brain, { text: '帮我启动智慧园区建设项目。', files: [] }) })
+    // Re-render so the meeting restore effect observes the switched scenario; it must not hijack it.
+    view.rerender(<ProjectBrainTurnTail {...tailProps(brain, extras)} turn={meetingTurn as never} />)
+    expect(brain.getSnapshot().activeScenario).toBe('project-launch')
   })
 
   it('marks the meeting analysis ready on mount so the breakdown card shows right after the reply', () => {

@@ -53,7 +53,11 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
   }, [enabled, projectPlanTurn, restorePlan, state.plan])
   useEffect(() => {
     if (!enabled() || !meetingPlanTurn) return
-    if (state.activeScenario !== 'meeting-actions' || state.phase === 'idle' || state.meetingItems.length === 0 && meetingPayload.length > 0) restoreMeetingPlan(meetingPayload)
+    // Rehydrate the meeting scenario only when nothing else is active (idle) or the
+    // meeting state is already mounted but empty. Restoring must not rip an active
+    // scenario back to meeting-actions — after a launch takes over, re-firing this on
+    // the meeting turn's activeScenario change would yank the whole UI off the launch.
+    if (state.phase === 'idle' || state.activeScenario === 'meeting-actions' && state.meetingItems.length === 0 && meetingPayload.length > 0) restoreMeetingPlan(meetingPayload)
   }, [enabled, meetingPayload, meetingPlanTurn, restoreMeetingPlan, state.activeScenario, state.meetingItems.length, state.phase])
   useEffect(() => {
     if (state.phase !== 'review-ready') return

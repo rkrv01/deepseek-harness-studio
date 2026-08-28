@@ -30,6 +30,18 @@ Status: implemented
 
 会议执行后平台进入真实可观察的状态：主模拟数据开启、AI 任务创建开启，业务平台可以在「确认执行」后按会议拆解数据提供任务。两个开关分开驱动，未来新增模拟项只需再接一个 `ensureItem` 调用。会议回执在完成卡片之前增加约 6 秒运行时间（节奏播放 + 四秒停顿），与初始化回执一致；`streamScenarioText` 未改动，因为回执与执行回执一样手工按节奏播放。
 
+## Follow-up：四处演示表面的暗色适配（2026-08-27 同日）
+
+四处表面在暗色主题下仍偏浅。项目初始化与会议编辑抽屉（`ProjectBrainWorkbench.module.css`）的 `.root` 渐变顶部有一个写死的 `#fbfcff` 停靠点从不翻转——透明的 `.header` 与半透明的 `.navigation`/`.meetingEditStats` 把这块浅色顶透出来，留下「浅色条 + token 翻转后的浅色文字」。托管与任务看板（`ProjectBrainScenarioSurface.module.css`）被刻意做成业务平台「白卡」：`.root` 用 `background:#fff; color:#182236`，几乎所有容器（`.surfaceHeader`/`.copilotMetrics`/`.panel`/`.dayTask`/`.waitingPanel`/`.planFooter`）及它们的边框、文字都是写死浅色 hex，无暗色覆写。
+
+工作台修复：`.root` 渐变停靠点换成主题 token（`--dsw-alias-bg-layer-1` → `--dsw-alias-bg-base`），顶部条随主题翻转；会议统计数字与标签从 `#2f6fed/#1a9e6f/#e68a2e` 换成 `state-business-primary / state-success-primary / state-warn-primary`，保存/改动状态圆点从固定灰换成 `label-tertiary`。看板整体 token 化：容器背景换成 `bg-layer-1`/`bg-layer-2`（以及带 business-primary 的 `color-mix` 用于那些蓝色区块），边框换成 `border-l2`，次要文字换成 `label-secondary/tertiary`，pastel 状态小块（新建/更新/风险、紧急/会议/等待、各种 metric 色调）换成相应 `state-business-primary / state-success-primary / state-warn-primary / state-error-primary` 的半透明 `color-mix` 色。因为每个 token 在亮色下都解析为原先的浅色值，亮色视觉不变，暗色下整板变深。`.surfaceInline`/`.surfaceNarrow` 宽度行为未动。
+
 ## Follow-up：自签豁免下本地 http 地址可通（2026-08-27 同日）
 
 把「接口地址」改成本地 `http://127.0.0.1:9006` 后，所有同步调用都在发请求前失败。`createDemoStatusFetch` 的自签豁免把每个 URL 都丢给 `node:https`，而它拒绝纯 http（ERR_INVALID_PROTOCOL）——于是初始化前「关闭模拟数据」（平台模拟数据暂不可用）与会议确认后的开关交接都在 fetch 一步抛错，服务端日志却证明配置地址已解析、本地 uvicorn 也在监听。现在豁免路径只在 `https:` 协议下启用，http 主机回落到全局 `fetch`（新 spec：自签开启 + http 地址仍走普通 fetch）。开发者配置还新增「接口连通性测试」区：一个「测试连接」按钮（GET config → 回显 `demoEnabled`/`aiTaskCreated` 与 HTTP 码），外加「切换模拟数据」「切换AI任务创建」按钮（POST 取反后重新读取）——可以在浏览器里对 9006 调试服务验证地址可达性。浏览器无法绕过 https 自签证书，线上默认端点会在测试输出里显示证书错误，属预期且本身就有诊断价值。
+
+## Follow-up：会议恢复不再劫持启动场景（2026-08-27 同日）
+
+一个回归：先跑会议流程后再启动项目，启动方案正常流出但始终不出现确认卡片（会议场景正常）。启动方案内容能出来，是因为宿主适配器无视客户端状态、直接拦截产出启动回复；卡片则依赖客户端 store。根因：`restoreMeetingPlan`（state.ts）强制 `activeScenario = 'meeting-actions'`，而会议回合自身在 TurnTail 的恢复 effect 监听 `state.activeScenario` 变化，条件为 `activeScenario !== 'meeting-actions' || phase === 'idle' || ...`。于是 `launchProjectScenario` 把场景切到 `project-launch` 时，仍挂载的会议回合 effect 再次触发 `restoreMeetingPlan`，把活跃场景拽回 `meeting-actions`——启动评审永远没机会渲染。启动恢复路径本来就安全，因为 `restoreProjectLaunchPlan` 以 `plan === null` 守卫。
+
+修复：会议恢复 effect 现在只在「无活跃场景（`phase === 'idle'`）」或「已是会议但缺数据（`activeScenario === 'meeting-actions' && meetingItems.length === 0 && payload 非空）」时重建，不再抢走其它活跃场景。已在真实 3080 浏览器验证：全新启动出卡片；会议后启动现在也出启动卡片、会议卡片正确退场。回归测试钉在 TurnTail 接缝（fixture store hook 非响应式，测试用 rerender 让 effect 观察到场景切换）。
