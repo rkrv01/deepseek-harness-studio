@@ -31,6 +31,14 @@
   cursor: default;
 }
 
+/* Demo build: the locked chip stays clickable so the click can explain why
+   it is unavailable; it reads muted like the disabled state without the
+   pointer suppression. */
+.lockedHint {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: pointer;
+}
+
 .triggerIcon {
   display: inline-flex;
   flex: 0 0 auto;

@@ -9,6 +9,9 @@ import type { ConversationSlotProps, InputZone } from '../contract/slots.ts'
 import { HeroGlow, HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
 import css from './ConversationRoot.module.css'
 
+/** Demo build: the hero workspace row collapses to the preset seat only. */
+const DEMO_HERO_PRESET_ONLY = process.env.DSH_CLIENT_DEMO_MODE === '1'
+
 /** Full props composed from the slot contract. */
 export type ConversationRootProps = ConversationSlotProps
 
@@ -99,27 +102,35 @@ export function ConversationRoot({
 
   const heroWorkspaceRow = (
     <div className={css.heroWorkspaceRow}>
-      <WorkspaceChip
-        buttonRef={pickerAnchor}
-        label={chipTitle}
-        menuOpen={pickerOpen}
-        onClick={() => { setPickerOpen(open => !open) }}
-        t={t}
-      />
-      {renderSlot('conversation.hero.workspace', {
-        open: pickerOpen,
-        anchorRef: pickerAnchor,
-        selectedId: pendingWorkspaceId ?? sessionWorkspace?.workspaceId,
-        onPick: (workspaceId) => {
-          setPickerOpen(false)
-          setPendingWorkspaceId(workspaceId)
-          void selectWorkspace(workspaceId).catch(() => {
-            setPendingWorkspaceId(current => current === workspaceId ? undefined : current)
-          })
-        },
-        onClose: () => { setPickerOpen(false) },
-      })}
-      {renderSlot('conversation.hero.agentPreset', {})}
+      {DEMO_HERO_PRESET_ONLY
+        // Demo build: only the preset seat; the workspace chip and picker
+        // are hidden so the row reads as "choose a scenario" alone.
+        ? renderSlot('conversation.hero.agentPreset', {})
+        : (
+          <>
+            <WorkspaceChip
+              buttonRef={pickerAnchor}
+              label={chipTitle}
+              menuOpen={pickerOpen}
+              onClick={() => { setPickerOpen(open => !open) }}
+              t={t}
+            />
+            {renderSlot('conversation.hero.workspace', {
+              open: pickerOpen,
+              anchorRef: pickerAnchor,
+              selectedId: pendingWorkspaceId ?? sessionWorkspace?.workspaceId,
+              onPick: (workspaceId) => {
+                setPickerOpen(false)
+                setPendingWorkspaceId(workspaceId)
+                void selectWorkspace(workspaceId).catch(() => {
+                  setPendingWorkspaceId(current => current === workspaceId ? undefined : current)
+                })
+              },
+              onClose: () => { setPickerOpen(false) },
+            })}
+            {renderSlot('conversation.hero.agentPreset', {})}
+          </>
+        )}
     </div>
   )
 

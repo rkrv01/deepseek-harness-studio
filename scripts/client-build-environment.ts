@@ -20,6 +20,9 @@ export const CLIENT_BUILD_PROFILE_SELECTOR = 'DSH_BUILD_CLIENT_PROFILE'
 const OFFICIAL_CLIENT_BUILD_ENVIRONMENT = {
   DSH_CLIENT_BUILD_PROFILE: 'official',
   DSH_CLIENT_TITLE: 'Starlight Harness',
+  // The official build is the Starlight demo surface: hero copy, preset
+  // roster, and composer restrictions all read this flag.
+  DSH_CLIENT_DEMO_MODE: '1',
 } as const
 
 /** Public variable carrying the source commit embedded in client artifacts. */

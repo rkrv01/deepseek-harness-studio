@@ -59,9 +59,9 @@ export function apply(ctx: ClientContext): void {
     projectBrain: brainFor(sessionId).store,
   })
   const enabled = (sessionId: SessionId): boolean => ctx.sessions.list.getSnapshot().byId[sessionId]?.agentPreset === 'project-brain'
+  const conversation = ctx.get('conversation') as IConversation
 
   const registerSubmit = (): (() => void) => {
-    const conversation = ctx.get('conversation') as IConversation
     const handler: ConversationSubmitHandler = (request) => {
       if (!enabled(request.sessionId)) return undefined
       const brain = brainFor(request.sessionId)
@@ -110,6 +110,16 @@ export function apply(ctx: ClientContext): void {
       hooks: hooksFor(sessionId),
       enabled: () => enabled(sessionId),
       openDetails: () => { ctx.layout.openDetails(840, 400) },
+      // Simulated upload: register the demo files' metadata as draft
+      // documents so the composer can show them as attached. Bytes never
+      // leave the browser; the dock appends the returned ids via its own
+      // session inputActions.
+      attachDemoDocuments: async (files) => {
+        const created = conversation.createDraftDocuments(
+          files.map(file => new File([], file.name, { type: file.type, lastModified: Date.now() })),
+        )
+        return created.map(attachment => attachment.id)
+      },
     }),
   }, ProjectBrainMessageDock))
 

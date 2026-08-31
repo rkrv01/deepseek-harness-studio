@@ -108,6 +108,9 @@ export interface HeroShellProps {
   children?: ReactNode
 }
 
+/** Whether this build is the Starlight demo surface (official client build). */
+const DEMO_MODE = process.env.DSH_CLIENT_DEMO_MODE === '1'
+
 /**
  * Render the hero chrome (headline only; no glow, no composer, no workspace
  * row — the glow is the owner's {@link HeroGlow}).
@@ -125,8 +128,8 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
               fallback: <FishLogo size={34} className={css.fish} />,
             })}
           </span>
-          <span className={css.headlineText}>{t('hero.headline')}</span>
-          <span className={css.previewBadge}>{t('hero.preview')}</span>
+          <span className={css.headlineText}>{t(DEMO_MODE ? 'hero.headline.demo' : 'hero.headline')}</span>
+          {!DEMO_MODE && <span className={css.previewBadge}>{t('hero.preview')}</span>}
         </div>
         <div className={css.body}>
           {/* The resident composer (ConversationRoot's root-owned scrollport;

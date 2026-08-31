@@ -104,6 +104,16 @@ export function apply(ctx: ClientContext): void {
             rowsVersion = version
             rowsRevision = revision
             rows = ctx.slots.entries('settings.section')
+              .filter((entry) => {
+                // Demo build: plugin, agent-preset, and third-party market /
+                // config-management sections are hidden; the hero preset seat
+                // stays as the only entry. `market` is the dshmarket plugin's
+                // section (plugin market + backup tabs) and `config-manager`
+                // is the dsh-config-manager plugin's Backup & Migration page.
+                if (process.env.DSH_CLIENT_DEMO_MODE !== '1') return true
+                const id = entry.options.id
+                return id !== 'plugins' && id !== 'agent-presets' && id !== 'market' && id !== 'config-manager'
+              })
               .map(e => ({
                 /* v8 ignore next -- list-slot registration requires id (SlotCore rejects an entry without one) */
                 id: e.options.id ?? '',
