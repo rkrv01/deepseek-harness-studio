@@ -34,6 +34,9 @@ const NS = 'desktop.customization'
 /** Services required by the Desktop customization client plugin. */
 export const inject = ['slots', 'locale', 'theme', 'connection', 'remote', 'modelDirectories']
 
+/** Whether this build is the Starlight demo surface (official client build). */
+const DEMO_MODE = process.env.DSH_CLIENT_DEMO_MODE === '1'
+
 /** Register appearance, updates, and the team attribution sidebar action. */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'desktop-customization: dictionaries')
@@ -74,37 +77,41 @@ export function apply(ctx: ClientContext): void {
     label: () => ctx.locale.bind(NS)('updatesNav'),
     inject: () => ({ bridge }),
   }, UpdateSection))
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: 'vision-enhancement',
-    order: 35,
-    inject: visionInjected,
-  }, VisionEnhancementRow))
-  ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
-    name: 'conversation.input.left',
-    id: 'vision-enhancement',
-    order: 20,
-    inject: (sessionId): VisionEnhancementShortcutInjected => {
-      const shared = visionInjected()
-      const directory = ctx.modelDirectories.directoryFor(sessionId)
-      return {
-        ...shared,
-        hooks: {
-          ...shared.hooks,
-          visionModelDirectory: directory.store,
-        },
-        loadModelDirectory: () => {
-          void directory.load().catch(() => { /* model selector owns the visible retry surface */ })
-        },
-        resolveRoute: (modelProvider, model) => vision.route(modelProvider, model),
-        activateRoute: (modelProvider, model) => vision.activate(modelProvider, model),
-        selectNativeVision: () => directory.select({
-          provider: 'deepseek-official',
-          model: 'deepseek-v4-flash-vision-exp',
-        }),
-      }
-    },
-  }, VisionEnhancementShortcut))
+  // The Starlight demo surface hides the vision-enhancement surfaces: the
+  // general-settings row and the composer shortcut are both demo-excluded.
+  if (!DEMO_MODE) {
+    ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+      name: 'settings.general.item',
+      id: 'vision-enhancement',
+      order: 35,
+      inject: visionInjected,
+    }, VisionEnhancementRow))
+    ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
+      name: 'conversation.input.left',
+      id: 'vision-enhancement',
+      order: 20,
+      inject: (sessionId): VisionEnhancementShortcutInjected => {
+        const shared = visionInjected()
+        const directory = ctx.modelDirectories.directoryFor(sessionId)
+        return {
+          ...shared,
+          hooks: {
+            ...shared.hooks,
+            visionModelDirectory: directory.store,
+          },
+          loadModelDirectory: () => {
+            void directory.load().catch(() => { /* model selector owns the visible retry surface */ })
+          },
+          resolveRoute: (modelProvider, model) => vision.route(modelProvider, model),
+          activateRoute: (modelProvider, model) => vision.activate(modelProvider, model),
+          selectNativeVision: () => directory.select({
+            provider: 'deepseek-official',
+            model: 'deepseek-v4-flash-vision-exp',
+          }),
+        }
+      },
+    }, VisionEnhancementShortcut))
+  }
 }
 
 export type { AppearanceSnapshot } from './appearance-controller.ts'

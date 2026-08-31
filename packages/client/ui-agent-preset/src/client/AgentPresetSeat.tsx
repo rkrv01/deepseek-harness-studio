@@ -12,10 +12,12 @@
  * Picking stages; the choice reaches a session when one becomes current.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconAgentPresetOutline16, IconChevronDownOutline14, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconAgentPresetOutline16, IconChevronDownOutline14, IconWarningOutline16, Menu, Toast,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the hero seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { AgentPresetSeatState } from './seat-store.ts'
@@ -35,6 +37,18 @@ export interface AgentPresetSeatInjected {
   /** Clear the one-shot introduce cue once the chip has played it. */
   introduced: () => void
 }
+
+/** Demo-only industry scenario rows shown beside the sole project-brain preset. */
+const DEMO_INDUSTRY_OPTIONS = [
+  { id: 'industry-agri', name: '智慧农业', description: '行业场景（演示版未开放）' },
+  { id: 'industry-park', name: '智慧园区', description: '行业场景（演示版未开放）' },
+] as const
+
+/** Whether this build is the Starlight demo surface (official client build). */
+const DEMO_MODE = process.env.DSH_CLIENT_DEMO_MODE === '1'
+
+/** Toast copy shown when a locked demo industry option is picked. */
+const DEMO_LOCKED_TOAST = '当前演示版本未开放'
 
 /* Introduce timeline: the icon eases in first (the CSS animation shares this
    duration); the name's characters start fading up the moment it lands, each
@@ -71,6 +85,11 @@ export type AgentPresetSeatProps =
 export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, t }: AgentPresetSeatProps) {
   const state = useAgentPresetSeat(snapshot => snapshot)
   const [open, setOpen] = useState(false)
+  // The locked industry rows live in the menu but cannot stage a preset; a
+  // pick shows this one-shot notice so the demo explains itself instead of
+  // silently doing nothing.
+  const [toastSeq, setToastSeq] = useState(0)
+  const seatRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     void load()
@@ -125,46 +144,75 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
     )
     : label
 
+  const lockedIndustry = (id: string): boolean => DEMO_MODE && DEMO_INDUSTRY_OPTIONS.some(option => option.id === id)
+
   return (
-    <Menu
-      open={open}
-      onClose={() => { setOpen(false) }}
-      items={state.options.map((option) => {
-        const text = presetDisplayText(option, t)
-        return {
-          id: option.id,
-          // Name and description together: the id alone never says what a
-          // preset does, which is why the roster carries display copy.
-          label: (
-            <span className={css.item}>
-              <span className={css.itemName}>{text.name}</span>
-              <span className={css.itemDesc}>{text.description ?? t('noDescription')}</span>
-            </span>
-          ),
-        }
-      })}
-      selectedId={state.current}
-      onSelect={(id) => {
-        setOpen(false)
-        void select(id)
-      }}
-      align="start"
-      portal
-      anchor={(
-        <button
-          type="button"
-          className={css.seat}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          title={state.error ?? t('seatHint')}
-          disabled={state.busy}
-          onClick={() => { setOpen(value => !value) }}
-        >
-          <IconAgentPresetOutline16 className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
-          {shownLabel}
-          <IconChevronDownOutline14 className={css.chevron} />
-        </button>
+    <>
+      <Menu
+        open={open}
+        onClose={() => { setOpen(false) }}
+        items={[
+          ...state.options.map((option) => {
+            const text = presetDisplayText(option, t)
+            return {
+              id: option.id,
+              // Name and description together: the id alone never says what a
+              // preset does, which is why the roster carries display copy.
+              label: (
+                <span className={css.item}>
+                  <span className={css.itemName}>{text.name}</span>
+                  <span className={css.itemDesc}>{text.description ?? t('noDescription')}</span>
+                </span>
+              ),
+            }
+          }),
+          ...(DEMO_MODE ? DEMO_INDUSTRY_OPTIONS.map(option => ({
+            id: option.id,
+            label: (
+              <span className={css.item}>
+                <span className={css.itemName}>{option.name}</span>
+                <span className={css.itemDesc}>{option.description}</span>
+              </span>
+            ),
+          })) : []),
+        ]}
+        selectedId={state.current}
+        onSelect={(id) => {
+          setOpen(false)
+          if (lockedIndustry(id)) {
+            setToastSeq(seq => seq + 1)
+            return
+          }
+          void select(id)
+        }}
+        align="start"
+        portal
+        anchor={(
+          <button
+            ref={seatRef}
+            type="button"
+            className={css.seat}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            title={state.error ?? t('seatHint')}
+            disabled={state.busy}
+            onClick={() => { setOpen(value => !value) }}
+          >
+            <IconAgentPresetOutline16 className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
+            {shownLabel}
+            <IconChevronDownOutline14 className={css.chevron} />
+          </button>
+        )}
+      />
+      {DEMO_MODE && toastSeq > 0 && (
+        <Toast
+          key={toastSeq}
+          text={DEMO_LOCKED_TOAST}
+          icon={<IconWarningOutline16 />}
+          anchor={seatRef.current}
+          onDone={() => { setToastSeq(0) }}
+        />
       )}
-    />
+    </>
   )
 }

@@ -5,6 +5,9 @@ import { MessageIconActions } from './MessageIconActions.tsx'
 import { assistantText } from './turn-assistant.ts'
 import css from './TurnTailNodeView.module.css'
 
+/** Whether this build is the Starlight demo surface (official client build). */
+const DEMO_MODE = process.env.DSH_CLIENT_DEMO_MODE === '1'
+
 type TurnTailNodeViewProps = ChatNodeViewProps<'turn-tail'>
   & PropsRenderSlots<'conversation.chat.turnTail' | 'conversation.chat.assistant-actions'>
 
@@ -23,6 +26,9 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
   const owner: TurnTailOwnerProps = { turn, seq: closing?.finalNode.seq ?? data.seq, openFile }
   const tail = renderSlotChain('conversation.chat.turnTail', owner)
   if (closing === null) return tail === null ? null : <div className={css.root}>{tail}</div>
+  // Demo build: the per-answer action row (copy, feedback, branch) is hidden;
+  // the scenario tail stays.
+  if (DEMO_MODE) return <div className={css.root} data-turn-tail={data.turn} data-time-hover-root>{tail}</div>
   const runMs = turn.start === undefined || turn.end === undefined
     ? undefined
     : Math.max(0, turn.end.time - turn.start.time)

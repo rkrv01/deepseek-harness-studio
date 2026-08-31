@@ -1,4 +1,5 @@
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { DraftAttachmentId } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { useEffect, useState } from 'react'
 import type { ProjectBrainNextAction, ProjectBrainState } from './state.ts'
 import { PROJECT_BRAIN_PLATFORM_TARGET } from './platform-window.ts'
@@ -13,15 +14,40 @@ const BRIEFING_PROMPT = '下周要给集团领导汇报，帮我准备好'
 
 const PROJECT_BRAIN_PROMPTS = [LAUNCH_PROMPT, MEETING_PROMPT, COPILOT_PROMPT, MY_DAY_PROMPT, BRIEFING_PROMPT]
 
+/** Whether this build is the Starlight demo surface (official client build). */
+const DEMO_MODE = process.env.DSH_CLIENT_DEMO_MODE === '1'
+
+/** Browser-only metadata for one simulated upload; bytes never leave the browser. */
+export interface DemoUploadFile {
+  readonly name: string
+  readonly type: string
+  readonly size: number
+}
+
+/** Files a scenario's quick entry attaches as if the user had uploaded them. */
+const DEMO_UPLOADS: Record<string, readonly DemoUploadFile[]> = {
+  [LAUNCH_PROMPT]: [
+    { name: '立项文件.md', type: 'text/markdown', size: 1_024 },
+    { name: '技术方案.md', type: 'text/markdown', size: 2_048 },
+    { name: '项目智脑项目基本资料.docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 32_768 },
+    { name: '项目智脑原始需求清单池_详细版.xlsx', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', size: 24_576 },
+  ],
+  [MEETING_PROMPT]: [
+    { name: '项目智脑项目需求调研会议纪要_详细版.docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 28_672 },
+  ],
+}
+
 /** Injected face for the Project Brain message strip. */
 export interface ProjectBrainMessageDockInjected {
   hooks: { projectBrain: import('@deepseek-ai/dsh-client-runtime/client').ObservableSnapshot<ProjectBrainState> }
   enabled: () => boolean
   openDetails: () => void
+  /** Register simulated demo-upload documents; returns their draft ids. */
+  attachDemoDocuments: (files: readonly DemoUploadFile[]) => Promise<readonly DraftAttachmentId[]>
 }
 
 /** Quick scenario entries kept permanently above the composer so one demo can flow straight into the next. */
-export function ProjectBrainMessageDock({ useInput, inputActions, enabled, useSessions }: PropsRuntime<'conversation.input.dock'> & InjectFace<ProjectBrainMessageDockInjected>) {
+export function ProjectBrainMessageDock({ useInput, inputActions, enabled, useSessions, attachDemoDocuments }: PropsRuntime<'conversation.input.dock'> & InjectFace<ProjectBrainMessageDockInjected>) {
   const draft = useInput(s => s.draft)
   // Subscribe to session list changes so enabled() re-evaluates when the
   // new session's agentPreset becomes available (e.g. after "new conversation").
@@ -36,8 +62,23 @@ export function ProjectBrainMessageDock({ useInput, inputActions, enabled, useSe
           type="button"
           className={css.suggestionButton}
           onClick={() => {
-            inputActions.setDraft(prompt)
-            queueMicrotask(inputActions.submit)
+            void (async () => {
+              // Demo build: attach the scenario's materials as a simulated
+              // upload so the composer shows them as if the user had picked
+              // files, then fill the prompt WITHOUT submitting — the demo
+              // host presses Send to start the scenario.
+              if (DEMO_MODE) {
+                const uploads = DEMO_UPLOADS[prompt]
+                if (uploads !== undefined) {
+                  const ids = await attachDemoDocuments(uploads)
+                  if (ids.length > 0) inputActions.addDocuments(ids)
+                }
+                inputActions.setDraft(prompt)
+                return
+              }
+              inputActions.setDraft(prompt)
+              queueMicrotask(inputActions.submit)
+            })()
           }}
         >
           {prompt}

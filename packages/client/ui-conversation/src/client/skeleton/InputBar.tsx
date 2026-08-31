@@ -10,7 +10,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { ChangeEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
+  IconCloseOutline16, IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the `plan` projection key merge (the TodoDock posture — the
 // composer reads a host-computed value; the domain owns the key).
@@ -34,6 +34,14 @@ import css from './InputBar.module.css'
 
 /** Decoration product of the no-session state (no machine, empty draft). */
 const INERT_DECORATIONS: DraftDecorations = { token: null, chips: [], textRefs: [], hint: null }
+
+/** Demo build: the composer is display-only; scenarios start from the quick entries above it. */
+const DEMO_INPUT_READ_ONLY = process.env.DSH_CLIENT_DEMO_MODE === '1'
+
+/** Demo-only placeholder and internal-model label shown in the locked composer. */
+const DEMO_INPUT_PLACEHOLDER = '当前为演示版本，请选择上方场景应用方式使用。'
+const DEMO_INTERNAL_MODEL_LABEL = '企业内部模型'
+const DEMO_LOCKED_TOOL_TOAST = '当前演示版本不可使用'
 
 /** Browser picker filter for demo document formats accepted beside images. */
 const PROJECT_BRAIN_DOCUMENT_ACCEPT = [
@@ -503,6 +511,11 @@ export function InputBar({
   }
 
   const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
+    // Demo build: the read-only composer must not accept pasted content either.
+    if (DEMO_INPUT_READ_ONLY) {
+      e.preventDefault()
+      return
+    }
     if (keyboard === undefined) return // absent machine: no draft can accept a paste
     if (machineBusy || locked) return
     const files = Array.from(e.clipboardData.items)
@@ -615,13 +628,32 @@ export function InputBar({
     /* v8 ignore next -- defensive: the primary button is disabled while empty||disabled, so a click cannot reach the false arm. */
     if (!empty && !disabled && !machineBusy) inputActions.submit()
   }
+  // One-tap clear: drop the draft text and every pending attachment. Only
+  // live while something is in the composer; busy phases refuse the shell's
+  // attachment mutations, so the clear button stays disabled there too.
+  const clearDraft = (): void => {
+    if (inputActions === undefined || machineBusy) return
+    inputActions.setDraft('')
+    for (const id of input?.imageIds ?? []) removeImage?.(id)
+    for (const id of input?.documentIds ?? []) removeDocument?.(id)
+  }
+  const canClear = !empty && !machineBusy
 
   // The Access seat: the projection-fed permission chip (renders nothing
   // while the permissions key is absent — permission-less host or Draft —
   // or while the command face is absent with the session).
   const accessSelect: ReactNode = command === undefined
     ? null
-    : <PermissionSelect key={sessionId} value={permissions} locked={locked} command={command} t={t} />
+    : <PermissionSelect
+      key={sessionId}
+      value={permissions}
+      locked={locked || DEMO_INPUT_READ_ONLY}
+      command={command}
+      t={t}
+      {...DEMO_INPUT_READ_ONLY
+        ? { onLockedClick: () => { showToast(DEMO_LOCKED_TOOL_TOAST) } }
+        : {}}
+    />
 
   // Mirror-layer decorations: a visible backdrop with transparent textarea
   // text. Claim tokens and references retain the draft's own glyph metrics,
@@ -784,21 +816,23 @@ export function InputBar({
               className={css.input}
               value={draft}
               disabled={textareaDisabled}
-              readOnly={machineBusy || workspaceTrigger}
+              readOnly={DEMO_INPUT_READ_ONLY || machineBusy || workspaceTrigger}
               aria-label={workspaceTrigger ? t('hero.chooseWorkspace') : undefined}
               aria-haspopup={workspaceTrigger ? 'menu' : undefined}
               aria-expanded={workspaceTrigger ? workspacePickerOpen : undefined}
               data-phase={input?.phase ?? 'inert'}
-              placeholder={placeholder ?? (parentOffline
-                ? t('placeholder.parentOffline')
-                : disabled
-                  ? t('placeholder.unavailable')
-                  // The steer hint deliberately outranks the plan placeholder:
-                  // while it shows, the whole-queue gesture is genuinely available
-                  // (the gate never consults plan mode), so the actionable hint wins.
-                  : canSteerQueue
-                    ? t('placeholder.steerQueue')
-                    : planActive ? t('placeholder.plan') : t('placeholder.default'))}
+              placeholder={DEMO_INPUT_READ_ONLY
+                ? DEMO_INPUT_PLACEHOLDER
+                : placeholder ?? (parentOffline
+                  ? t('placeholder.parentOffline')
+                  : disabled
+                    ? t('placeholder.unavailable')
+                    // The steer hint deliberately outranks the plan placeholder:
+                    // while it shows, the whole-queue gesture is genuinely available
+                    // (the gate never consults plan mode), so the actionable hint wins.
+                    : canSteerQueue
+                      ? t('placeholder.steerQueue')
+                      : planActive ? t('placeholder.plan') : t('placeholder.default'))}
               rows={2}
               onChange={onChange}
               onKeyDown={onKeyDown}
@@ -817,13 +851,15 @@ export function InputBar({
             <Tooltip label={t('input.commands')} side="top" delayMs={500}>
               <button
                 type="button"
-                className={css.add}
+                className={clsx(css.add, DEMO_INPUT_READ_ONLY && css.addDemoLocked)}
                 aria-label={t('input.commands')}
                 aria-haspopup="listbox"
                 aria-expanded={commandMenuOpen}
                 disabled={locked || toggleCommandMenu === undefined}
                 onMouseDown={keepFocus}
-                onClick={onToggleCommandMenu}
+                onClick={DEMO_INPUT_READ_ONLY
+                  ? () => { showToast(DEMO_LOCKED_TOOL_TOAST) }
+                  : onToggleCommandMenu}
               >
                 <IconPlusOutline16 size={14} />
               </button>
@@ -844,11 +880,13 @@ export function InputBar({
                 <Tooltip label={t('input.uploadFile')} side="top" delayMs={500}>
                   <button
                     type="button"
-                    className={css.add}
+                    className={clsx(css.add, DEMO_INPUT_READ_ONLY && css.addDemoLocked)}
                     aria-label={t('input.uploadFile')}
                     disabled={locked || addDocuments === undefined}
                     onMouseDown={keepFocus}
-                    onClick={() => { fileInputRef.current?.click() }}
+                    onClick={DEMO_INPUT_READ_ONLY
+                      ? () => { showToast(DEMO_LOCKED_TOOL_TOAST) }
+                      : () => { fileInputRef.current?.click() }}
                   >
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
                       <path d="M10.7 4.2a3.6 3.6 0 0 0-5.1 0L2.5 7.3a3.6 3.6 0 1 0 5.1 5.1l3.8-3.8a1.8 1.8 0 0 0-2.5-2.5L5.7 9.3" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
@@ -865,8 +903,25 @@ export function InputBar({
           </div>
           <div className={css.trailing}>
             {rightItems}
-            {renderSlot('conversation.input.model', { locked: modelSeatLocked })}
+            {DEMO_INPUT_READ_ONLY
+              ? <span className={css.internalModel} title={DEMO_INTERNAL_MODEL_LABEL}>{DEMO_INTERNAL_MODEL_LABEL}</span>
+              : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
             <ContextMeter useProjection={useProjection} t={t} />
+            {/* The clear control appears only while the composer holds text or
+                attachments; an empty composer shows no clear affordance. */}
+            {canClear && (
+              <Tooltip label={t('input.clear')} side="top" delayMs={500}>
+                <button
+                  type="button"
+                  className={css.clear}
+                  aria-label={t('input.clear')}
+                  onMouseDown={keepFocus}
+                  onClick={clearDraft}
+                >
+                  <IconCloseOutline16 size={14} />
+                </button>
+              </Tooltip>
+            )}
             {interruptible && (
               <Tooltip label={t('input.stop')} side="top" delayMs={500}>
                 <button

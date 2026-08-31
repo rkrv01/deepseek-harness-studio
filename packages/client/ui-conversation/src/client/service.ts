@@ -65,6 +65,12 @@ export interface IConversation {
    * @returns disposer for this registration.
    */
   registerSubmitHandler(handler: ConversationSubmitHandler): () => void
+  /**
+   * Create runtime-only draft documents without reading their content.
+   * @param files - browser files to register by metadata alone.
+   * @returns ordered draft descriptors.
+   */
+  createDraftDocuments(files: readonly File[]): readonly ComposerAttachment[]
 }
 
 /** One composer submit before normal Host prompt admission. */

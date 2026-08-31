@@ -86,9 +86,12 @@ export interface PermissionSelectProps {
   command: (line: string) => Promise<boolean>
   /** The owning bar's locale seat, passed down as a plain prop. */
   t: ComposerBarProps['t']
+  /** Clicked while locked: the demo build keeps the chip interactive-looking
+   *  so a click can explain itself instead of silently doing nothing. */
+  onLockedClick?: () => void
 }
 
-export function PermissionSelect({ value, locked, command, t }: PermissionSelectProps) {
+export function PermissionSelect({ value, locked, command, t, onLockedClick }: PermissionSelectProps) {
   const [pick, setPick] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [confirmation, setConfirmation] = useState<string | null>(null)
@@ -162,6 +165,11 @@ export function PermissionSelect({ value, locked, command, t }: PermissionSelect
     submit(id)
   }
 
+  // A locked-but-explainable chip (demo build): the trigger stays clickable
+  // so the owner can announce why it is unavailable; without that hook the
+  // locked chip is a plain disabled control.
+  const explainable = locked && onLockedClick !== undefined
+
   return (
     <>
       <Menu
@@ -175,15 +183,21 @@ export function PermissionSelect({ value, locked, command, t }: PermissionSelect
         anchor={
           <button
             type="button"
-            className={css.trigger}
+            className={clsx(css.trigger, explainable && css.lockedHint)}
             aria-label={t('input.accessMode', {
               name: current === undefined
                 ? permissionLabel(currentValue, currentValue, t)
                 : optionLabel(current, t),
             })}
             title={current === undefined ? undefined : optionDescription(current, t)}
-            disabled={locked || busy}
-            onClick={() => { setOpen(!open) }}
+            disabled={locked && onLockedClick === undefined || busy}
+            onClick={() => {
+              if (explainable) {
+                onLockedClick?.()
+                return
+              }
+              setOpen(!open)
+            }}
           >
             {permissionGlyph(currentValue) !== undefined && (
               <span className={css.triggerIcon} aria-hidden>{permissionGlyph(currentValue)}</span>

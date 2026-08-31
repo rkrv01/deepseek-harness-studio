@@ -313,6 +313,19 @@
   gap: 12px;
 }
 
+/* Demo build: the internal model label reads like the model trigger but is
+   not interactive — no chevron, muted text. */
+.internalModel {
+  flex: none;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
 /* Attach circle (figma + control): 28px, selector fill, primary glyph. */
 .add {
   display: grid;
@@ -334,6 +347,17 @@
 .add:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Demo build: the toolbar add buttons keep their muted disabled look while
+   remaining clickable so a click can announce why they are unavailable. */
+.addDemoLocked {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.addDemoLocked:hover {
+  background: var(--dsw-specific-selector);
 }
 
 /* The explicit file trigger launches this picker without changing composer layout. */
@@ -406,6 +430,32 @@
 }
 
 .primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* One-tap clear: a muted secondary circle beside the primary send, sharing
+   its 2px upward seat so the row baseline stays aligned. */
+.clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  transition: background-color 100ms ease;
+  transform: translateY(-2px);
+}
+
+.clear:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.clear:disabled {
   opacity: 0.4;
   cursor: default;
 }

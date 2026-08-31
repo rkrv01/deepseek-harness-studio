@@ -90,16 +90,25 @@ export class AgentPresetSeatController {
         return
       }
       const { presets } = response.result.value
-      this.fallback = presets.find(preset => preset.isDefault)?.id ?? presets[0]?.id ?? ''
+      // Demo build: only the project-brain preset is offered, staged as the
+      // default so every new session opens on the Project Brain scenario.
+      const demoPresets = process.env.DSH_CLIENT_DEMO_MODE === '1'
+        ? presets.filter(preset => preset.id === 'project-brain')
+        : presets
+      this.fallback = process.env.DSH_CLIENT_DEMO_MODE === '1'
+        ? 'project-brain'
+        : presets.find(preset => preset.isDefault)?.id ?? presets[0]?.id ?? ''
       this.set({
-        options: presetOptions(presets),
+        options: presetOptions(demoPresets),
         // Staged pick first, then the composition the current session
         // already carries, then the deployment default. The middle term is
         // what keeps a late-landing load from regressing the display after
         // an applied stage was consumed — the chip mounts (and loads) only
         // once the flow's session is current, so the reply can arrive after
         // apply() already composed it.
-        current: this.staged ?? this.currentSession()?.agentPreset ?? this.fallback,
+        current: process.env.DSH_CLIENT_DEMO_MODE === '1'
+          ? this.staged ?? 'project-brain'
+          : this.staged ?? this.currentSession()?.agentPreset ?? this.fallback,
         error: null,
       })
     } catch (error) {
@@ -152,7 +161,11 @@ export class AgentPresetSeatController {
     const staged = this.staged
     const session = this.currentSession()
     if (staged === undefined) {
-      const committed = session?.agentPreset ?? this.fallback
+      // Demo build: the chip always reads project-brain, whatever an older
+      // session this flow happens to be handing over still carries.
+      const committed = process.env.DSH_CLIENT_DEMO_MODE === '1'
+        ? 'project-brain'
+        : session?.agentPreset ?? this.fallback
       if (committed !== '' && this.store.getSnapshot().current !== committed) {
         this.set({ current: committed, error: null, introduce: false })
       }
