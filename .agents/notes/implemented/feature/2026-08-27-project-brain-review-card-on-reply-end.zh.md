@@ -87,3 +87,7 @@
 - 侧栏只保留「插件中心/插件发现」：Preset 广场与应用中心的侧栏入口及其主页面不再注册（它们本是 ui-plugin-center 里的无条件注册；client 插件拿不到 cordis patch 配置，故为源码级演示收敛而非配置开关）。轨迹对话 tab 同样不再注册（数据视图、压缩定义与会话日志投影保留——仅 UI tab 移除，ConversationSession 的 `tabs.length > 1` 规则随之隐藏整行 tab）。
 - 开发者模式改为严格临时：`isProjectBrainDevMode()` 为会话内状态（模块布尔 + 事件），刷新必然关闭；「关闭开发者模式」按钮删除——没有可持久化的东西，也无法被留在开启状态。
 - 固定工作区开关为 `project-brain` 设置字段（`fixedWorkspace`，默认 false），在开发者分区中展示。开启后 demo 插件创建 `~/starlight_xmzn` 及同名工作区记录，网关随即加锁：create 忽略请求路径、rename/delete 返回新增的 `workspace-readonly` 错误码、list 只回固定目录。`fixedWorkspaceControl` 以 cordis service 承载开关，使 tsdown demo 产物与源码运行的网关共享同一实例（模块状态会跨两个模块图分裂）；`IWorkspaces` 新增公开 `refresh()` 以便开关切换时浏览器重新拉取列表。
+
+## 后续第十批：托管场景供应商风险决策回执（2026-08-31）
+
+项目托管看板保留风险事实与建议，但不再通过本地“已处理”状态伪造闭环。归属的助手回合现在提供二选一决策卡。选择会提交可读用户消息及既有私有 `project-brain:scenario` confirm 载荷，且只允许 `decision-1` 与 `wait-for-confirmation`、`start-backup-supplier` 两个值。确定性适配器为所选分支返回带明确标记的助手回执；`ProjectBrainTurnTail` 只从该回执的私有载荷恢复条件预案或备选供应商结果卡，因此历史消息可保留决策而不会暴露私有数据或写入真实平台。

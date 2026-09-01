@@ -7,7 +7,7 @@ import { ProjectBrainScenarioSurface } from '../src/client/ProjectBrainScenarioS
 import { ProjectReadyCard } from '../src/client/ProjectBrainMessageDock.tsx'
 import { createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingPlanReady as applyMeetingPlanReady, markProjectPlanReady as applyProjectPlanReady, restoreMeetingPlan as applyRestoreMeetingPlan } from '../src/client/state.ts'
 import type { ProjectBrainState } from '../src/client/state.ts'
-import { PROJECT_BRAIN_PLAN } from '../src/project-data.ts'
+import { PROJECT_BRAIN_COPILOT_DEMO, PROJECT_BRAIN_PLAN } from '../src/project-data.ts'
 import { PROJECT_BRAIN_PLATFORM_TARGET, isProjectBrainPlatformUrl } from '../src/client/platform-window.ts'
 import { projectBrainScenarioPayload, projectBrainSurfacePayload } from '../src/scenario-registry.ts'
 
@@ -181,15 +181,43 @@ describe('ProjectBrainTurnTail', () => {
     expect(view.getByText('跟进后续事项')).toBeTruthy()
   })
 
-  it('leaves copilot-surface turns to the inline assistantSurface renderer', () => {
+  it('does not duplicate a malformed copilot board in the turn tail', () => {
     const brain = createProjectBrainStore().create()
     const data = { /* shape built in the surface spec below */ }
     const turn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:surface ${projectBrainSurfacePayload('project-copilot', 'project-copilot-dashboard', data)} -->` }] }]]) }] }
     const props = tailProps(brain)
     const view = render(<ProjectBrainTurnTail {...props} turn={turn as never} />)
-    // The board inlines above the prose via the assistantSurface service; the
-    // turn tail must not render it a second time.
+    // The board inlines above the prose via the assistantSurface service. A
+    // malformed board does not create an orphan decision card below the turn.
     expect(view.container.textContent).toBe('')
+  })
+
+  it('submits one of two supplier-risk decisions beneath its owning copilot reply', () => {
+    const brain = createProjectBrainStore().create()
+    const submitCopilotDecision = vi.fn()
+    const turn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:surface ${projectBrainSurfacePayload('project-copilot', 'project-copilot-dashboard', PROJECT_BRAIN_COPILOT_DEMO)} -->` }] }]]) }] }
+
+    const view = render(<ProjectBrainTurnTail {...tailProps(brain, { submitCopilotDecision })} turn={turn as never} />)
+
+    expect(view.getByRole('region', { name: '设备采购是否升级处理？' })).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: '明日未确认则启动' }))
+    expect(submitCopilotDecision).toHaveBeenCalledWith('decision-1', 'wait-for-confirmation')
+    expect(view.getByText('正在提交决策…')).toBeTruthy()
+    expect((view.getByRole('button', { name: '立即启动备选方案' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('restores the selected supplier-risk result only under its assistant receipt', () => {
+    const brain = createProjectBrainStore().create()
+    const conditionalTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:copilot-decision-result -->\n<!-- project-brain:scenario ${projectBrainScenarioPayload('project-copilot', 'confirm', { decisionId: 'decision-1', selection: 'wait-for-confirmation' })} -->` }] }]]) }] }
+    const immediateTurn = { steps: [{ data: new Map([['assistant-step', { blocks: [{ kind: 'text', text: `<!-- project-brain:copilot-decision-result -->\n<!-- project-brain:scenario ${projectBrainScenarioPayload('project-copilot', 'confirm', { decisionId: 'decision-1', selection: 'start-backup-supplier' })} -->` }] }]]) }] }
+
+    const conditional = render(<ProjectBrainTurnTail {...tailProps(brain)} turn={conditionalTurn as never} />)
+    expect(conditional.getByRole('region', { name: '条件预案已生效' })).toBeTruthy()
+    expect(conditional.getByText('下一次检查：明日 10:00')).toBeTruthy()
+
+    const immediate = render(<ProjectBrainTurnTail {...tailProps(brain)} turn={immediateTurn as never} />)
+    expect(immediate.getByRole('region', { name: '备选供应商评估已启动' })).toBeTruthy()
+    expect(immediate.getByText(/负责人：王刚/u)).toBeTruthy()
   })
 
   it('renders the copilot board surface with decisions and no permission switcher', () => {
@@ -207,7 +235,7 @@ describe('ProjectBrainTurnTail', () => {
       tracking: [{ id: 'track-1', title: '设备采购交付', status: '高风险 · 等待供应商反馈', aiActions: ['AI 已催办：2 次'], latestFeedback: '供应商预计 8 月 28 日确认发货', nextStep: '明日上午再次确认交付时间' }],
       findings: [{ id: 'find-1', label: '1 项高风险' }, { id: 'find-2', label: '2 项延期任务' }],
       findingsNote: '采购风险等级由中风险上升为高风险。',
-      decisions: [{ id: 'decision-1', title: '设备采购是否升级处理？', context: '供应商仍未确认最终交期。', advice: '若明日仍无法确认交期，启动备选供应商。' }],
+      decisions: [{ id: 'decision-1', title: '设备采购是否升级处理？', context: '供应商仍未确认最终交期。', advice: '若明日仍无法确认交期，启动备选供应商。', options: [{ selection: 'wait-for-confirmation', label: '明日未确认则启动' }, { selection: 'start-backup-supplier', label: '立即启动备选方案' }] }],
       aiNarrative: { focus: ['设备采购延期影响设备安装节点。'], executed: ['已连续 2 次跟进设备采购负责人。'], needDecision: '若明天仍无法确认交期，建议启动备选供应商。', next: '明日上午再次确认交期。' },
       overview: {
         packages: [{ id: 'pkg-1', name: '设备采购包', done: 0, total: 3, status: '滞后' }],
@@ -223,8 +251,9 @@ describe('ProjectBrainTurnTail', () => {
     expect(view.getByRole('region', { name: '需要你处理' })).toBeTruthy()
     // 托管权限模式切换器已移除
     expect(view.queryByRole('button', { name: '托管模式' })).toBeNull()
-    fireEvent.click(view.getByRole('button', { name: '采用建议' }))
-    expect(view.getByText(/当前没有需要你立即处理的事项/u)).toBeTruthy()
+    expect(view.queryByRole('button', { name: '采用建议' })).toBeNull()
+    expect(view.queryByRole('button', { name: '查看影响' })).toBeNull()
+    expect(view.getByText('请在下方选择处理方式。')).toBeTruthy()
   })
 
   it('renders the enriched daily workbench with explanations and local completion', () => {

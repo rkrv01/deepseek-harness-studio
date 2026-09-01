@@ -29,8 +29,8 @@ describe('Desktop online updates', () => {
     await act(async () => {})
 
     expect(screen.getByText('Studio Desktop 0.1.0-rc.16')).toBeTruthy()
-    expect(screen.getByText('Harness 核心 0.1.1-rc.2')).toBeTruthy()
-    expect(screen.getByText('Starlight Harness Desktop')).toBeTruthy()
+    expect(screen.getByText('AI助手核心 0.1.1-rc.2')).toBeTruthy()
+    expect(screen.getByText('Starlight AI助手 Desktop')).toBeTruthy()
     expect(screen.getByText('暂未开放')).toBeTruthy()
     const button = screen.getByRole('button', { name: '在线更新暂未开放' })
     expect(button.hasAttribute('disabled')).toBe(true)

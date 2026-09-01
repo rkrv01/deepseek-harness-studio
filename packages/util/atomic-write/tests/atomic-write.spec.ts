@@ -80,6 +80,37 @@ describe('writeFileAtomic', () => {
 })
 
 describe('withFileLock', () => {
+  it('recovers a lock whose recorded process no longer exists', async () => {
+    const dir = await scratch()
+    const target = join(dir, 'document')
+    await writeFile(`${target}.lock`, '999999999\n')
+
+    await expect(withFileLock(target, async () => 'recovered')).resolves.toBe('recovered')
+    expect(await readFile(`${target}.lock`, 'utf8').catch(() => undefined)).toBeUndefined()
+  })
+
+  it('does not remove a lock owned by the current process', async () => {
+    const dir = await scratch()
+    const target = join(dir, 'document')
+    const lockPath = `${target}.lock`
+    await writeFile(lockPath, `${process.pid}\n`)
+
+    await expect(withFileLock(target, async () => 'blocked', { waitMs: 50 }))
+      .rejects.toThrow(/timed out waiting for the writer lock/)
+    expect(await readFile(lockPath, 'utf8')).toBe(`${process.pid}\n`)
+    await rm(lockPath, { force: true })
+  })
+
+  it('removes interrupted atomic temp siblings after acquiring the lock', async () => {
+    const dir = await scratch()
+    const target = join(dir, 'document')
+    const stale = `${target}.0123456789ab.tmp`
+    await writeFile(stale, '')
+
+    await withFileLock(target, async () => {})
+    expect(await readFile(stale, 'utf8').catch(() => undefined)).toBeUndefined()
+  })
+
   it('retries EPERM only when the lock path currently exists', async () => {
     const dir = await scratch()
     const target = join(dir, 'document')

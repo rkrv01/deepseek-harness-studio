@@ -234,6 +234,34 @@ describe('project brain scripted scenario', () => {
     expect(surface?.data.overview.attention.length).toBeGreaterThan(0)
   })
 
+  it('records a conditional supplier fallback authorization from the project-copilot decision', () => {
+    const prompt = `明日未确认最终交期则启动备选供应商方案。\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('project-copilot', 'confirm', { decisionId: 'decision-1', selection: 'wait-for-confirmation' })} -->`
+
+    const reply = resolveProjectBrainReply(prompt)
+
+    expect(reply.kind).toBe('copilot-decision-receipt')
+    expect(reply.text).toContain('条件预案已生效')
+    expect(reply.text).toContain('明日')
+    expect(reply.text).toContain('project-brain:copilot-decision-result')
+  })
+
+  it('starts the simulated backup supplier assessment from the project-copilot decision', () => {
+    const prompt = `立即启动备选供应商方案。\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('project-copilot', 'confirm', { decisionId: 'decision-1', selection: 'start-backup-supplier' })} -->`
+
+    const reply = resolveProjectBrainReply(prompt)
+
+    expect(reply.kind).toBe('copilot-decision-receipt')
+    expect(reply.text).toContain('备选供应商评估已启动')
+    expect(reply.text).toContain('王刚')
+    expect(reply.text).toContain('project-brain:copilot-decision-result')
+  })
+
+  it('does not treat an unknown supplier-risk choice as a decision', () => {
+    const prompt = `现在就处理。\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('project-copilot', 'confirm', { decisionId: 'decision-1', selection: 'open-anything' })} -->`
+
+    expect(resolveProjectBrainReply(prompt).kind).toBe('fallback')
+  })
+
   it('answers a challenge against the recommended ordering deterministically', () => {
     const challenge = resolveProjectBrainReply('为什么不是先做设备选型方案？')
     expect(challenge.kind).toBe('note')

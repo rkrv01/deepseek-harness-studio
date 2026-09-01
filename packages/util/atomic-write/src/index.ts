@@ -11,8 +11,8 @@
  */
 
 import { randomBytes } from 'node:crypto'
-import { lstat, mkdir, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
 
 /**
  * Filesystem options for {@link writeFileAtomic}; `mode` is required so the
@@ -77,6 +77,56 @@ async function isLockContention(error: unknown, lockPath: string): Promise<boole
   }
 }
 
+const ORPHAN_LOCK_GRACE_MS = 1_000
+
+/** Return whether a process id can still be signalled by this process. */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | null)?.code
+    return code === 'EPERM'
+  }
+}
+
+/** Remove a lock only when its owner is provably gone or its incomplete record is old. */
+async function recoverOrphanLock(lockPath: string): Promise<boolean> {
+  let metadata: string
+  let details: Awaited<ReturnType<typeof stat>>
+  try {
+    ;[metadata, details] = await Promise.all([readFile(lockPath, 'utf8'), stat(lockPath)])
+  } catch {
+    return false
+  }
+  const pid = Number.parseInt(metadata.trim().split(/\s/u, 1)[0] ?? '', 10)
+  const stale = Number.isInteger(pid) && pid > 0
+    ? !isProcessAlive(pid)
+    : Date.now() - details.mtimeMs >= ORPHAN_LOCK_GRACE_MS
+  if (!stale) return false
+  try {
+    await rm(lockPath, { force: true })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Remove temp siblings left by an interrupted atomic replacement. */
+async function cleanAtomicTemps(filename: string): Promise<void> {
+  const directory = dirname(filename)
+  const prefix = `${basename(filename)}.`
+  let entries: string[]
+  try {
+    entries = await readdir(directory)
+  } catch {
+    return
+  }
+  await Promise.all(entries
+    .filter(entry => entry.startsWith(prefix) && /\.[0-9a-f]{12}\.tmp$/u.test(entry))
+    .map(entry => rm(join(directory, entry), { force: true })))
+}
+
 /**
  * Retry cadence for a contended lock. These stay robustness invariants of the
  * cross-process write protocol rather than deployment tunables: they govern how
@@ -117,9 +167,8 @@ export interface FileLockOptions {
  * contention only when a fresh `lstat` confirms the lock path exists, covering
  * Windows exclusive-create behavior without hiding an unrelated permission
  * failure. Contention backs off exponentially and fails with a timed-out error
- * after the deadline. The contender never removes an existing lock because
- * file age cannot prove that its owner stopped; orphan recovery is an operator
- * action. The parent directory must exist.
+ * after the deadline. A lock with a dead recorded PID is recovered; a live
+ * lock is never removed. The parent directory must exist.
  * @param filename - the file whose writers this lock serializes.
  * @param operation - the read-render-commit cycle to run while holding the lock.
  * @param options - acquisition options; omitted waits {@link DEFAULT_LOCK_WAIT_MS}.
@@ -139,6 +188,7 @@ export async function withFileLock<T>(
       break
     } catch (error) {
       if (!await isLockContention(error, lockPath)) throw error
+      await recoverOrphanLock(lockPath)
     }
     if (Date.now() >= deadline) {
       throw new Error(`atomic-write: timed out waiting for the writer lock at ${lockPath}`)
@@ -147,6 +197,7 @@ export async function withFileLock<T>(
     delay = Math.min(delay * 2, LOCK_RETRY_MAX_MS)
   }
   try {
+    await cleanAtomicTemps(filename)
     return await operation()
   } finally {
     await rm(lockPath, { force: true })

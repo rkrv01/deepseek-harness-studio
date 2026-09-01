@@ -22,7 +22,12 @@ interface DesktopPackage {
       readonly icon: string
       readonly notarize: boolean
     }
-    readonly win: { readonly artifactName: string; readonly icon: string; readonly target: readonly string[] }
+    readonly win: {
+      readonly artifactName: string
+      readonly executableName: string
+      readonly icon: string
+      readonly target: readonly string[]
+    }
     readonly nsis: {
       readonly oneClick: boolean
       readonly perMachine: boolean
@@ -51,6 +56,8 @@ const macReleaseScript = readFileSync(resolve(desktopRoot, 'scripts/release-mac.
 const windowsReleaseScript = readFileSync(resolve(desktopRoot, 'scripts/release-win.ts'), 'utf8')
 const macReleaseOrganizer = readFileSync(resolve(desktopRoot, 'scripts/release-mac.ts'), 'utf8')
 const macUninstallScript = readFileSync(resolve(desktopRoot, 'uninstall-starlight-harness.command'), 'utf8')
+const windowsUninstallScript = readFileSync(resolve(desktopRoot, 'uninstall-starlight-harness.bat'), 'utf8')
+const windowsUninstallPowerShellScript = readFileSync(resolve(desktopRoot, 'uninstall-starlight-harness.ps1'), 'utf8')
 const windowsInstallerInclude = readFileSync(resolve(desktopRoot, 'build/installer.nsh'), 'utf8')
 const desktopPackage = JSON.parse(
   readFileSync(resolve(desktopRoot, 'package.json'), 'utf8'),
@@ -115,9 +122,9 @@ describe('desktop packaging configuration', () => {
       .toBe('284a03cc9fd485a465896459828defb8aae3ce56fab5acacfc1224c47d601fc2')
   })
 
-  it('uses an independent Starlight Harness desktop identity', () => {
+  it('uses the Starlight AI助手 desktop identity', () => {
     expect(desktopPackage.build.appId).toBe('ai.starlight.harness.desktop')
-    expect(desktopPackage.build.productName).toBe('Starlight Harness')
+    expect(desktopPackage.build.productName).toBe('Starlight AI助手')
   })
 
   it('builds and stages the complete workspace before local packaging', () => {
@@ -151,7 +158,7 @@ describe('desktop packaging configuration', () => {
     expect(macReleaseScript).toContain('--config.forceCodeSigning=false')
     expect(macReleaseScript).toContain("CSC_IDENTITY_AUTO_DISCOVERY: 'false'")
     expect(macReleaseOrganizer).toContain('organizeMacArtifacts')
-    expect(macReleaseOrganizer).toContain('Starlight-Harness-macOS-${architecture}.${suffix}')
+    expect(macReleaseOrganizer).toContain('Starlight-AI-Assistant-macOS-${architecture}.${suffix}')
     expect(macReleaseScript).toContain('uninstall-starlight-harness.command')
     expect(macReleaseScript).toContain("'uninstall.command': readFileSync(deliveryScriptPath)")
     expect(macReleaseScript).toContain('macOS-${architecture}-delivery.zip')
@@ -170,7 +177,8 @@ describe('desktop packaging configuration', () => {
     expect(desktopPackage.build.win.target).toEqual(['nsis'])
     expect(desktopPackage.build.compression).toBe('normal')
     expect(desktopPackage.build.win.artifactName)
-      .toBe('Starlight-Harness-Windows-${version}.${ext}')
+      .toBe('Starlight-AI-Assistant-Windows-${version}.${ext}')
+    expect(desktopPackage.build.win.executableName).toBe('starlight-ai')
     expect(desktopPackage.build.toolsets.nsis).toBe('1.2.1')
     expect(desktopPackage.build.nsis).toMatchObject({
       oneClick: false,
@@ -179,7 +187,7 @@ describe('desktop packaging configuration', () => {
       include: 'build/installer.nsh',
       createDesktopShortcut: 'always',
       createStartMenuShortcut: true,
-      shortcutName: 'Starlight Harness',
+      shortcutName: 'Starlight AI助手',
     })
     expect(windowsInstallerInclude).toContain('--dsh-installer-quit')
     expect(windowsInstallerInclude).not.toContain('!macro customInit')
@@ -236,6 +244,10 @@ describe('desktop packaging configuration', () => {
     expect(windowsInstallerInclude).toContain('SetOverwrite on')
     expect(windowsInstallerInclude).toContain('SetErrorLevel 2')
     expect(windowsInstallerInclude).not.toContain('DeleteRegKey SHELL_CONTEXT')
+    expect(windowsUninstallScript).toContain('taskkill.exe /F /T /IM "starlight-ai.exe"')
+    expect(windowsUninstallScript).toContain('uninstall-starlight-harness.ps1')
+    expect(windowsUninstallPowerShellScript).toContain("Join-Path $env:LOCALAPPDATA 'Programs\\starlight-ai'")
+    expect(windowsUninstallPowerShellScript).toContain("Get-Process -Name 'starlight-ai'")
   })
 
   it('exposes generic, macOS, and Windows release commands at the repository root', () => {

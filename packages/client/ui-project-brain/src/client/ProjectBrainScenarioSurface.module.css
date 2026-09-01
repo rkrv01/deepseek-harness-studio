@@ -255,6 +255,11 @@
   font-size: 12px;
 }
 
+.decisionRoute {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
 .decisionActions {
   display: flex;
   flex: none;

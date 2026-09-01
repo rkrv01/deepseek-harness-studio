@@ -1,4 +1,4 @@
-/** Electron application shell for the loopback Starlight Harness Web Host. */
+/** Electron application shell for the loopback Starlight AI助手 Web Host. */
 
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -81,6 +81,7 @@ import {
 } from './window-lifecycle.ts'
 import { reloadWithHeldFrame, type HeldReloadFrame } from './window-reload-transition.ts'
 import { PresetSquareClient } from './preset-square/client.ts'
+import { DESKTOP_PROTOCOL, parseDesktopProtocolUrl, type DesktopProtocolRequest } from './protocol.ts'
 import { ResourcePresetSquareCatalog } from './preset-square/bundled-catalog.ts'
 import { migrateLegacyBundledContentPreset } from './preset-square/legacy-bundled-preset-migration.ts'
 import {
@@ -89,7 +90,7 @@ import {
 } from './preset-square/runtime-controller.ts'
 
 const APP_ID = 'ai.starlight.harness.desktop'
-const APP_NAME = 'Starlight Harness'
+const APP_NAME = 'Starlight AI助手'
 const DEMO_UPDATES_ENABLED = false
 const WINDOW_WIDTH = 1440
 const WINDOW_HEIGHT = 920
@@ -110,6 +111,7 @@ let pluginDiagnosticExporter: PluginRecoveryDiagnosticExporter | undefined
 let pluginOwnedDataRemover: PluginOwnedDataRemover | undefined
 let presetRuntimeController: PresetRuntimeController | undefined
 let pluginRecoveryStartupBlocked = false
+let pendingProtocolRequest: DesktopProtocolRequest | undefined
 
 interface PluginCenterBackend {
   readonly catalog: PluginCatalogRepository
@@ -344,7 +346,7 @@ async function createMainWindow(): Promise<BrowserWindow> {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    autoHideMenuBar: false,
+    autoHideMenuBar: true,
     frame: process.platform === 'win32',
     ...(process.platform === 'darwin' ? {} : {
       titleBarOverlay: {
@@ -375,6 +377,11 @@ async function createMainWindow(): Promise<BrowserWindow> {
       additionalArguments: [app.isPackaged ? '--dsh-packaged' : '--dsh-development'],
       preload: join(DESKTOP_DIR, 'lib/preload.cjs'),
     },
+  })
+  window.setMenuBarVisibility(false)
+  window.webContents.on('page-title-updated', (event) => {
+    event.preventDefault()
+    window.setTitle(APP_NAME)
   })
   mainWindow = window
   window.on('close', (event) => { lifecycle?.onWindowClose(event) })
@@ -816,6 +823,7 @@ function requestAppQuit(): Promise<void> {
 
 async function boot(): Promise<void> {
   if (bootQuitPromise !== undefined) return
+  Menu.setApplicationMenu(null)
   const pluginCenter = registerDesktopBridge()
   const paths = pluginCenter.paths
   assertHostArtifacts(paths)
@@ -825,6 +833,7 @@ async function boot(): Promise<void> {
       env: withPresetRuntimeEnvironment({
         ...process.env,
         DSH_DESKTOP: '1',
+        DSH_CLIENT_TITLE: APP_NAME,
       }, resolveDshHome()),
     }),
     log: chunk => process.stderr.write(chunk),
@@ -848,6 +857,10 @@ async function boot(): Promise<void> {
   pluginRecoveryStartupBlocked = pluginStartup.mode === 'recovery-failed'
   createTray()
   await lifecycle.showWindow()
+  if (pendingProtocolRequest !== undefined) {
+    mainWindow?.webContents.send(DESKTOP_CHANNELS.protocolOpen, pendingProtocolRequest)
+    pendingProtocolRequest = undefined
+  }
   if (app.isPackaged && DEMO_UPDATES_ENABLED && !pluginRecoveryStartupBlocked) {
     setTimeout(() => { void updateController?.check() }, 5_000)
   }
@@ -855,18 +868,41 @@ async function boot(): Promise<void> {
 
 app.setName(APP_NAME)
 app.setAppUserModelId(APP_ID)
+Menu.setApplicationMenu(null)
+app.setAsDefaultProtocolClient(DESKTOP_PROTOCOL)
+
+async function handleProtocolUrl(value: string): Promise<void> {
+  const request = parseDesktopProtocolUrl(value)
+  if (request === undefined) return
+  pendingProtocolRequest = request
+  if (lifecycle === undefined) return
+  await lifecycle.showWindow()
+  mainWindow?.webContents.send(DESKTOP_CHANNELS.protocolOpen, request)
+  pendingProtocolRequest = undefined
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else if (isInstallerQuitRequest(process.argv)) {
   app.quit()
 } else {
+  const initialProtocolUrl = process.argv.find(argument => parseDesktopProtocolUrl(argument) !== undefined)
+  if (initialProtocolUrl !== undefined) pendingProtocolRequest = parseDesktopProtocolUrl(initialProtocolUrl)
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    void handleProtocolUrl(url)
+  })
   app.on('second-instance', (_event, commandLine) => {
     if (isInstallerQuitRequest(commandLine)) {
       void requestAppQuit()
       return
     }
-    void lifecycle?.showWindow()
+    const protocolUrl = commandLine.find(argument => parseDesktopProtocolUrl(argument) !== undefined)
+    if (protocolUrl !== undefined) {
+      void handleProtocolUrl(protocolUrl)
+    } else {
+      void lifecycle?.showWindow()
+    }
   })
   app.on('activate', () => { void lifecycle?.showWindow() })
   app.on('window-all-closed', () => {

@@ -132,13 +132,13 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
           ops: [op],
           ...(revision === undefined ? {} : { expectedRevision: revision }),
         })
-      } catch (_settingsWriteFailure) {
+      } catch (error) {
         await this.recover(generation)
-        return
+        throw error
       }
       if (!response.result.ok) {
         await this.recover(generation)
-        return
+        throw new Error(`settings write failed: ${response.result.error.code}: ${response.result.error.message}`)
       }
       if (this.disposed) return
       if (generation === this.writeGeneration) {

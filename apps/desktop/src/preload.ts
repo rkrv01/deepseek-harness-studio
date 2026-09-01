@@ -39,6 +39,7 @@ import {
   type DesktopBridge,
   type DesktopUpdateState,
 } from './desktop-bridge-contract.ts'
+import type { DesktopProtocolRequest } from './protocol.ts'
 
 const bridge: DesktopBridge = Object.freeze({
   platform: process.platform,
@@ -56,6 +57,13 @@ const bridge: DesktopBridge = Object.freeze({
   developerMode: Object.freeze({
     unlock: (password: string) =>
       ipcRenderer.invoke(DESKTOP_CHANNELS.developerModeUnlock, password) as Promise<boolean>,
+  }),
+  protocol: Object.freeze({
+    onOpen: (listener: (request: DesktopProtocolRequest) => void) => {
+      const receive = (_event: Electron.IpcRendererEvent, request: DesktopProtocolRequest): void => { listener(request) }
+      ipcRenderer.on(DESKTOP_CHANNELS.protocolOpen, receive)
+      return () => { ipcRenderer.off(DESKTOP_CHANNELS.protocolOpen, receive) }
+    },
   }),
   updates: Object.freeze({
     getState: () => ipcRenderer.invoke(DESKTOP_CHANNELS.updatesGet) as Promise<DesktopUpdateState>,

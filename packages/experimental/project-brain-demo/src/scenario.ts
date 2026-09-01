@@ -15,11 +15,12 @@ import {
 import type {
   ProjectBrainMeetingActionItem,
   ProjectBrainMeetingAnalysis,
+  ProjectBrainCopilotDecisionSelection,
   ProjectBrainPlanData,
   ProjectBrainScenarioId,
 } from '@deepseek-ai/dsh-client-ui-project-brain/scenario'
 
-export type ProjectBrainReplyKind = 'launch-plan' | 'launch-receipt' | 'platform-retry' | 'meeting-analysis' | 'meeting-receipt' | 'executive-briefing' | 'briefing-receipt' | 'handoff' | 'note' | 'fallback'
+export type ProjectBrainReplyKind = 'launch-plan' | 'launch-receipt' | 'platform-retry' | 'meeting-analysis' | 'meeting-receipt' | 'executive-briefing' | 'briefing-receipt' | 'copilot-decision-receipt' | 'handoff' | 'note' | 'fallback'
 
 /** Runtime-configured platform origin the deterministic replies derive links from. */
 let platformBase = DEFAULT_PLATFORM_BASE_URL
@@ -54,6 +55,10 @@ export function resolveProjectBrainReply(prompt: string): ProjectBrainReply {
   if (envelope?.scenarioId === 'executive-briefing' && envelope.action === 'confirm') {
     const materials = extractBriefingMaterials(envelope.payload)
     return { kind: 'briefing-receipt', text: executiveBriefingReceipt(materials) }
+  }
+  if (envelope?.scenarioId === 'project-copilot' && envelope.action === 'confirm') {
+    const decision = parseCopilotDecision(envelope.payload)
+    if (decision !== null) return { kind: 'copilot-decision-receipt', scenarioId: 'project-copilot', text: copilotDecisionReceipt(decision) }
   }
   const confirmation = parsePlanPayload(prompt, 'confirm')
   if (confirmation !== null) return { kind: 'launch-receipt', text: launchReceipt(confirmation) }
@@ -98,6 +103,19 @@ function parsePlanPayload(prompt: string, marker: 'revision' | 'confirm'): Proje
     const value = JSON.parse(decodeURIComponent(match[1])) as Partial<ProjectBrainPlanData>
     return value.project !== undefined && Array.isArray(value.stages) && Array.isArray(value.tasks) && Array.isArray(value.risks) && Array.isArray(value.knowledgeFolders) ? value as ProjectBrainPlanData : null
   } catch { return null }
+}
+
+interface CopilotDecision {
+  readonly decisionId: 'decision-1'
+  readonly selection: ProjectBrainCopilotDecisionSelection
+}
+
+function parseCopilotDecision(payload: unknown): CopilotDecision | null {
+  if (typeof payload !== 'object' || payload === null) return null
+  const value = payload as { readonly decisionId?: unknown; readonly selection?: unknown }
+  if (value.decisionId !== 'decision-1') return null
+  if (value.selection !== 'wait-for-confirmation' && value.selection !== 'start-backup-supplier') return null
+  return { decisionId: value.decisionId, selection: value.selection }
 }
 
 function launchPlan(plan: ProjectBrainPlanData, revised: boolean): string {
@@ -177,6 +195,14 @@ function projectCopilotSurface(): string {
   // The leading marker inlines the board above the prose; the wrap-up streams
   // as ordinary reply text beneath it.
   return `<!-- project-brain:surface ${projectBrainSurfacePayload('project-copilot', 'project-copilot-dashboard', PROJECT_BRAIN_COPILOT_DEMO)} -->\n\n${copilotNarrativeText()}`
+}
+
+function copilotDecisionReceipt(decision: CopilotDecision): string {
+  const payload = projectBrainScenarioPayload('project-copilot', 'confirm', decision)
+  if (decision.selection === 'wait-for-confirmation') {
+    return `条件预案已生效：明日 10:00 前继续向原供应商确认最终交期；如仍未取得明确交期，我将启动备选供应商方案，并向你回传评估进展。\n\n<!-- project-brain:copilot-decision-result -->\n<!-- project-brain:scenario ${payload} -->`
+  }
+  return `备选供应商评估已启动：王刚将完成至少两家供应商的资质审核与报价对比；采购延期风险继续按高风险跟踪，并在今日下班前向你回传首轮结果。\n\n<!-- project-brain:copilot-decision-result -->\n<!-- project-brain:scenario ${payload} -->`
 }
 
 function executiveBriefingDocument(): string {

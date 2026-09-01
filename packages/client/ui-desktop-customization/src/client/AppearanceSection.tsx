@@ -104,7 +104,7 @@ function LoadedAppearance({ controller }: AppearanceSectionInjected): ReactNode 
       <div className={css.preview} style={previewStyle} role="img" aria-label="当前背景预览">
         <div className={css.previewChrome}>
           <span />
-          <strong>Starlight Harness</strong>
+          <strong>Starlight AI助手</strong>
         </div>
         <div className={css.previewGlass}>
           <span>背景预览</span>

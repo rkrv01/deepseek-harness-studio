@@ -20,6 +20,7 @@ export interface SettingsValues {
 
 /** Line tone of the connectivity probe output: ok/error carry the green/red accents. */
 type ProbeTone = 'ok' | 'error' | 'neutral'
+type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 interface ProbeLine {
   readonly tone: ProbeTone
@@ -49,6 +50,14 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
   }))
   const [probeLines, setProbeLines] = useState<readonly ProbeLine[]>([])
   const [probing, setProbing] = useState(false)
+  const [saveStates, setSaveStates] = useState<Record<'platformBaseUrl' | 'demoApiBaseUrl', SaveState>>({
+    platformBaseUrl: 'idle',
+    demoApiBaseUrl: 'idle',
+  })
+  const [saveErrors, setSaveErrors] = useState<Record<'platformBaseUrl' | 'demoApiBaseUrl', string | undefined>>({
+    platformBaseUrl: undefined,
+    demoApiBaseUrl: undefined,
+  })
   const appliedBase = scope?.getSnapshot().value?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL
   const appliedApiBase = scope?.getSnapshot().value?.demoApiBaseUrl ?? DEFAULT_DEMO_API_BASE_URL
 
@@ -73,15 +82,29 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
 
   if (!devMode) return null
 
+  const commit = async (field: 'platformBaseUrl' | 'demoApiBaseUrl', value: string): Promise<void> => {
+    const next = value.trim() === ''
+      ? field === 'platformBaseUrl' ? DEFAULT_PLATFORM_BASE_URL : DEFAULT_DEMO_API_BASE_URL
+      : value.trim()
+    setSaveStates(current => ({ ...current, [field]: 'saving' }))
+    setSaveErrors(current => ({ ...current, [field]: undefined }))
+    try {
+      await scope?.set(field, next)
+      setSaveStates(current => ({ ...current, [field]: 'saved' }))
+    } catch (error) {
+      setSaveStates(current => ({ ...current, [field]: 'error' }))
+      setSaveErrors(current => ({ ...current, [field]: error instanceof Error ? error.message : String(error) }))
+    }
+  }
   const commitBase = (): void => {
     const next = base.trim() === '' ? DEFAULT_PLATFORM_BASE_URL : base.trim()
     setBase(next)
-    void scope?.set('platformBaseUrl', next)
+    void commit('platformBaseUrl', next)
   }
   const commitApiBase = (): void => {
     const next = apiBase.trim() === '' ? DEFAULT_DEMO_API_BASE_URL : apiBase.trim()
     setApiBase(next)
-    void scope?.set('demoApiBaseUrl', next)
+    void commit('demoApiBaseUrl', next)
   }
   const commitFixed = (checked: boolean): void => {
     setFixed(checked)
@@ -164,6 +187,9 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
           onKeyDown={(event) => { if (event.key === 'Enter') commitBase() }}
         />
         <em>已应用：{appliedBase}</em>
+        {saveStates.platformBaseUrl === 'saving' && <small>保存中...</small>}
+        {saveStates.platformBaseUrl === 'saved' && <small>已保存</small>}
+        {saveErrors.platformBaseUrl !== undefined && <small className={css.saveError}>保存失败：{saveErrors.platformBaseUrl}</small>}
       </label>
       <label className={css.field}>
         <span>接口地址</span>
@@ -177,6 +203,9 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
           onKeyDown={(event) => { if (event.key === 'Enter') commitApiBase() }}
         />
         <em>已应用：{appliedApiBase}</em>
+        {saveStates.demoApiBaseUrl === 'saving' && <small>保存中...</small>}
+        {saveStates.demoApiBaseUrl === 'saved' && <small>已保存</small>}
+        {saveErrors.demoApiBaseUrl !== undefined && <small className={css.saveError}>保存失败：{saveErrors.demoApiBaseUrl}</small>}
       </label>
       <div className={css.probe}>
         <strong>接口连通性测试</strong>

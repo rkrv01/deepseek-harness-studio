@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ProjectBrainNextAction, ProjectBrainState } from './state.ts'
 import { MEETING_ANALYSIS_MOCK, PROJECT_BRAIN_PLAN } from '../project-data.ts'
-import type { ProjectBrainMeetingActionItem } from '../project-data.ts'
+import type { ProjectBrainCopilotDecision, ProjectBrainCopilotDecisionSelection, ProjectBrainMeetingActionItem } from '../project-data.ts'
 import { parseProjectBrainScenarioPayload, parseProjectBrainSurfacePayload, projectBrainScenario } from '../scenario-registry.ts'
 import css from './ProjectBrainTurnTail.module.css'
 import { ProjectInitializationProgress, ProjectPlatformSyncProgress, ProjectReadyCard } from './ProjectBrainMessageDock.tsx'
@@ -25,10 +25,11 @@ export interface ProjectBrainTurnTailInjected {
   markMeetingPlanReady: () => void
   markMeetingExecuted: () => void
   confirmBriefing: (materials: readonly string[]) => void
+  submitCopilotDecision: (decisionId: string, selection: ProjectBrainCopilotDecisionSelection) => void
 }
 
 /** Render scenario controls only beneath the assistant turn that owns them. */
-export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetails, restorePlan, restoreMeetingPlan, markPlanReady, confirmPlan, retryPlatformData, continueProjectAction, markExecuted, markExecutionFailed, confirmMeetingPlan, markMeetingPlanReady, markMeetingExecuted: markMeetingExecutedCb, confirmBriefing }: PropsRuntime<'conversation.chat.turnTail'> & InjectFace<ProjectBrainTurnTailInjected>) {
+export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetails, restorePlan, restoreMeetingPlan, markPlanReady, confirmPlan, retryPlatformData, continueProjectAction, markExecuted, markExecutionFailed, confirmMeetingPlan, markMeetingPlanReady, markMeetingExecuted: markMeetingExecutedCb, confirmBriefing, submitCopilotDecision }: PropsRuntime<'conversation.chat.turnTail'> & InjectFace<ProjectBrainTurnTailInjected>) {
   const state = useProjectBrain(s => s)
   const cardRef = useRef<HTMLDivElement>(null)
   const turnText = turn?.steps.flatMap(step => step.data.get('assistant-step')?.blocks ?? []).filter(block => block.kind === 'text').map(block => block.text).join('') ?? ''
@@ -44,6 +45,10 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
   const briefingReadyTurn = turnText.includes('project-brain:executive-briefing-ready')
   const briefingEnvelope = briefingReadyTurn ? envelope : null
   const briefingMaterialNames = extractBriefingMaterialNames(briefingEnvelope?.payload)
+  const copilotDecision = extractCopilotDecision(surface?.data)
+  const copilotReceipt = turnText.includes('project-brain:copilot-decision-result')
+    ? extractCopilotReceipt(envelope?.payload)
+    : null
   const meetingPayload = envelope?.scenarioId === 'meeting-actions' && Array.isArray(envelope.payload)
     ? envelope.payload as readonly ProjectBrainMeetingActionItem[]
     : MEETING_ANALYSIS_MOCK.actionItems
@@ -88,10 +93,12 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
   ])
 
   if (!enabled()) return null
+  if (copilotReceipt !== null) return <CopilotDecisionReceiptCard selection={copilotReceipt} />
   // Copilot-surface turns inline their board above the prose (assistantSurface
-  // service); the turn tail must not render it a second time. Other surfaces
-  // (my-day trailing marker) keep the turn-tail mount.
-  if (surface !== null && surface.template === 'project-copilot-dashboard') return null
+  // service); this tail contributes only the decision card below the prose.
+  if (surface !== null && surface.template === 'project-copilot-dashboard') {
+    return copilotDecision === null ? null : <CopilotDecisionCard decision={copilotDecision} onSubmit={submitCopilotDecision} />
+  }
   if (surface !== null) return <ProjectBrainScenarioSurface surface={surface} />
   if (briefingReadyTurn) return <ExecutiveBriefingReceiptCard materials={briefingMaterialNames} />
   if (briefingReviewTurn) return <BriefingMaterialPickerCard onConfirm={confirmBriefing} />
@@ -114,6 +121,52 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
   if (state.activeScenario === 'project-launch' && state.phase === 'failed') return <section className={css.failed} aria-live="polite"><strong>平台模拟数据尚未加载</strong><span>项目方案已保留，请检查服务连接后重新加载。</span><button type="button" onClick={retryPlatformData}>重试加载</button></section>
   if (state.activeScenario === 'project-launch' && state.phase === 'completed') return <ProjectReadyCard plan={state.plan} onContinue={continueProjectAction} />
   return null
+}
+
+/** Recover the only allow-listed supplier-risk decision from a copilot surface payload. */
+function extractCopilotDecision(value: unknown): ProjectBrainCopilotDecision | null {
+  if (typeof value !== 'object' || value === null) return null
+  const data = value as { readonly decisions?: unknown; readonly decisionId?: unknown; readonly selection?: unknown }
+  if (!Array.isArray(data.decisions)) return null
+  const decision = data.decisions.find(candidate => typeof candidate === 'object' && candidate !== null && (candidate as { readonly id?: unknown }).id === 'decision-1')
+  if (typeof decision !== 'object' || decision === null) return null
+  const candidate = decision as Partial<ProjectBrainCopilotDecision>
+  if (candidate.id !== 'decision-1' || typeof candidate.title !== 'string' || typeof candidate.context !== 'string' || typeof candidate.advice !== 'string' || !Array.isArray(candidate.options)) return null
+  const options = candidate.options.filter((option): option is ProjectBrainCopilotDecision['options'][number] => typeof option === 'object' && option !== null && typeof (option as { readonly label?: unknown }).label === 'string' && ((option as { readonly selection?: unknown }).selection === 'wait-for-confirmation' || (option as { readonly selection?: unknown }).selection === 'start-backup-supplier'))
+  return options.length === 2 ? { id: candidate.id, title: candidate.title, context: candidate.context, advice: candidate.advice, options } : null
+}
+
+/** Read a result selection from the assistant's private receipt marker. */
+function extractCopilotReceipt(value: unknown): ProjectBrainCopilotDecisionSelection | null {
+  if (typeof value !== 'object' || value === null) return null
+  const data = value as { readonly decisionId?: unknown; readonly selection?: unknown }
+  if (data.decisionId !== 'decision-1') return null
+  if (data.selection !== 'wait-for-confirmation' && data.selection !== 'start-backup-supplier') return null
+  return data.selection
+}
+
+/** Ask for a supplier-risk decision only below the assistant report that introduced it. */
+function CopilotDecisionCard({ decision, onSubmit }: { readonly decision: ProjectBrainCopilotDecision; readonly onSubmit: (decisionId: string, selection: ProjectBrainCopilotDecisionSelection) => void }): JSX.Element {
+  const [pending, setPending] = useState<ProjectBrainCopilotDecisionSelection | null>(null)
+  return <section className={css.copilotDecisionCard} aria-label={decision.title}>
+    <div className={css.copilotDecisionHead}><span>待你决策</span><strong>{decision.title}</strong><p>{decision.advice}</p></div>
+    <div className={css.copilotDecisionActions}>
+      {decision.options.map(option => <button key={option.selection} type="button" className={option.selection === 'start-backup-supplier' ? css.button : css.primary} disabled={pending !== null} onClick={() => { setPending(option.selection); onSubmit(decision.id, option.selection) }}>{pending === option.selection ? '正在提交决策…' : option.label}</button>)}
+    </div>
+  </section>
+}
+
+/** Render a persisted supplier-risk outcome only on the corresponding assistant receipt. */
+function CopilotDecisionReceiptCard({ selection }: { readonly selection: ProjectBrainCopilotDecisionSelection }): JSX.Element {
+  const isConditional = selection === 'wait-for-confirmation'
+  return <section className={css.copilotDecisionReceipt} aria-label={isConditional ? '条件预案已生效' : '备选供应商评估已启动'}>
+    <span className={css.copilotReceiptMark}>✓</span>
+    <div>
+      <strong>{isConditional ? '条件预案已生效' : '备选供应商评估已启动'}</strong>
+      <p>{isConditional ? '监测条件：明日 10:00 前未取得最终交期，将自动启动备选供应商方案。' : '负责人：王刚；首批动作：完成至少两家供应商的资质与报价对比。'}</p>
+      <small>{isConditional ? '下一次检查：明日 10:00' : '后续反馈：今日下班前回传首轮评估结果'}</small>
+    </div>
+  </section>
 }
 
 /** Material-choice card: pick this round's deliverables instead of a blind confirm. */

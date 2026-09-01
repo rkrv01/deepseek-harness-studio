@@ -68,26 +68,31 @@ function organizeMacArtifacts(desktopRoot: string, architecture: MacReleaseArchi
   rmSync(deliveryDirectory, { recursive: true, force: true })
   mkdirSync(deliveryDirectory, { recursive: true })
   const scriptPath = resolve(desktopRoot, 'uninstall-starlight-harness.command')
+  const legacyScriptPath = resolve(desktopRoot, 'uninstall-old.command')
   const deliveryScriptPath = resolve(deliveryDirectory, 'uninstall.command')
+  const deliveryLegacyScriptPath = resolve(deliveryDirectory, 'uninstall-old.command')
   copyFileSync(scriptPath, deliveryScriptPath)
+  copyFileSync(legacyScriptPath, deliveryLegacyScriptPath)
   chmodSync(deliveryScriptPath, 0o755)
+  chmodSync(deliveryLegacyScriptPath, 0o755)
   const deliveryFiles: Record<string, Buffer> = {
     'uninstall.command': readFileSync(deliveryScriptPath),
+    'uninstall-old.command': readFileSync(deliveryLegacyScriptPath),
   }
   for (const name of readdirSync(distDirectory)) {
-    if (!name.startsWith('Starlight Harness-')) continue
+    if (!name.startsWith('Starlight AI助手-')) continue
     const suffix = name.endsWith('.dmg.blockmap') ? 'dmg.blockmap'
       : name.endsWith('.zip.blockmap') ? 'zip.blockmap'
         : name.endsWith('.dmg') ? 'dmg'
           : name.endsWith('.zip') ? 'zip' : undefined
     if (suffix === undefined) continue
     const source = resolve(distDirectory, name)
-    const target = resolve(deliveryDirectory, `Starlight-Harness-macOS-${architecture}.${suffix}`)
+    const target = resolve(deliveryDirectory, `Starlight-AI-Assistant-macOS-${architecture}.${suffix}`)
     copyFileSync(source, target)
     rmSync(source, { force: true })
-    if (suffix === 'dmg') deliveryFiles[`Starlight-Harness-macOS-${architecture}.dmg`] = readFileSync(target)
+    if (suffix === 'dmg') deliveryFiles[`Starlight-AI-Assistant-macOS-${architecture}.dmg`] = readFileSync(target)
   }
-  const archivePath = resolve(deliveryDirectory, `Starlight-Harness-macOS-${architecture}-delivery.zip`)
+  const archivePath = resolve(deliveryDirectory, `Starlight-AI-Assistant-macOS-${architecture}-delivery.zip`)
   writeFileSync(archivePath, zipSync(deliveryFiles, { level: 0 }))
   console.log(`macOS delivery archive written to ${archivePath}`)
 }

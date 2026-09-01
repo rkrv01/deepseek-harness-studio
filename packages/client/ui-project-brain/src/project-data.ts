@@ -85,11 +85,20 @@ export interface ProjectBrainCopilotTrackingItem {
 }
 
 /** One condensed decision surfaced to the owner. */
+export type ProjectBrainCopilotDecisionSelection = 'wait-for-confirmation' | 'start-backup-supplier'
+
+/** One controlled action the owner can take for a copilot decision. */
+export interface ProjectBrainCopilotDecisionOption {
+  readonly selection: ProjectBrainCopilotDecisionSelection
+  readonly label: string
+}
+
 export interface ProjectBrainCopilotDecision {
   readonly id: string
   readonly title: string
   readonly context: string
   readonly advice: string
+  readonly options: readonly ProjectBrainCopilotDecisionOption[]
 }
 
 /** Conversation-style wrap-up shown after the dashboard. */
@@ -238,7 +247,16 @@ export const PROJECT_BRAIN_COPILOT_DEMO: ProjectBrainCopilotData = {
   ],
   findingsNote: '采购风险等级由中风险上升为高风险。',
   decisions: [
-    { id: 'decision-1', title: '设备采购是否升级处理？', context: '供应商仍未确认最终交期，若继续延期可能影响设备安装节点。', advice: '若明日仍无法确认交期，启动备选供应商。' },
+    {
+      id: 'decision-1',
+      title: '设备采购是否升级处理？',
+      context: '供应商仍未确认最终交期，若继续延期可能影响设备安装节点。',
+      advice: '若明日仍无法确认交期，启动备选供应商。',
+      options: [
+        { selection: 'wait-for-confirmation', label: '明日未确认则启动' },
+        { selection: 'start-backup-supplier', label: '立即启动备选方案' },
+      ],
+    },
   ],
   aiNarrative: {
     focus: ['设备采购延期风险：供应商预计延迟约 2 周，可能影响设备安装节点。', '测试环境搭建延期 5 天：已经开始压缩后续集成测试时间。', '备选供应商方案延期 3 天：如主供应商继续延期，备用方案准备不足。'],

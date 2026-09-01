@@ -75,4 +75,18 @@ describe('PlatformSettingsSection', () => {
     fireEvent.click(view.getByLabelText('固定唯一工作区'))
     expect(scope.set).toHaveBeenCalledWith('fixedWorkspace', false)
   })
+
+  it('keeps the applied value and shows a retryable error when a write fails', async () => {
+    act(() => { enableProjectBrainDevMode() })
+    const scope = stubScope({ demoApiBaseUrl: 'https://old.example.test' })
+    vi.mocked(scope.set).mockRejectedValueOnce(new Error('writer lock is busy'))
+    const view = render(<PlatformSettingsSection scope={scope} />)
+
+    fireEvent.change(view.getByLabelText('接口地址'), { target: { value: 'https://new.example.test' } })
+    await act(async () => { fireEvent.blur(view.getByLabelText('接口地址')) })
+
+    expect(view.getByText('保存失败：writer lock is busy')).toBeTruthy()
+    expect(view.getByText('已应用：https://old.example.test')).toBeTruthy()
+    expect((view.getByLabelText('接口地址') as HTMLInputElement).value).toBe('https://new.example.test')
+  })
 })

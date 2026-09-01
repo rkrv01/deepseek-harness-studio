@@ -30,9 +30,9 @@ export function UpdateSection({ bridge }: UpdateSectionProps): ReactNode {
       <div className={css.updateCard}>
         <div className={css.updateIcon}>SH</div>
         <div className={css.updateIdentity}>
-          <strong>Starlight Harness Desktop</strong>
+          <strong>Starlight AI助手 Desktop</strong>
           <span>Studio Desktop {state?.currentVersion ?? '读取中…'}</span>
-          <span>Harness 核心 {state?.harnessVersion ?? '读取中…'}</span>
+          <span>AI助手核心 {state?.harnessVersion ?? '读取中…'}</span>
         </div>
         <span className={css.statusPill}>暂未开放</span>
       </div>

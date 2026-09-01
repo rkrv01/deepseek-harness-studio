@@ -17,7 +17,7 @@ function context(
     electronPlatformName,
     packager: {
       appInfo: {
-        productFilename: 'Starlight Harness',
+        productFilename: 'Starlight AI助手',
         updaterCacheDirName: 'starlight-harness-updater',
       },
       config: { publish },
@@ -26,7 +26,7 @@ function context(
 }
 
 async function writeRequiredMacRuntime(appOutDir: string): Promise<void> {
-  const modules = join(appOutDir, 'Starlight Harness.app', 'Contents', 'Resources', 'host', 'node_modules')
+  const modules = join(appOutDir, 'Starlight AI助手.app', 'Contents', 'Resources', 'host', 'node_modules')
   const required = [
     ['@deepseek-ai', 'dsh', 'lib', 'bin.js'],
     ['@deepseek-ai', 'dsh-experimental-project-brain-demo', 'lib', 'index.js'],
@@ -57,7 +57,7 @@ describe('packaged desktop runtime verification', () => {
       await expect(afterPack(context(appOutDir, 'darwin', null))).resolves.toBeUndefined()
       await expect(readFile(join(
         appOutDir,
-        'Starlight Harness.app',
+        'Starlight AI助手.app',
         'Contents',
         'Resources',
         'app-update.yml',
@@ -75,7 +75,7 @@ describe('packaged desktop runtime verification', () => {
       await expect(afterPack(context(appOutDir))).resolves.toBeUndefined()
       const updateConfiguration = load(await readFile(join(
         appOutDir,
-        'Starlight Harness.app',
+        'Starlight AI助手.app',
         'Contents',
         'Resources',
         'app-update.yml',
@@ -117,7 +117,7 @@ describe('packaged desktop runtime verification', () => {
       await writeRequiredMacRuntime(appOutDir)
       const sharp = join(
         appOutDir,
-        'Starlight Harness.app',
+        'Starlight AI助手.app',
         'Contents',
         'Resources',
         'host',
@@ -141,7 +141,7 @@ describe('packaged desktop runtime verification', () => {
       await writeRequiredMacRuntime(appOutDir)
       const entry = join(
         appOutDir,
-        'Starlight Harness.app',
+        'Starlight AI助手.app',
         'Contents',
         'Resources',
         'host',
@@ -163,7 +163,7 @@ describe('packaged desktop runtime verification', () => {
   it('rejects a packaged shell whose package manager is absent or not pinned', async () => {
     const appOutDir = await mkdtemp(join(tmpdir(), 'dsh-packaged-runtime-pnpm-'))
     try {
-      const modules = join(appOutDir, 'Starlight Harness.app', 'Contents', 'Resources', 'host', 'node_modules')
+      const modules = join(appOutDir, 'Starlight AI助手.app', 'Contents', 'Resources', 'host', 'node_modules')
       const required = [
         ['@deepseek-ai', 'dsh', 'lib', 'bin.js'],
         ['@deepseek-ai', 'dsh-experimental-project-brain-demo', 'lib', 'index.js'],

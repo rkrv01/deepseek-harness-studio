@@ -1,13 +1,13 @@
-# Starlight Harness Desktop Packaging
+# Starlight AI助手 Desktop Packaging
 
-This guide covers packaging, acceptance, and delivery for the Starlight Harness demo. Development and desktop feature details are in [README.md](README.md).
+This guide covers packaging, acceptance, and delivery for the Starlight AI助手 demo. Development and desktop feature details are in [README.md](README.md).
 
 ## Scope
 
 - macOS: arm64 DMG, unsigned and notarized only when credentials are configured.
 - Windows: x64 NSIS installer; SmartScreen may warn without Authenticode.
 - Linux: no distribution installer in this release.
-- Application name: `Starlight Harness`.
+- Application name: `Starlight AI助手`.
 - Electron identity: `ai.starlight.harness.desktop`.
 - Online updates: disabled for the demo; no update feed or `app-update.yml` is required.
 
@@ -31,7 +31,9 @@ For a quick unpacked application preview:
 pnpm run package:desktop
 ```
 
-To remove Starlight Harness before a first-install test, double-click `apps/desktop/uninstall-starlight-harness.bat`. It stops the app, runs its NSIS uninstaller, then removes remaining Starlight user data, web profile, shortcuts, and uninstall registry records, while leaving DeepSeek Harness paths untouched.
+To remove Starlight AI助手 before a first-install test, double-click `apps/desktop/uninstall-starlight-harness.bat`. It reads the actual install directory from the install registry key, stops the app, runs its NSIS uninstaller, then removes remaining Starlight user data, web profile, shortcuts, and uninstall registry records, while leaving the internal DSH runtime data untouched. For a moved or copied application, pass its actual directory as the first argument, for example `uninstall-starlight-harness.bat "D:\Starlight AI助手"`.
+
+The legacy `Starlight Harness` release is handled by the temporary cleanup helper; future Windows delivery ZIPs contain only the current Starlight AI助手 cleanup script.
 
 For a macOS demo DMG and ZIP:
 
@@ -39,7 +41,9 @@ For a macOS demo DMG and ZIP:
 pnpm run dist:mac:desktop
 ```
 
-macOS delivery also includes `uninstall.command` and `Starlight-Harness-macOS-<architecture>-delivery.zip`. Double-click `uninstall.command`, enter `YES`, and it will quit and remove the Starlight Harness app, preferences, caches, logs, saved state, and the `web` profile. It does not remove DeepSeek Harness. The delivery ZIP contains the DMG and this cleanup script for first-install testing.
+macOS delivery also includes `uninstall.command` and `Starlight-AI-Assistant-macOS-<architecture>-delivery.zip`. Double-click `uninstall.command`, enter `YES`, and it will quit and remove the Starlight AI助手 app, preferences, caches, logs, saved state, and the `web` profile. The delivery ZIP contains the DMG and this cleanup script for first-install testing.
+
+If a legacy `Starlight Harness.app` remains, run `uninstall-old.command` from the delivery directory and enter `YES`. It removes only the legacy application and legacy-name data, leaving the current Starlight AI助手 untouched.
 
 Windows and macOS taskbar/tray icons use `resources/trayTemplate.png`, matching the Starlight logo used by the installers.
 
@@ -49,10 +53,10 @@ For a Windows x64 NSIS installer and bundled uninstall script:
 pnpm run dist:win:desktop
 ```
 
-Each Windows release removes previous Windows delivery files, then creates `apps/desktop/dist/windows/` containing the simple-named installer `Starlight-Harness-Windows-<version>.exe`, the uninstaller helper `uninstall.bat`, and `Starlight-Harness-Windows-<version>.zip`. The ZIP contains the installer and uninstaller helper together. macOS releases similarly place the DMG, app ZIP, blockmaps, `uninstall.command`, and `Starlight-Harness-macOS-<architecture>-delivery.zip` under `apps/desktop/dist/mac/` with simple names. Calculate the Windows delivery checksum with:
+Each Windows release removes previous Windows delivery files, then creates `apps/desktop/dist/windows/` containing the simple-named installer `Starlight-AI-Assistant-Windows-<version>.exe`, the uninstaller helper `uninstall.bat`, and `Starlight-AI-Assistant-Windows-<version>.zip`. The ZIP contains the installer and uninstaller helper together. macOS releases similarly place the DMG, app ZIP, blockmaps, `uninstall.command`, and `Starlight-AI-Assistant-macOS-<architecture>-delivery.zip` under `apps/desktop/dist/mac/` with simple names. Calculate the Windows delivery checksum with:
 
 ```sh
-shasum -a 256 apps/desktop/dist/windows/Starlight-Harness-Windows-*.zip
+shasum -a 256 apps/desktop/dist/windows/Starlight-AI-Assistant-Windows-*.zip
 ```
 
 ## Acceptance
@@ -75,8 +79,14 @@ On macOS, verify the title, icon, tray behavior, quit and reopen flow. On Window
 ## Delivery limitations
 
 State the platform, version, file size, and SHA-256 with each artifact. Explain that demo builds may be unsigned, macOS builds may be notarized only with credentials, Windows builds may trigger SmartScreen, and online updates are unavailable. If installation fails with `Cannot find module .../src/project-data.ts`, rebuild the published `lib/scenario.js` entry and regenerate both the Project Brain Demo and installer; do not copy workspace `src/` files into the package.
-# Starlight Harness Desktop Demo Configuration
+# Starlight AI助手 Desktop Demo Configuration
 
 The demo build suppresses the internal-testing notice, uses the official original appearance, and enables the single fixed workspace by default. Plugin Center, Plugin Discovery, Preset Square, and Application Center are hidden by default and can be enabled independently from Developer Configuration after entering the password `Starlight2026@321` through the application menu.
 
 Developer Mode is session-only and does not open DevTools. Reinstall the newly generated macOS or Windows artifact after packaging changes.
+
+## Web launch and settings recovery
+
+The installed Desktop registers `starlight-ai://`. A web application can request the current app with `starlight-ai://open?source=business-xmzn`; macOS handles the native `open-url` event and Windows handles the first or second-instance command line. The Desktop accepts only the `open` action and the allowlisted source, then focuses the existing window. See [WEB-INTEGRATION.zh.md](WEB-INTEGRATION.zh.md) for the web-side launch helper and acceptance matrix.
+
+Settings writes recover orphaned `settings.yaml.lock` files when their recorded process is gone and remove interrupted atomic-write temp siblings. A live lock is retained. Users should not delete `settings.yaml`; if a save still fails, the developer settings page now displays the write error for diagnosis.

@@ -33,6 +33,12 @@ describe('project brain revision message projection', () => {
     expect(projectAssistantMessageText('今日工作已排好。\n\n<!-- project-brain:surface %7B%22version%22%3A1')).toBe('今日工作已排好。\n\n')
   })
 
+  it('hides the copilot decision receipt markers from the visible assistant reply', () => {
+    const text = '条件预案已生效。\n\n<!-- project-brain:copilot-decision-result -->\n<!-- project-brain:scenario %7B%22version%22%3A1%7D -->'
+
+    expect(projectAssistantMessageText(text)).toBe('条件预案已生效。\n\n\n')
+  })
+
   it('keeps revision details available for an expandable transcript disclosure', () => {
     const text = '请按以下调整重新生成项目方案：调整阶段信息。\n\n<!-- project-brain:revision-summary %5B%22%E6%96%B9%E6%A1%88%E8%AE%BE%E8%AE%A1%E9%98%B6%E6%AE%B5%EF%BC%9A%E8%B4%9F%E8%B4%A3%E4%BA%BA%E8%B0%83%E6%95%B4%E4%B8%BA%E7%8E%8B%E8%8E%89%22%5D -->\n<!-- project-brain:revision %7B%7D -->'
 

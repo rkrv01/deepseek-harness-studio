@@ -33,7 +33,6 @@ export function ProjectBrainScenarioSurface({ surface }: { readonly surface: Pro
 
 /** AI project-manager report dashboard (doc 03): status strip, hero metrics, active tracking, findings, decisions, overview. */
 function ProjectCopilotDashboard({ data }: { readonly data: ProjectBrainCopilotData }): JSX.Element {
-  const [handledDecisions, setHandledDecisions] = useState<ReadonlySet<string>>(() => new Set())
   return <section className={`${css.root} ${css.surfaceInline} ${css.surfacePadded}`} aria-label="项目托管看板">
     <header className={css.surfaceHeader}>
       <span className={css.headerIcon} aria-hidden="true"><IconSparkle16 /></span>
@@ -84,31 +83,12 @@ function ProjectCopilotDashboard({ data }: { readonly data: ProjectBrainCopilotD
       <section className={css.panel} aria-label="需要你处理">
         <div className={css.panelTitle}>
           <h4><IconUserOutline16 />需要你处理</h4>
-          <span>{data.decisions.length - handledDecisions.size} 项待确认</span>
+          <span>{data.decisions.length} 项待决策</span>
         </div>
         <div className={css.decisionList}>
-          {data.decisions.map(item => handledDecisions.has(item.id)
-            ? (
-              <article key={item.id} className={css.decisionDone}>
-                <strong>{item.title}</strong>
-                <p>已采纳建议，我会持续跟进执行结果。</p>
-              </article>
-            )
-            : (
-              <article key={item.id} className={css.decisionItem}>
-                <div><strong>{item.title}</strong><p>{item.context}</p><p className={css.aiAdviceLine}>AI 建议：{item.advice}</p></div>
-                <div className={css.decisionActions}>
-                  <button type="button">查看影响</button>
-                  <button
-                    type="button"
-                    onClick={() => { setHandledDecisions(current => toggleSet(current, item.id)) }}
-                  >采用建议</button>
-                </div>
-              </article>
-            ))}
-          {handledDecisions.size === data.decisions.length && (
-            <p className={css.findingsNote}>当前没有需要你立即处理的事项，其他异常我会继续跟进。</p>
-          )}
+          {data.decisions.map(item => <article key={item.id} className={css.decisionItem}>
+            <div><strong>{item.title}</strong><p>{item.context}</p><p className={css.aiAdviceLine}>AI 建议：{item.advice}</p><p className={css.decisionRoute}>请在下方选择处理方式。</p></div>
+          </article>)}
         </div>
       </section>
     </div>

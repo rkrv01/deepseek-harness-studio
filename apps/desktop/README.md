@@ -1,4 +1,4 @@
-# Starlight Harness · Desktop Demo
+# Starlight AI助手 · Desktop Demo
 
 English | [中文](README.zh.md)
 
@@ -96,7 +96,7 @@ After a signed build, mount the generated DMG and verify the installed applicati
 DMG_PATH="$(find apps/desktop/dist -maxdepth 1 -type f -name '*.dmg' -print -quit)"
 MOUNT_POINT="$(mktemp -d)"
 hdiutil attach "$DMG_PATH" -mountpoint "$MOUNT_POINT" -nobrowse -readonly
-APP_PATH="$MOUNT_POINT/Starlight Harness.app"
+APP_PATH="$MOUNT_POINT/Starlight AI助手.app"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 spctl --assess --type execute --verbose=4 "$APP_PATH"
 xcrun stapler validate "$APP_PATH"

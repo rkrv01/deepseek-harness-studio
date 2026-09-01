@@ -1,4 +1,4 @@
-# Starlight Harness · 桌面 Demo
+# Starlight AI助手 · 桌面 Demo
 
 [English](README.md) | 中文
 

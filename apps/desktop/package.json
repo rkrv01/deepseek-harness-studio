@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-desktop",
-  "description": "Starlight Harness desktop demo application with tray-owned Host lifecycle",
+  "description": "Starlight AI助手 desktop demo application with tray-owned Host lifecycle",
   "version": "0.1.0-rc.16",
   "private": true,
   "type": "module",
@@ -48,7 +48,7 @@
   },
   "build": {
     "appId": "ai.starlight.harness.desktop",
-    "productName": "Starlight Harness",
+    "productName": "Starlight AI助手",
     "afterPack": "./scripts/verify-packaged-runtime.ts",
     "asar": true,
     "compression": "normal",
@@ -84,7 +84,8 @@
     },
     "win": {
       "icon": "build/icon.png",
-      "artifactName": "Starlight-Harness-Windows-${version}.${ext}",
+      "executableName": "starlight-ai",
+      "artifactName": "Starlight-AI-Assistant-Windows-${version}.${ext}",
       "target": [
         "nsis"
       ]
@@ -96,7 +97,7 @@
       "include": "build/installer.nsh",
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "Starlight Harness"
+      "shortcutName": "Starlight AI助手"
     },
     "linux": {
       "category": "Development",

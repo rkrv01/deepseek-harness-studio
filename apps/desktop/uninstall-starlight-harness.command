@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-APP_NAME='Starlight Harness'
+APP_NAME='Starlight AI助手'
 APP_ID='ai.starlight.harness.desktop'
 
 printf '卸载并彻底清理 %s？这会删除该应用的配置、缓存、日志和测试运行档案。\n' "$APP_NAME"
@@ -12,11 +12,11 @@ if [[ "$confirmation" != 'YES' ]]; then
 fi
 
 printf '正在退出应用...\n'
-osascript -e 'tell application "Starlight Harness" to quit' >/dev/null 2>&1 || true
-pkill -f '/Starlight Harness\.app/' >/dev/null 2>&1 || true
+osascript -e 'tell application "Starlight AI助手" to quit' >/dev/null 2>&1 || true
+pkill -f '/Starlight AI助手\.app/' >/dev/null 2>&1 || true
 sleep 1
 
-printf '正在删除应用和 Starlight Harness 数据...\n'
+printf '正在删除应用和 Starlight AI助手 数据...\n'
 rm -rf \
   "/Applications/${APP_NAME}.app" \
   "$HOME/Applications/${APP_NAME}.app" \

@@ -32,6 +32,7 @@ import type {
   PresetSquareListQuery,
   PresetSquareListResult,
 } from '@deepseek-ai/dsh-plugin-center-contracts'
+import type { DesktopProtocolRequest } from './protocol.ts'
 
 /** Update lifecycle exposed to the sandboxed renderer. */
 type DesktopUpdatePhase =
@@ -94,6 +95,9 @@ export interface DesktopBridge {
   readonly developerMode: {
     unlock(password: string): Promise<boolean>
   }
+  readonly protocol: {
+    onOpen(listener: (request: DesktopProtocolRequest) => void): () => void
+  }
   readonly updates: {
     getState(): Promise<DesktopUpdateState>
     check(): Promise<DesktopUpdateState>
@@ -148,6 +152,7 @@ export const DESKTOP_CHANNELS = {
   appearanceSave: 'dsh-desktop:appearance:save',
   appearanceReset: 'dsh-desktop:appearance:reset',
   developerModeUnlock: 'dsh-desktop:developer-mode:unlock',
+  protocolOpen: 'dsh-desktop:protocol:open',
   updatesGet: 'dsh-desktop:updates:get',
   updatesCheck: 'dsh-desktop:updates:check',
   updatesDownload: 'dsh-desktop:updates:download',

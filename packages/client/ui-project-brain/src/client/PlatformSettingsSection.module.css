@@ -48,6 +48,15 @@
   font-style: normal;
 }
 
+.field small {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
+.field .saveError {
+  color: var(--dsw-alias-state-error);
+}
+
 .toggle {
   align-items: flex-start;
   display: flex;

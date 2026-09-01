@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { confirmMeetingExecution, createProjectBrainStore, launchMeetingScenario, launchProjectScenario, markMeetingExecuted, markMeetingPlanReady, markProjectExecuted, markProjectExecutionFailed, markProjectPlanReady, meetingRevision, prepareNextProjectAction, projectPlanRevision, projectPlanRevisionDetailsPayload, restoreMeetingPlan, restoreProjectLaunchPlan, retryProjectPlatformData, startProjectExecution, submitMeetingRevision, submitProjectPlanRevision } from './state.ts'
 import type { ProjectBrainNextAction, ProjectBrainState } from './state.ts'
 import { PROJECT_BRAIN_PLAN } from '../project-data.ts'
-import type { ProjectBrainMeetingActionItem } from '../project-data.ts'
+import type { ProjectBrainCopilotDecisionSelection, ProjectBrainMeetingActionItem } from '../project-data.ts'
 import { matchProjectBrainScenario, parseProjectBrainScenarioPayload, parseProjectBrainSurfacePayload, projectBrainScenarioPayload } from '../scenario-registry.ts'
 import { ProjectBrainMessageDock } from './ProjectBrainMessageDock.tsx'
 import type { ProjectBrainMessageDockInjected } from './ProjectBrainMessageDock.tsx'
@@ -202,6 +202,14 @@ export function apply(ctx: ClientContext): void {
         confirmBriefing: (materials: readonly string[]) => {
           void ctx.sessions.binding(sessionId)?.session.prompt([{
             type: 'text', text: `确认生成所选汇报材料（${materials.length} 项）。\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('executive-briefing', 'confirm', { projectId: PROJECT_BRAIN_PLAN.project.id, projectName: PROJECT_BRAIN_PLAN.project.name, progress: PROJECT_BRAIN_PLAN.project.progress, materials })} -->`,
+          }], 'queue')
+        },
+        submitCopilotDecision: (decisionId: string, selection: ProjectBrainCopilotDecisionSelection) => {
+          const visibleChoice = selection === 'wait-for-confirmation'
+            ? '明日若仍未确认最终交期，则启动备选供应商方案。'
+            : '立即启动备选供应商评估。'
+          void ctx.sessions.binding(sessionId)?.session.prompt([{
+            type: 'text', text: `${visibleChoice}\n\n<!-- project-brain:scenario ${projectBrainScenarioPayload('project-copilot', 'confirm', { decisionId, selection })} -->`,
           }], 'queue')
         },
       }

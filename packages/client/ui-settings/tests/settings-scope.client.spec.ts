@@ -220,8 +220,8 @@ describe('SettingsScopeController', () => {
     const { mirror, scope } = derivedScope({ describe: describeCall, mutate })
     const published = trackValues(scope)
     await mirror.load()
-    await scope.set('preference', 'dark')
-    await scope.set('preference', 'system')
+    await expect(scope.set('preference', 'dark')).rejects.toThrow('settings write failed: settings-rejected: conflict')
+    await expect(scope.set('preference', 'system')).rejects.toThrow('offline')
     expect(published.map(section => section?.preference)).toEqual([undefined, 'system', 'light'])
   })
 
@@ -234,11 +234,13 @@ describe('SettingsScopeController', () => {
     const { mirror, scope } = derivedScope({ describe: describeCall, mutate })
     const published = trackValues(scope)
     await mirror.load()
-    await Promise.all([
+    const results = await Promise.allSettled([
       scope.set('preference', 'dark'),
       scope.set('preference', 'system'),
       scope.set('preference', 'light'),
     ])
+    expect(results[0]?.status).toBe('rejected')
+    expect(results[1]?.status).toBe('rejected')
     expect(describeCall).toHaveBeenCalledTimes(1)
     expect(published.map(section => section?.preference)).toEqual([undefined, 'system', 'light'])
   })
@@ -416,7 +418,8 @@ describe('SettingsScopeController', () => {
     const { mirror, scope } = derivedScope({ describe: describeCall, mutate })
     await mirror.load()
 
-    await scope.unset('preference')
+    await expect(scope.unset('preference'))
+      .rejects.toThrow('settings write failed: settings-rejected: conflict')
 
     expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'light' }, revision: 5 })
   })

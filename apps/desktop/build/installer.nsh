@@ -74,7 +74,7 @@
         ${EndIf}
       ${EndIf}
       ${If} $4 == "1"
-        DetailPrint "Removing an incomplete Starlight Harness installation at $2"
+        DetailPrint "Removing an incomplete Starlight AI助手 installation at $2"
         RMDir /r "$2"
         DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "UninstallString"
         DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "QuietUninstallString"

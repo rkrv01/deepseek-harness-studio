@@ -11,26 +11,26 @@ afterEach(() => {
 
 describe('DocumentTitle', () => {
   it('projects a durable title and restores the product title', () => {
-    vi.stubEnv('DSH_CLIENT_TITLE', 'Starlight Harness')
+    vi.stubEnv('DSH_CLIENT_TITLE', 'Starlight AI助手')
     document.title = 'stale title'
     const mounted = render(<DocumentTitle />)
-    expect(document.title).toBe('Starlight Harness')
+    expect(document.title).toBe('Starlight AI助手')
     mounted.rerender(<DocumentTitle title="First title" />)
-    expect(document.title).toBe('First title — Starlight Harness')
+    expect(document.title).toBe('First title — Starlight AI助手')
     mounted.rerender(<DocumentTitle title="Revised title" />)
-    expect(document.title).toBe('Revised title — Starlight Harness')
+    expect(document.title).toBe('Revised title — Starlight AI助手')
     mounted.rerender(<DocumentTitle />)
-    expect(document.title).toBe('Starlight Harness')
+    expect(document.title).toBe('Starlight AI助手')
     mounted.unmount()
-    expect(document.title).toBe('Starlight Harness')
+    expect(document.title).toBe('Starlight AI助手')
   })
 
   it('uses the generic title when the build provides no title', () => {
     vi.stubEnv('DSH_CLIENT_TITLE', '')
     delete process.env.DSH_CLIENT_TITLE
     const mounted = render(<DocumentTitle title="First title" />)
-    expect(document.title).toBe('First title — Starlight')
+    expect(document.title).toBe('First title — Starlight AI助手')
     mounted.unmount()
-    expect(document.title).toBe('Starlight')
+    expect(document.title).toBe('Starlight AI助手')
   })
 })

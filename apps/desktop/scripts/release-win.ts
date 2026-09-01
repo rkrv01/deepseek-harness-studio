@@ -19,7 +19,7 @@ function removePreviousWindowsArtifacts(): void {
   if (!existsSync(distDirectory)) return
   rmSync(join(distDirectory, 'windows'), { recursive: true, force: true })
   for (const name of readdirSync(distDirectory)) {
-    if (!name.startsWith('Starlight-Harness-Windows-')
+    if (!name.startsWith('Starlight-AI-Assistant-Windows-')
       && !name.startsWith('Starlight-Harness-Desktop-Windows-x64-')
       && !name.startsWith('@deepseek-aidsh-desktop-')) continue
     const path = join(distDirectory, name)
@@ -32,20 +32,24 @@ function removePreviousWindowsArtifacts(): void {
 function archiveLatestWindowsInstaller(): void {
   const distDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'dist')
   const scriptSource = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'uninstall-starlight-harness.bat')
+  const powershellScriptSource = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'uninstall-starlight-harness.ps1')
   const deliveryDirectory = join(distDirectory, 'windows')
   mkdirSync(deliveryDirectory, { recursive: true })
   const installer = readdirSync(distDirectory)
-    .find(name => name.startsWith('Starlight-Harness-Windows-') && name.endsWith('.exe'))
+    .find(name => name.startsWith('Starlight-AI-Assistant-Windows-') && name.endsWith('.exe'))
   if (installer === undefined) throw new Error('Windows installer was not produced')
   const installerPath = join(distDirectory, installer)
   const deliveryInstallerPath = join(deliveryDirectory, installer)
   const scriptPath = join(deliveryDirectory, 'uninstall.bat')
+  const powershellScriptPath = join(deliveryDirectory, 'uninstall-starlight-harness.ps1')
   copyFileSync(installerPath, deliveryInstallerPath)
   copyFileSync(scriptSource, scriptPath)
+  copyFileSync(powershellScriptSource, powershellScriptPath)
   const archivePath = join(deliveryDirectory, `${basename(installer, '.exe')}.zip`)
   writeFileSync(archivePath, zipSync({
     [installer]: readFileSync(deliveryInstallerPath),
     'uninstall.bat': readFileSync(scriptPath),
+    'uninstall-starlight-harness.ps1': readFileSync(powershellScriptPath),
   }, { level: 0 }))
   unlinkSync(installerPath)
   const blockmapPath = `${installerPath}.blockmap`

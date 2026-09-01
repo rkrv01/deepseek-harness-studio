@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-const DEFAULT_CLIENT_TITLE = 'Starlight'
+const DEFAULT_CLIENT_TITLE = 'Starlight AI助手'
 
 /** Props for the browser title projection. */
 export interface DocumentTitleProps {
