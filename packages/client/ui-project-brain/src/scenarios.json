@@ -5,83 +5,163 @@
       "id": "project-launch",
       "priority": 10,
       "title": "一句话启动一个项目",
+      "titleEn": "Start a project in one sentence",
       "suggestion": "帮我启动智慧园区建设项目",
+      "suggestionEn": "Help me launch the smart park construction project",
       "triggers": [
         { "all": ["项目"], "any": ["启动", "创建", "新建", "初始化"] }
       ],
+      "triggersEn": [
+        { "all": ["project"], "any": ["start", "launch", "create", "initiate", "initialize"] }
+      ],
       "thinking": "正在识别项目目标与建设范围，梳理阶段、关键路径和初始风险…",
+      "thinkingEn": "Identifying project goals and scope, mapping stages, the critical path, and initial risks…",
       "presentation": { "mode": "document", "template": "project-launch" },
       "stream": { "introDelayMs": 1200, "chunkChars": 112, "intervalMs": 350 },
       "review": {
         "title": "方案已就绪",
+        "titleEn": "Plan ready",
         "summary": "确认后将按当前方案完成项目初始化",
+        "summaryEn": "Confirm to initialize the project with this plan",
         "confirmLabel": "确认方案，开始执行",
-        "editLabel": "编辑项目方案"
+        "confirmLabelEn": "Confirm plan and execute",
+        "editLabel": "编辑项目方案",
+        "editLabelEn": "Edit project plan"
       },
       "execution": {
         "title": "正在初始化项目",
-        "steps": ["创建项目管理空间", "初始化阶段与项目计划", "建立任务、责任关系与风险台账", "配置项目知识空间与协同规则"]
+        "titleEn": "Initializing the project",
+        "steps": ["创建项目管理空间", "初始化阶段与项目计划", "建立任务、责任关系与风险台账", "配置项目知识空间与协同规则"],
+        "stepsEn": ["Create the project workspace", "Initialize stages and the project plan", "Set up tasks, ownership, and the risk ledger", "Configure the project knowledge space and collaboration rules"]
       }
     },
     {
       "id": "meeting-actions",
       "priority": 20,
       "title": "上传会议纪要，自动把事情真正落下去",
+      "titleEn": "Upload meeting minutes and get things done",
       "suggestion": "帮我整理这个项目的会议纪要",
+      "suggestionEn": "Help me organize the meeting minutes for this project",
       "triggers": [
         { "all": ["会议", "纪要"] },
         { "all": ["开完", "会"] },
         { "all": ["整理", "项目会议"] }
       ],
+      "triggersEn": [
+        { "all": ["meeting", "minutes"] },
+        { "all": ["meeting", "summary"] },
+        { "all": ["organize", "project meeting"] }
+      ],
       "thinking": "正在阅读会议纪要，识别关键讨论、决策与行动事项…",
+      "thinkingEn": "Reading the meeting minutes, identifying key discussions, decisions, and action items…",
       "presentation": { "mode": "document", "template": "meeting-analysis" },
       "stream": { "introDelayMs": 900, "chunkChars": 160, "intervalMs": 320 },
       "review": {
         "title": "会议任务拆解",
+        "titleEn": "Meeting task breakdown",
         "summary": "请确认以下事项后开始执行",
+        "summaryEn": "Confirm the items below to start execution",
         "confirmLabel": "确认执行",
-        "editLabel": "编辑任务方案"
+        "confirmLabelEn": "Confirm and execute",
+        "editLabel": "编辑任务方案",
+        "editLabelEn": "Edit task plan"
       },
       "execution": {
         "title": "正在执行会议方案",
-        "steps": ["创建任务并分配负责人", "更新已有任务与风险", "配置提醒与通知"]
+        "titleEn": "Executing the meeting plan",
+        "steps": ["创建任务并分配负责人", "更新已有任务与风险", "配置提醒与通知"],
+        "stepsEn": ["Create tasks and assign owners", "Update existing tasks and risks", "Configure reminders and notifications"]
       }
     },
     {
       "id": "project-copilot",
       "priority": 10,
       "title": "智慧园区建设项目现状怎么样",
+      "titleEn": "How is the smart park project doing?",
       "suggestion": "智慧园区建设项目现状怎么样？",
+      "suggestionEn": "How is the smart park construction project doing?",
       "triggers": [{ "all": ["项目"], "any": ["现状怎么样", "什么情况", "进展如何", "有没有问题", "需要我关注"] }],
+      "triggersEn": [{ "all": ["project"], "any": ["status", "how is", "progress", "any issues", "need my attention"] }],
       "thinking": "正在汇总托管期间的检查结果、已执行的跟进动作和待决策事项…",
+      "thinkingEn": "Summarizing check results, executed follow-ups, and items awaiting your decision…",
       "presentation": { "mode": "surface", "template": "project-copilot-dashboard" },
       "stream": { "introDelayMs": 800, "chunkChars": 112, "intervalMs": 350 },
-      "review": { "title": "现状汇报已就绪", "summary": "确认后将持续监测项目变化", "confirmLabel": "开始托管", "editLabel": "调整托管规则" },
-      "execution": { "title": "正在启用项目托管", "steps": ["建立进度监测", "配置风险阈值", "设置协调提醒"] }
+      "review": {
+        "title": "现状汇报已就绪",
+        "titleEn": "Status report ready",
+        "summary": "确认后将持续监测项目变化",
+        "summaryEn": "Confirm to keep monitoring project changes",
+        "confirmLabel": "开始托管",
+        "confirmLabelEn": "Start caretaking",
+        "editLabel": "调整托管规则",
+        "editLabelEn": "Adjust caretaking rules"
+      },
+      "execution": {
+        "title": "正在启用项目托管",
+        "titleEn": "Enabling project caretaking",
+        "steps": ["建立进度监测", "配置风险阈值", "设置协调提醒"],
+        "stepsEn": ["Set up progress monitoring", "Configure risk thresholds", "Set coordination reminders"]
+      }
     },
     {
       "id": "my-day",
       "priority": 20,
       "title": "我今天到底该干什么",
+      "titleEn": "What should I actually do today?",
       "suggestion": "看看我今天该做什么",
+      "suggestionEn": "See what I should do today",
       "triggers": [{ "any": ["今天该做什么", "今天到底该干什么", "今日事项"] }],
+      "triggersEn": [{ "any": ["what should i do today", "today's tasks", "my tasks today", "today's agenda"] }],
       "thinking": "正在结合你的角色、截止时间、任务依赖和项目风险安排今日工作…",
+      "thinkingEn": "Planning today's work around your role, deadlines, task dependencies, and project risks…",
       "presentation": { "mode": "surface", "template": "my-day-workbench" },
       "stream": { "introDelayMs": 800, "chunkChars": 112, "intervalMs": 350 },
-      "review": { "title": "今日工作已排好", "summary": "按优先级从上到下推进", "confirmLabel": "开始今日工作", "editLabel": "调整优先级" },
-      "execution": { "title": "今日工作进行中", "steps": ["处理紧急阻塞", "完成今日任务", "回传进度与成果"] }
+      "review": {
+        "title": "今日工作已排好",
+        "titleEn": "Today's work is planned",
+        "summary": "按优先级从上到下推进",
+        "summaryEn": "Work through items top to bottom by priority",
+        "confirmLabel": "开始今日工作",
+        "confirmLabelEn": "Start today's work",
+        "editLabel": "调整优先级",
+        "editLabelEn": "Adjust priorities"
+      },
+      "execution": {
+        "title": "今日工作进行中",
+        "titleEn": "Today's work in progress",
+        "steps": ["处理紧急阻塞", "完成今日任务", "回传进度与成果"],
+        "stepsEn": ["Resolve urgent blockers", "Complete today's tasks", "Report progress and results"]
+      }
     },
     {
       "id": "executive-briefing",
       "priority": 10,
       "title": "准备集团领导汇报",
+      "titleEn": "Prepare a briefing for group leadership",
       "suggestion": "下周要给集团领导汇报，帮我准备好",
+      "suggestionEn": "I need to brief group leadership next week — help me prepare",
       "triggers": [{ "all": ["汇报"], "any": ["领导", "集团"] }],
+      "triggersEn": [{ "all": ["briefing"], "any": ["leadership", "executive", "group"] }],
       "thinking": "正在汇总项目进展、成果、关键风险和待决策事项…",
+      "thinkingEn": "Compiling project progress, results, key risks, and items awaiting decisions…",
       "presentation": { "mode": "document", "template": "executive-briefing" },
       "stream": { "introDelayMs": 1000, "chunkChars": 96, "intervalMs": 420 },
-      "review": { "title": "汇报材料已就绪", "summary": "可继续调整口径与详细程度", "confirmLabel": "确认汇报材料", "editLabel": "调整汇报重点" },
-      "execution": { "title": "正在生成汇报包", "steps": ["整理领导摘要", "生成数据图表", "归集待决策事项"] }
+      "review": {
+        "title": "汇报材料已就绪",
+        "titleEn": "Briefing materials ready",
+        "summary": "可继续调整口径与详细程度",
+        "summaryEn": "You can keep refining the framing and level of detail",
+        "confirmLabel": "确认汇报材料",
+        "confirmLabelEn": "Confirm briefing materials",
+        "editLabel": "调整汇报重点",
+        "editLabelEn": "Adjust briefing focus"
+      },
+      "execution": {
+        "title": "正在生成汇报包",
+        "titleEn": "Generating the briefing package",
+        "steps": ["整理领导摘要", "生成数据图表", "归集待决策事项"],
+        "stepsEn": ["Draft the leadership summary", "Generate data charts", "Collect items awaiting decisions"]
+      }
     }
   ]
 }

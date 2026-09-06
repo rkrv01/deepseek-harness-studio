@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
 import { apply, inject } from '../src/client/index.ts'
-import { OfficialBrandMark, OfficialBrandName } from '../src/client/Brand.tsx'
+import { mountBrandLocale, OfficialBrandMark, OfficialBrandName } from '../src/client/Brand.tsx'
 
 afterEach(() => {
   cleanup()
@@ -16,6 +16,11 @@ const HOLES = [
   'sidebar.brand.name',
   'conversation.hero.brand.mark',
 ] as const
+
+/** Minimal locale runtime matching the mounted brand-locale reads. */
+function fakeLocale(active: 'zh' | 'en') {
+  return { getLocale: () => ({ active, revision: 0 }), on: () => () => {} }
+}
 
 async function bench(declare = true) {
   const ctx = new Context()
@@ -30,13 +35,14 @@ async function bench(declare = true) {
 }
 
 describe('official browser-brand plugin', () => {
-  it('declares only the slot service it uses', () => {
-    expect(inject).toEqual(['slots'])
+  it('declares only the slot and locale services it uses', () => {
+    expect(inject).toEqual(['slots', 'locale'])
   })
 
   it('leaves every slot empty outside the official build profile', async () => {
     vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'local')
     const subject = await bench()
+    subject.ctx.provide('locale', fakeLocale('zh'))
     await subject.ctx.plugin({ inject: [...inject], apply }).await()
     for (const hole of HOLES) expect(subject.slots.entries(hole)).toHaveLength(0)
   })
@@ -44,6 +50,7 @@ describe('official browser-brand plugin', () => {
   it('fills declarations before or after apply and removes every occupant on teardown', async () => {
     vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'official')
     const before = await bench()
+    before.ctx.provide('locale', fakeLocale('zh'))
     const fiber = before.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     for (const hole of HOLES) expect(before.slots.entries(hole)).toHaveLength(1)
@@ -58,6 +65,7 @@ describe('official browser-brand plugin', () => {
     for (const hole of HOLES) expect(before.slots.entries(hole)).toHaveLength(0)
 
     const after = await bench(false)
+    after.ctx.provide('locale', fakeLocale('zh'))
     await after.ctx.plugin({ inject: [...inject], apply }).await()
     for (const hole of HOLES) expect(after.slots.entries(hole)).toHaveLength(0)
     after.declareHoles()
@@ -65,11 +73,20 @@ describe('official browser-brand plugin', () => {
     for (const hole of HOLES) expect(after.slots.entries(hole)).toHaveLength(1)
   })
 
-  it('renders the official name independently from both requested mark sizes', () => {
-    const name = render(<OfficialBrandName />)
-    expect(name.getByText('Starlight AI 助手')).toBeTruthy()
-    name.unmount()
+  it('renders the official name in the active locale', () => {
+    const zh = render(<OfficialBrandName />)
+    expect(zh.getByText('Starlight AI 助手')).toBeTruthy()
+    zh.unmount()
 
+    const enCtx = new Context()
+    enCtx.provide('locale', fakeLocale('en'))
+    mountBrandLocale(enCtx as never)
+    const en = render(<OfficialBrandName />)
+    expect(en.getByText('Starlight AI Assistant')).toBeTruthy()
+    en.unmount()
+  })
+
+  it('renders the official mark independently from both requested mark sizes', () => {
     const mark = render(<OfficialBrandMark size={34} className="hero-mark" />)
     expect(mark.container.querySelector('svg')?.getAttribute('width')).toBe('34')
     expect(mark.container.querySelector('svg')?.getAttribute('class')).toBe('hero-mark')

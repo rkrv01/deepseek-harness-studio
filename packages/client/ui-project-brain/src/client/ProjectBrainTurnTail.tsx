@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ProjectBrainNextAction, ProjectBrainState } from './state.ts'
-import { MEETING_ANALYSIS_MOCK, PROJECT_BRAIN_PLAN } from '../project-data.ts'
+import { resolveProjectBrainData } from '../project-data.en.ts'
 import type { ProjectBrainCopilotDecision, ProjectBrainCopilotDecisionSelection, ProjectBrainMeetingActionItem } from '../project-data.ts'
 import { parseProjectBrainScenarioPayload, parseProjectBrainSurfacePayload, projectBrainScenario } from '../scenario-registry.ts'
+import { useProjectBrainLocale } from './use-project-brain-locale.ts'
 import css from './ProjectBrainTurnTail.module.css'
 import { ProjectInitializationProgress, ProjectPlatformSyncProgress, ProjectReadyCard } from './ProjectBrainMessageDock.tsx'
 import { ProjectBrainScenarioSurface } from './ProjectBrainScenarioSurface.tsx'
@@ -30,16 +31,23 @@ export interface ProjectBrainTurnTailInjected {
 
 /** Render scenario controls only beneath the assistant turn that owns them. */
 export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetails, restorePlan, restoreMeetingPlan, markPlanReady, confirmPlan, retryPlatformData, continueProjectAction, markExecuted, markExecutionFailed, confirmMeetingPlan, markMeetingPlanReady, markMeetingExecuted: markMeetingExecutedCb, confirmBriefing, submitCopilotDecision }: PropsRuntime<'conversation.chat.turnTail'> & InjectFace<ProjectBrainTurnTailInjected>) {
+  const locale = useProjectBrainLocale()
   const state = useProjectBrain(s => s)
   const cardRef = useRef<HTMLDivElement>(null)
   const turnText = turn?.steps.flatMap(step => step.data.get('assistant-step')?.blocks ?? []).filter(block => block.kind === 'text').map(block => block.text).join('') ?? ''
   const envelope = parseProjectBrainScenarioPayload<unknown>(turnText)
   const surface = parseProjectBrainSurfacePayload(turnText)
+  const meetingData = useMemo(() => resolveProjectBrainData(locale).meetingAnalysis, [locale])
   const projectPlanTurn = turn === undefined
     ? state.activeScenario === 'project-launch' && state.phase === 'review-ready'
-    : turnText.includes('project-brain:launch-plan') || turnText.includes('项目导入与初始化方案：') || envelope?.scenarioId === 'project-launch' && envelope.action === 'revision'
+    : turnText.includes('project-brain:launch-plan') || turnText.includes(locale === 'en' ? 'Project Import & Initialization Plan:' : '项目导入与初始化方案：') || envelope?.scenarioId === 'project-launch' && envelope.action === 'revision'
   const meetingPlanTurn = turnText.includes('project-brain:meeting-plan') || envelope?.scenarioId === 'meeting-actions' && envelope.action === 'revision'
-  const projectExecutionTurn = /收到，开始按当前方案完成项目初始化|正在同步项目数据到项目智脑平台|正在重新加载项目智脑平台模拟数据|project-brain:platform-(?:ready|failed)/u.test(turnText)
+  // Prefer the ASCII markers so English receipts need no substring guessing; the
+  // locale-specific prose is only a fallback for turns that omit the markers.
+  const projectExecutionTurn = turnText.includes('project-brain:platform-ready') || turnText.includes('project-brain:platform-failed') || turnText.includes('project-brain:retry-platform')
+    || (locale === 'en'
+      ? /Received\. Starting project initialization|Understood, initializing the project|Syncing project data to the Project Brain platform|Reloading the Project Brain platform demo data/i.test(turnText)
+      : /收到，开始按当前方案完成项目初始化|正在同步项目数据到项目智脑平台|正在重新加载项目智脑平台模拟数据/u.test(turnText))
   const meetingExecutionTurn = turnText.includes('project-brain:meeting-executed') || envelope?.scenarioId === 'meeting-actions' && envelope.action === 'confirm'
   const briefingReviewTurn = turnText.includes('project-brain:executive-briefing') || envelope?.scenarioId === 'executive-briefing' && envelope.action === 'confirm'
   const briefingReadyTurn = turnText.includes('project-brain:executive-briefing-ready')
@@ -51,7 +59,7 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
     : null
   const meetingPayload = envelope?.scenarioId === 'meeting-actions' && Array.isArray(envelope.payload)
     ? envelope.payload as readonly ProjectBrainMeetingActionItem[]
-    : MEETING_ANALYSIS_MOCK.actionItems
+    : meetingData.actionItems
 
   useEffect(() => {
     if (enabled() && projectPlanTurn && state.plan === null) restorePlan()
@@ -103,7 +111,7 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
   if (briefingReadyTurn) return <ExecutiveBriefingReceiptCard materials={briefingMaterialNames} />
   if (briefingReviewTurn) return <BriefingMaterialPickerCard onConfirm={confirmBriefing} />
   if (state.activeScenario === 'project-launch' && state.phase === 'review-ready' && projectPlanTurn) {
-    const scenario = projectBrainScenario('project-launch')
+    const scenario = projectBrainScenario('project-launch', locale)
     return (
       <div ref={cardRef} className={css.root}>
         <span className={css.label}>{scenario.review.title}</span>
@@ -118,7 +126,7 @@ export function ProjectBrainTurnTail({ turn, useProjectBrain, enabled, openDetai
   if (!projectExecutionTurn) return null
   if (state.activeScenario === 'project-launch' && state.phase === 'executing') return <ProjectInitializationProgress />
   if (state.activeScenario === 'project-launch' && state.phase === 'syncing') return <ProjectPlatformSyncProgress />
-  if (state.activeScenario === 'project-launch' && state.phase === 'failed') return <section className={css.failed} aria-live="polite"><strong>平台模拟数据尚未加载</strong><span>项目方案已保留，请检查服务连接后重新加载。</span><button type="button" onClick={retryPlatformData}>重试加载</button></section>
+  if (state.activeScenario === 'project-launch' && state.phase === 'failed') return <section className={css.failed} aria-live="polite"><strong>{locale === 'en' ? 'Platform demo data not loaded' : '平台模拟数据尚未加载'}</strong><span>{locale === 'en' ? 'The project plan is preserved. Check the service connection and reload.' : '项目方案已保留，请检查服务连接后重新加载。'}</span><button type="button" onClick={retryPlatformData}>{locale === 'en' ? 'Retry loading' : '重试加载'}</button></section>
   if (state.activeScenario === 'project-launch' && state.phase === 'completed') return <ProjectReadyCard plan={state.plan} onContinue={continueProjectAction} />
   return null
 }
@@ -147,40 +155,45 @@ function extractCopilotReceipt(value: unknown): ProjectBrainCopilotDecisionSelec
 
 /** Ask for a supplier-risk decision only below the assistant report that introduced it. */
 function CopilotDecisionCard({ decision, onSubmit }: { readonly decision: ProjectBrainCopilotDecision; readonly onSubmit: (decisionId: string, selection: ProjectBrainCopilotDecisionSelection) => void }): JSX.Element {
+  const locale = useProjectBrainLocale()
   const [pending, setPending] = useState<ProjectBrainCopilotDecisionSelection | null>(null)
   return <section className={css.copilotDecisionCard} aria-label={decision.title}>
-    <div className={css.copilotDecisionHead}><span>待你决策</span><strong>{decision.title}</strong><p>{decision.advice}</p></div>
+    <div className={css.copilotDecisionHead}><span>{locale === 'en' ? 'Awaiting your decision' : '待你决策'}</span><strong>{decision.title}</strong><p>{decision.advice}</p></div>
     <div className={css.copilotDecisionActions}>
-      {decision.options.map(option => <button key={option.selection} type="button" className={option.selection === 'start-backup-supplier' ? css.button : css.primary} disabled={pending !== null} onClick={() => { setPending(option.selection); onSubmit(decision.id, option.selection) }}>{pending === option.selection ? '正在提交决策…' : option.label}</button>)}
+      {decision.options.map(option => <button key={option.selection} type="button" className={option.selection === 'start-backup-supplier' ? css.button : css.primary} disabled={pending !== null} onClick={() => { setPending(option.selection); onSubmit(decision.id, option.selection) }}>{pending === option.selection ? (locale === 'en' ? 'Submitting decision…' : '正在提交决策…') : option.label}</button>)}
     </div>
   </section>
 }
 
 /** Render a persisted supplier-risk outcome only on the corresponding assistant receipt. */
 function CopilotDecisionReceiptCard({ selection }: { readonly selection: ProjectBrainCopilotDecisionSelection }): JSX.Element {
+  const locale = useProjectBrainLocale()
   const isConditional = selection === 'wait-for-confirmation'
-  return <section className={css.copilotDecisionReceipt} aria-label={isConditional ? '条件预案已生效' : '备选供应商评估已启动'}>
+  return <section className={css.copilotDecisionReceipt} aria-label={isConditional ? (locale === 'en' ? 'Conditional plan activated' : '条件预案已生效') : (locale === 'en' ? 'Backup supplier evaluation started' : '备选供应商评估已启动')}>
     <span className={css.copilotReceiptMark}>✓</span>
     <div>
-      <strong>{isConditional ? '条件预案已生效' : '备选供应商评估已启动'}</strong>
-      <p>{isConditional ? '监测条件：明日 10:00 前未取得最终交期，将自动启动备选供应商方案。' : '负责人：王刚；首批动作：完成至少两家供应商的资质与报价对比。'}</p>
-      <small>{isConditional ? '下一次检查：明日 10:00' : '后续反馈：今日下班前回传首轮评估结果'}</small>
+      <strong>{isConditional ? (locale === 'en' ? 'Conditional plan activated' : '条件预案已生效') : (locale === 'en' ? 'Backup supplier evaluation started' : '备选供应商评估已启动')}</strong>
+      <p>{isConditional
+        ? (locale === 'en' ? 'Monitoring condition: if the final delivery date is not confirmed by 10:00 AM tomorrow, the backup supplier plan will be activated automatically.' : '监测条件：明日 10:00 前未取得最终交期，将自动启动备选供应商方案。')
+        : (locale === 'en' ? 'Owner: Wang Gang; first step: complete qualification and quote comparison for at least two suppliers.' : '负责人：王刚；首批动作：完成至少两家供应商的资质与报价对比。')}</p>
+      <small>{isConditional ? (locale === 'en' ? 'Next check: 10:00 AM tomorrow' : '下一次检查：明日 10:00') : (locale === 'en' ? 'Follow-up: first-round evaluation results by end of day' : '后续反馈：今日下班前回传首轮评估结果')}</small>
     </div>
   </section>
 }
 
 /** Material-choice card: pick this round's deliverables instead of a blind confirm. */
 function BriefingMaterialPickerCard({ onConfirm }: { readonly onConfirm: (materials: readonly string[]) => void }): JSX.Element {
+  const locale = useProjectBrainLocale()
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () => new Set(BRIEFING_MATERIALS.filter(material => material.defaultChecked).map(material => material.name)),
   )
-  return <section className={css.briefingCard} aria-label="选择汇报材料">
+  return <section className={css.briefingCard} aria-label={locale === 'en' ? 'Select briefing materials' : '选择汇报材料'}>
     <div className={css.briefingCardHead}>
       <div>
-        <span>汇报材料已就绪</span>
-        <p>选择本次需要生成的材料</p>
+        <span>{locale === 'en' ? 'Briefing materials ready' : '汇报材料已就绪'}</span>
+        <p>{locale === 'en' ? 'Choose the materials to generate this time' : '选择本次需要生成的材料'}</p>
       </div>
-      <button type="button" className={css.primary} disabled={selected.size === 0} onClick={() => { onConfirm([...selected]) }}>生成所选材料</button>
+      <button type="button" className={css.primary} disabled={selected.size === 0} onClick={() => { onConfirm([...selected]) }}>{locale === 'en' ? 'Generate selected materials' : '生成所选材料'}</button>
     </div>
     <div className={css.briefingChoices}>
       {BRIEFING_MATERIALS.map((material) => {
@@ -220,6 +233,7 @@ function toggleNameSet(current: ReadonlySet<string>, name: string): ReadonlySet<
 }
 
 function ExecutiveBriefingReceiptCard({ materials }: { readonly materials: readonly string[] }): JSX.Element {
+  const locale = useProjectBrainLocale()
   const downloadMaterial = (name: string): void => {
     const url = URL.createObjectURL(createBriefingMaterialBlob(name))
     const link = document.createElement('a')
@@ -234,13 +248,13 @@ function ExecutiveBriefingReceiptCard({ materials }: { readonly materials: reado
     for (const name of materials) downloadMaterial(name)
   }
 
-  return <section className={`${css.meetingResult} ${css.briefingReceipt}`} aria-label="所选材料已生成">
+  return <section className={`${css.meetingResult} ${css.briefingReceipt}`} aria-label={locale === 'en' ? 'Selected materials generated' : '所选材料已生成'}>
     <div className={css.meetingResultHead}>
       <span className={css.meetingResultMark}>✓</span>
       <div>
-        <p>所选材料已生成</p>
-        <h3>{PROJECT_BRAIN_PLAN.project.name}</h3>
-        <small>报告文件已就绪，可单个下载或一键全部下载</small>
+        <p>{locale === 'en' ? 'Selected materials generated' : '所选材料已生成'}</p>
+        <h3>{resolveProjectBrainData(locale).plan.project.name}</h3>
+        <small>{locale === 'en' ? 'Report files are ready — download individually or all at once' : '报告文件已就绪，可单个下载或一键全部下载'}</small>
       </div>
     </div>
     <div className={css.briefingFileList}>
@@ -252,15 +266,15 @@ function ExecutiveBriefingReceiptCard({ materials }: { readonly materials: reado
           <a
             href="#download"
             download={material.name}
-            aria-label={`下载 ${material.name}`}
+            aria-label={`${locale === 'en' ? 'Download' : '下载'} ${material.name}`}
             className={css.briefingDownload}
             onClick={(event) => { event.preventDefault(); downloadMaterial(material.name) }}
-          >下载</a>
+          >{locale === 'en' ? 'Download' : '下载'}</a>
         </div>
       ))}
     </div>
     <div className={css.briefingFooter}>
-      <button type="button" className={css.primary} onClick={downloadAll}>一键全部下载</button>
+      <button type="button" className={css.primary} onClick={downloadAll}>{locale === 'en' ? 'Download all' : '一键全部下载'}</button>
     </div>
   </section>
 }
@@ -276,32 +290,33 @@ function MeetingAnalysisCard({
   readonly openDetails: () => void
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const locale = useProjectBrainLocale()
   const stats = useMemo(() => meetingStats(items), [items])
   return (
-    <section className={css.meetingCard} aria-label="会议任务拆解">
+    <section className={css.meetingCard} aria-label={locale === 'en' ? 'Meeting task breakdown' : '会议任务拆解'}>
       <div className={css.meetingCardHeader}>
-        <span className={css.meetingCardTitle}>会议任务拆解</span>
-        <span className={css.meetingCardHint}>请确认以下事项后点击“确认执行”</span>
+        <span className={css.meetingCardTitle}>{locale === 'en' ? 'Meeting task breakdown' : '会议任务拆解'}</span>
+        <span className={css.meetingCardHint}>{locale === 'en' ? 'Confirm the items below, then click "Confirm & Execute"' : '请确认以下事项后点击“确认执行”'}</span>
       </div>
       <div className={css.meetingStats}>
         <div className={css.meetingStatItem}>
           <span className={css.meetingStatNumber}>{stats.newTasks}</span>
-          <span className={css.meetingStatLabel}>新建任务</span>
+          <span className={css.meetingStatLabel}>{locale === 'en' ? 'New tasks' : '新建任务'}</span>
         </div>
         <div className={css.meetingStatDivider} />
         <div className={css.meetingStatItem}>
           <span className={css.meetingStatNumber}>{stats.updateTasks}</span>
-          <span className={css.meetingStatLabel}>更新任务</span>
+          <span className={css.meetingStatLabel}>{locale === 'en' ? 'Updated tasks' : '更新任务'}</span>
         </div>
         <div className={css.meetingStatDivider} />
         <div className={css.meetingStatItem}>
           <span className={css.meetingStatNumber}>{stats.newRisks}</span>
-          <span className={css.meetingStatLabel}>新增风险</span>
+          <span className={css.meetingStatLabel}>{locale === 'en' ? 'New risks' : '新增风险'}</span>
         </div>
       </div>
       <div className={css.meetingItemList}>
         {items.map((item) => {
-          const tag = item.type === 'new-task' ? { label: '新建', cls: css.tagNew } : item.type === 'update-task' ? { label: '更新', cls: css.tagUpdate } : { label: '风险', cls: css.tagRisk }
+          const tag = item.type === 'new-task' ? { label: locale === 'en' ? 'New' : '新建', cls: css.tagNew } : item.type === 'update-task' ? { label: locale === 'en' ? 'Update' : '更新', cls: css.tagUpdate } : { label: locale === 'en' ? 'Risk' : '风险', cls: css.tagRisk }
           const isExpanded = expandedId === item.id
           return (
             <div key={item.id} className={css.meetingItem}>
@@ -312,31 +327,33 @@ function MeetingAnalysisCard({
                 <span className={css.meetingItemDue}>{item.dueDate}</span>
                 <span className={css.meetingItemArrow}>{isExpanded ? '▼' : '▶'}</span>
               </button>
-              {isExpanded && <div className={css.meetingItemBody}><p className={css.meetingItemSource}>会议原文：<em>“{item.source}”</em></p>{item.subtasks.length > 0 && <div className={css.meetingSubtaskList}><span className={css.meetingSubtaskTitle}>子任务</span>{item.subtasks.map(subtask => <div key={subtask.id} className={css.meetingSubtaskRow}><span className={css.meetingSubtaskDot} aria-hidden="true" /><span className={css.meetingSubtaskName}>{subtask.title}</span><span className={css.meetingSubtaskOwner}>{subtask.owner}</span><span className={css.meetingSubtaskDue}>{subtask.dueDate}</span></div>)}</div>}</div>}
+              {isExpanded && <div className={css.meetingItemBody}><p className={css.meetingItemSource}>{locale === 'en' ? 'Meeting excerpt: ' : '会议原文：'}<em>“{item.source}”</em></p>{item.subtasks.length > 0 && <div className={css.meetingSubtaskList}><span className={css.meetingSubtaskTitle}>{locale === 'en' ? 'Subtasks' : '子任务'}</span>{item.subtasks.map(subtask => <div key={subtask.id} className={css.meetingSubtaskRow}><span className={css.meetingSubtaskDot} aria-hidden="true" /><span className={css.meetingSubtaskName}>{subtask.title}</span><span className={css.meetingSubtaskOwner}>{subtask.owner}</span><span className={css.meetingSubtaskDue}>{subtask.dueDate}</span></div>)}</div>}</div>}
             </div>
           )
         })}
       </div>
-      <div className={css.meetingCardActions}><button type="button" className={css.button} onClick={openDetails}>编辑任务方案</button><button type="button" className={css.primary} onClick={onConfirm}>确认执行</button></div>
+      <div className={css.meetingCardActions}><button type="button" className={css.button} onClick={openDetails}>{locale === 'en' ? 'Edit task plan' : '编辑任务方案'}</button><button type="button" className={css.primary} onClick={onConfirm}>{locale === 'en' ? 'Confirm & execute' : '确认执行'}</button></div>
     </section>
   )
 }
 
 /** Meeting execution progress indicator. */
 function MeetingExecutionProgress() {
+  const locale = useProjectBrainLocale()
   const [activeStep, setActiveStep] = useState(0)
-  const steps = projectBrainScenario('meeting-actions').execution.steps
+  const steps = projectBrainScenario('meeting-actions', locale).execution.steps
   useEffect(() => {
     const timer = window.setInterval(() => { setActiveStep(current => Math.min(current + 1, steps.length - 1)) }, 1_500)
     return () => { window.clearInterval(timer) }
   }, [steps.length])
-  return <section className={css.meetingProgress} aria-live="polite" aria-label="正在执行会议方案"><div className={css.meetingProgressHead}><span className={css.loadingDot} /><div><strong>正在执行会议方案</strong><p>正在根据分析结果创建任务、更新风险并配置提醒…</p></div><span className={css.percent}>{Math.min(95, 30 + activeStep * 30)}%</span></div><ol className={css.meetingProgressSteps}>{steps.map((step, index) => <li key={step} data-state={index < activeStep ? 'done' : index === activeStep ? 'active' : 'pending'}><span>{index < activeStep ? '✓' : String(index + 1).padStart(2, '0')}</span><div><strong>{step}</strong><small>{index < activeStep ? '已完成' : index === activeStep ? '正在处理' : '等待执行'}</small></div></li>)}</ol></section>
+  return <section className={css.meetingProgress} aria-live="polite" aria-label={locale === 'en' ? 'Executing the meeting plan' : '正在执行会议方案'}><div className={css.meetingProgressHead}><span className={css.loadingDot} /><div><strong>{locale === 'en' ? 'Executing the meeting plan' : '正在执行会议方案'}</strong><p>{locale === 'en' ? 'Creating tasks from the analysis, updating risks, and configuring reminders…' : '正在根据分析结果创建任务、更新风险并配置提醒…'}</p></div><span className={css.percent}>{Math.min(95, 30 + activeStep * 30)}%</span></div><ol className={css.meetingProgressSteps}>{steps.map((step, index) => <li key={step} data-state={index < activeStep ? 'done' : index === activeStep ? 'active' : 'pending'}><span>{index < activeStep ? '✓' : String(index + 1).padStart(2, '0')}</span><div><strong>{step}</strong><small>{index < activeStep ? (locale === 'en' ? 'Completed' : '已完成') : index === activeStep ? (locale === 'en' ? 'Processing' : '正在处理') : (locale === 'en' ? 'Pending' : '等待执行')}</small></div></li>)}</ol></section>
 }
 
 /** Meeting execution result card. */
 function MeetingResultCard({ items, onContinue }: { readonly items: readonly ProjectBrainMeetingActionItem[]; readonly onContinue?: (actionId: ProjectBrainNextAction['id']) => void }) {
+  const locale = useProjectBrainLocale()
   const stats = meetingStats(items)
-  return <section className={css.meetingResult} aria-label="会议执行完成"><div className={css.meetingResultHead}><span className={css.meetingResultMark}>✓</span><div><p>会议执行完成</p><h3>{MEETING_ANALYSIS_MOCK.meetingTitle}</h3><small>共处理 {items.length} 项行动事项</small></div></div><div className={css.meetingResultStats}><div><strong>{stats.newTasks}</strong><span>新建任务</span></div><div><strong>{stats.updateTasks}</strong><span>更新任务</span></div><div><strong>{stats.newRisks}</strong><span>新增风险</span></div></div><div className={css.meetingResultNote}><p>已创建的任务将在截止日前自动提醒负责人，风险状态已同步至项目风险台账。</p></div><div className={css.meetingResultActions}><button type="button" className={css.button} onClick={() => { onContinue?.('meeting-actions') }}>继续整理会议</button><button type="button" className={css.primary} onClick={() => { onContinue?.('my-day') }}>看看我今天该做什么</button></div></section>
+  return <section className={css.meetingResult} aria-label={locale === 'en' ? 'Meeting execution complete' : '会议执行完成'}><div className={css.meetingResultHead}><span className={css.meetingResultMark}>✓</span><div><p>{locale === 'en' ? 'Meeting execution complete' : '会议执行完成'}</p><h3>{resolveProjectBrainData(locale).meetingAnalysis.meetingTitle}</h3><small>{locale === 'en' ? `Processed ${items.length} action items` : `共处理 ${items.length} 项行动事项`}</small></div></div><div className={css.meetingResultStats}><div><strong>{stats.newTasks}</strong><span>{locale === 'en' ? 'New tasks' : '新建任务'}</span></div><div><strong>{stats.updateTasks}</strong><span>{locale === 'en' ? 'Updated tasks' : '更新任务'}</span></div><div><strong>{stats.newRisks}</strong><span>{locale === 'en' ? 'New risks' : '新增风险'}</span></div></div><div className={css.meetingResultNote}><p>{locale === 'en' ? 'Created tasks will auto-remind their owners before the due date, and risk status has been synced to the project risk ledger.' : '已创建的任务将在截止日前自动提醒负责人，风险状态已同步至项目风险台账。'}</p></div><div className={css.meetingResultActions}><button type="button" className={css.button} onClick={() => { onContinue?.('meeting-actions') }}>{locale === 'en' ? 'Keep organizing meetings' : '继续整理会议'}</button><button type="button" className={css.primary} onClick={() => { onContinue?.('my-day') }}>{locale === 'en' ? 'See what I should do today' : '看看我今天该做什么'}</button></div></section>
 }
 
 function meetingStats(items: readonly ProjectBrainMeetingActionItem[]): {

@@ -19,6 +19,7 @@ import { isProjectBrainPlatformUrl, openProjectBrainPlatform } from './platform-
 import { setPlatformBaseProvider, setDemoApiBaseProvider, DEFAULT_PLATFORM_BASE_URL, DEFAULT_DEMO_API_BASE_URL, PROJECT_BRAIN_DEV_MODE_EVENT, isProjectBrainDevMode } from './platform-config.ts'
 import { PlatformSettingsSection } from './PlatformSettingsSection.tsx'
 import { DeveloperModeGate } from './DeveloperModeGate.tsx'
+import { currentProjectBrainLocale, mountProjectBrainLocale } from './use-project-brain-locale.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 
 /** Settings namespace mirroring the host demo adapter's `projectBrain` namespace. */
@@ -31,7 +32,7 @@ export type {
 } from './state.ts'
 
 /** Services required by the browser plugin. */
-export const inject = ['slots', 'sessions', 'layout', 'conversation', 'settingsScope']
+export const inject = ['slots', 'sessions', 'layout', 'conversation', 'settingsScope', 'locale']
 
 /** Register Project Brain demo surfaces and the deterministic submit handler. */
 export function apply(ctx: ClientContext): void {
@@ -40,10 +41,15 @@ export function apply(ctx: ClientContext): void {
     namespace: PROJECT_BRAIN_SETTINGS_NS,
     decode: (value: unknown) => (
       typeof value === 'object' && value !== null && !Array.isArray(value)
-        ? value as { readonly platformBaseUrl?: string; readonly demoApiBaseUrl?: string }
+        ? value as { readonly platformBaseUrl?: string; readonly demoApiBaseUrl?: string; readonly language?: string }
         : undefined
     ),
   })
+  // Keep the host adapter's reply language in sync with the app locale by
+  // mirroring it into the shared project-brain settings namespace.
+  ctx.effect(() => mountProjectBrainLocale(ctx, (locale) => {
+    void platformScope?.set('language', locale)
+  }), 'ui-project-brain: locale subscription')
   setPlatformBaseProvider(() => platformScope?.getSnapshot().value?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL)
   setDemoApiBaseProvider(() => platformScope?.getSnapshot().value?.demoApiBaseUrl ?? DEFAULT_DEMO_API_BASE_URL)
   const brainFor = (sessionId: SessionId): EngineStoreInstance<ProjectBrainState, {}> => {
@@ -80,9 +86,10 @@ export function apply(ctx: ClientContext): void {
         retryProjectPlatformData(brain)
         return undefined
       }
-      const scenario = matchProjectBrainScenario(request.text)
+      const locale = currentProjectBrainLocale()
+      const scenario = matchProjectBrainScenario(request.text, locale)
       if (scenario?.id === 'meeting-actions') launchMeetingScenario(brain)
-      if (scenario?.id === 'project-launch') launchProjectScenario(brain, { text: request.text, files: request.documentMetas.map(document => ({ ...document })) })
+      if (scenario?.id === 'project-launch') launchProjectScenario(brain, { text: request.text, files: request.documentMetas.map(document => ({ ...document })) }, locale)
       return undefined
     }
     return conversation.registerSubmitHandler(handler)

@@ -2504,6 +2504,10 @@ importers:
         version: 18.3.1(react@18.3.1)
 
   packages/client/ui-brand-official:
+    dependencies:
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../locale
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^

@@ -1,6 +1,8 @@
 /** Shared Project Brain scenario data for the deterministic Host demo. */
 
+export * from './locale.ts'
 export * from './project-data.ts'
+export * from './project-data.en.ts'
 export * from './scenario-registry.ts'
 export {
   DEFAULT_DEMO_API_BASE_URL,

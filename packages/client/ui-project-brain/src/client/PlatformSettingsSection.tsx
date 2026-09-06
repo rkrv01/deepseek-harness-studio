@@ -6,6 +6,7 @@ import {
   PROJECT_BRAIN_DEV_MODE_EVENT,
   isProjectBrainDevMode,
 } from './platform-config.ts'
+import { useProjectBrainLocale } from './use-project-brain-locale.ts'
 import css from './PlatformSettingsSection.module.css'
 
 export interface SettingsValues {
@@ -38,6 +39,7 @@ export interface PlatformSettingsInjected {
  * desktop product-entry visibility.
  */
 export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JSX.Element | null {
+  const locale = useProjectBrainLocale()
   const [devMode, setDevMode] = useState(isProjectBrainDevMode)
   const [base, setBase] = useState<string>(() => scope?.getSnapshot().value?.platformBaseUrl ?? DEFAULT_PLATFORM_BASE_URL)
   const [apiBase, setApiBase] = useState<string>(() => scope?.getSnapshot().value?.demoApiBaseUrl ?? DEFAULT_DEMO_API_BASE_URL)
@@ -129,17 +131,19 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
     }
     const value: unknown = await response.json()
     const record = value as Record<string, unknown>
-    lines.push({ tone: 'ok', text: `GET /api/demo/config → HTTP 200，demoEnabled=${String(record.demoEnabled)}，aiTaskCreated=${String(record.aiTaskCreated)}` })
+    lines.push({ tone: 'ok', text: locale === 'en'
+      ? `GET /api/demo/config → HTTP 200, demoEnabled=${String(record.demoEnabled)}, aiTaskCreated=${String(record.aiTaskCreated)}`
+      : `GET /api/demo/config → HTTP 200，demoEnabled=${String(record.demoEnabled)}，aiTaskCreated=${String(record.aiTaskCreated)}` })
   }
 
   const runProbe = async (): Promise<void> => {
     setProbing(true)
     const base = probeBase()
-    const lines: ProbeLine[] = [{ tone: 'neutral', text: `测试地址：${base}` }]
+    const lines: ProbeLine[] = [{ tone: 'neutral', text: locale === 'en' ? `Test URL: ${base}` : `测试地址：${base}` }]
     try {
       await probeRead(base, lines)
     } catch (error) {
-      lines.push({ tone: 'error', text: `连接失败：${error instanceof Error ? error.message : String(error)}` })
+      lines.push({ tone: 'error', text: locale === 'en' ? `Connection failed: ${error instanceof Error ? error.message : String(error)}` : `连接失败：${error instanceof Error ? error.message : String(error)}` })
     }
     setProbeLines(lines)
     setProbing(false)
@@ -148,76 +152,80 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
   const toggleProbe = async (key: 'master' | 'ai-task'): Promise<void> => {
     setProbing(true)
     const base = probeBase()
-    const lines: ProbeLine[] = [{ tone: 'neutral', text: `测试地址：${base}` }]
+    const lines: ProbeLine[] = [{ tone: 'neutral', text: locale === 'en' ? `Test URL: ${base}` : `测试地址：${base}` }]
     try {
       if (key === 'master') {
         const response = await fetch(`${base}/api/demo/config`, { method: 'POST' })
-        lines.push({ tone: response.ok ? 'ok' : 'error', text: `POST /api/demo/config（切换模拟数据）→ HTTP ${response.status}` })
+        lines.push({ tone: response.ok ? 'ok' : 'error', text: locale === 'en'
+          ? `POST /api/demo/config (toggle demo data) → HTTP ${response.status}`
+          : `POST /api/demo/config（切换模拟数据）→ HTTP ${response.status}` })
       } else {
         const response = await fetch(`${base}/api/demo/toggle`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ key: 'aiTaskCreated' }),
         })
-        lines.push({ tone: response.ok ? 'ok' : 'error', text: `POST /api/demo/toggle（切换AI任务创建）→ HTTP ${response.status}` })
+        lines.push({ tone: response.ok ? 'ok' : 'error', text: locale === 'en'
+          ? `POST /api/demo/toggle (toggle AI task creation) → HTTP ${response.status}`
+          : `POST /api/demo/toggle（切换AI任务创建）→ HTTP ${response.status}` })
       }
       await probeRead(base, lines)
     } catch (error) {
-      lines.push({ tone: 'error', text: `操作失败：${error instanceof Error ? error.message : String(error)}` })
+      lines.push({ tone: 'error', text: locale === 'en' ? `Operation failed: ${error instanceof Error ? error.message : String(error)}` : `操作失败：${error instanceof Error ? error.message : String(error)}` })
     }
     setProbeLines(lines)
     setProbing(false)
   }
 
   return (
-    <section className={css.section} aria-label="开发者配置">
+    <section className={css.section} aria-label={locale === 'en' ? 'Developer Settings' : '开发者配置'}>
       <div className={css.intro}>
-        <strong>开发者配置</strong>
-        <small>临时开发模式：刷新页面后自动关闭，不会残留。智脑业务地址与 demo-status 接口地址分开维护。</small>
+        <strong>{locale === 'en' ? 'Developer Settings' : '开发者配置'}</strong>
+        <small>{locale === 'en' ? 'Temporary dev mode: turns off automatically after a page refresh and leaves no residue. The Project Brain business URL and the demo-status API URL are maintained separately.' : '临时开发模式：刷新页面后自动关闭，不会残留。智脑业务地址与 demo-status 接口地址分开维护。'}</small>
       </div>
       <label className={css.field}>
-        <span>智脑平台地址</span>
+        <span>{locale === 'en' ? 'Project Brain Platform URL' : '智脑平台地址'}</span>
         <input
           type="url"
-          aria-label="智脑平台地址"
+          aria-label={locale === 'en' ? 'Project Brain Platform URL' : '智脑平台地址'}
           value={base}
           placeholder={DEFAULT_PLATFORM_BASE_URL}
           onChange={(event) => { setBase(event.target.value) }}
           onBlur={commitBase}
           onKeyDown={(event) => { if (event.key === 'Enter') commitBase() }}
         />
-        <em>已应用：{appliedBase}</em>
-        {saveStates.platformBaseUrl === 'saving' && <small>保存中...</small>}
-        {saveStates.platformBaseUrl === 'saved' && <small>已保存</small>}
-        {saveErrors.platformBaseUrl !== undefined && <small className={css.saveError}>保存失败：{saveErrors.platformBaseUrl}</small>}
+        <em>{locale === 'en' ? 'Applied: ' : '已应用：'}{appliedBase}</em>
+        {saveStates.platformBaseUrl === 'saving' && <small>{locale === 'en' ? 'Saving...' : '保存中...'}</small>}
+        {saveStates.platformBaseUrl === 'saved' && <small>{locale === 'en' ? 'Saved' : '已保存'}</small>}
+        {saveErrors.platformBaseUrl !== undefined && <small className={css.saveError}>{locale === 'en' ? 'Save failed: ' : '保存失败：'}{saveErrors.platformBaseUrl}</small>}
       </label>
       <label className={css.field}>
-        <span>接口地址</span>
+        <span>{locale === 'en' ? 'API URL' : '接口地址'}</span>
         <input
           type="url"
-          aria-label="接口地址"
+          aria-label={locale === 'en' ? 'API URL' : '接口地址'}
           value={apiBase}
           placeholder={DEFAULT_DEMO_API_BASE_URL}
           onChange={(event) => { setApiBase(event.target.value) }}
           onBlur={commitApiBase}
           onKeyDown={(event) => { if (event.key === 'Enter') commitApiBase() }}
         />
-        <em>已应用：{appliedApiBase}</em>
-        {saveStates.demoApiBaseUrl === 'saving' && <small>保存中...</small>}
-        {saveStates.demoApiBaseUrl === 'saved' && <small>已保存</small>}
-        {saveErrors.demoApiBaseUrl !== undefined && <small className={css.saveError}>保存失败：{saveErrors.demoApiBaseUrl}</small>}
+        <em>{locale === 'en' ? 'Applied: ' : '已应用：'}{appliedApiBase}</em>
+        {saveStates.demoApiBaseUrl === 'saving' && <small>{locale === 'en' ? 'Saving...' : '保存中...'}</small>}
+        {saveStates.demoApiBaseUrl === 'saved' && <small>{locale === 'en' ? 'Saved' : '已保存'}</small>}
+        {saveErrors.demoApiBaseUrl !== undefined && <small className={css.saveError}>{locale === 'en' ? 'Save failed: ' : '保存失败：'}{saveErrors.demoApiBaseUrl}</small>}
       </label>
       <div className={css.probe}>
-        <strong>接口连通性测试</strong>
+        <strong>{locale === 'en' ? 'API connectivity test' : '接口连通性测试'}</strong>
         <div className={css.probeActions}>
           <button type="button" className={css.testButton} disabled={probing} onClick={() => { void runProbe() }}>
-            测试连接
+            {locale === 'en' ? 'Test connection' : '测试连接'}
           </button>
           <button type="button" className={css.testButton} disabled={probing} onClick={() => { void toggleProbe('master') }}>
-            切换模拟数据
+            {locale === 'en' ? 'Toggle demo data' : '切换模拟数据'}
           </button>
           <button type="button" className={css.testButton} disabled={probing} onClick={() => { void toggleProbe('ai-task') }}>
-            切换AI任务创建
+            {locale === 'en' ? 'Toggle AI task creation' : '切换AI任务创建'}
           </button>
         </div>
         {probeLines.length > 0 && (
@@ -233,13 +241,13 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
           </ul>
         )}
       </div>
-      <div aria-label="桌面入口显示设置">
-        <strong>桌面入口显示</strong>
+      <div aria-label={locale === 'en' ? 'Desktop entry visibility settings' : '桌面入口显示设置'}>
+        <strong>{locale === 'en' ? 'Desktop entries' : '桌面入口显示'}</strong>
         {([
-          ['showPluginCenter', '插件中心'],
-          ['showPluginDiscovery', '插件发现'],
-          ['showPresetSquare', 'Preset 广场'],
-          ['showAppCenter', '应用中心'],
+          ['showPluginCenter', locale === 'en' ? 'Plugin Center' : '插件中心'],
+          ['showPluginDiscovery', locale === 'en' ? 'Plugin Discovery' : '插件发现'],
+          ['showPresetSquare', locale === 'en' ? 'Preset Plaza' : 'Preset 广场'],
+          ['showAppCenter', locale === 'en' ? 'App Center' : '应用中心'],
         ] as const).map(([field, label]) => (
           <label className={css.toggle} key={field}>
             <input type="checkbox" checked={entries[field]} onChange={(event) => { commitEntry(field, event.target.checked) }} />
@@ -250,13 +258,15 @@ export function PlatformSettingsSection({ scope }: PlatformSettingsInjected): JS
       <label className={css.toggle}>
         <input
           type="checkbox"
-          aria-label="固定唯一工作区"
+          aria-label={locale === 'en' ? 'Pin the single workspace' : '固定唯一工作区'}
           checked={fixed}
           onChange={(event) => { commitFixed(event.target.checked) }}
         />
         <span>
-          <strong>固定唯一工作区</strong>
-          <small>仅保留「项目智脑」工作区，固定到 {`${'主目录'}/starlight_xmzn`}；隐藏历史工作区并禁止新增/删除/重命名。</small>
+          <strong>{locale === 'en' ? 'Pin the single workspace' : '固定唯一工作区'}</strong>
+          <small>{locale === 'en'
+            ? `Keep only the "Project Brain" workspace, pinned to ${`${'Home'}/starlight_xmzn`}; hide historical workspaces and disallow create/delete/rename.`
+            : `仅保留「项目智脑」工作区，固定到 ${`${'主目录'}/starlight_xmzn`}；隐藏历史工作区并禁止新增/删除/重命名。`}</small>
         </span>
       </label>
     </section>

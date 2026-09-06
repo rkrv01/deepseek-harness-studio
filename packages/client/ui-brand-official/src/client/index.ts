@@ -2,10 +2,10 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { OfficialBrandMark, OfficialBrandName } from './Brand.tsx'
+import { mountBrandLocale, OfficialBrandMark, OfficialBrandName } from './Brand.tsx'
 
-/** Required service: the UI slot registry. */
-export const inject = ['slots']
+/** Required services: the UI slot registry and the locale source. */
+export const inject = ['slots', 'locale']
 
 /**
  * Fill every shipped brand slot as one declaration-aware registration set.
@@ -13,6 +13,7 @@ export const inject = ['slots']
  */
 export function apply(ctx: ClientContext): void {
   if (process.env.DSH_CLIENT_BUILD_PROFILE !== 'official') return
+  ctx.effect(() => mountBrandLocale(ctx), 'ui-brand-official: brand locale')
   ctx.slots.inject('sidebar.brand.mark', () =>
     ctx.slots.inject('sidebar.brand.name', () =>
       ctx.slots.inject('conversation.hero.brand.mark', function* () {

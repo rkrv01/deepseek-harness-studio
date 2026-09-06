@@ -23,6 +23,9 @@ describe('project brain client submit handler', () => {
         list: { getSnapshot: () => ({ byId: { [sessionId]: { agentPreset: 'project-brain' } } }) },
       },
       layout: { openDetails: vi.fn(), closeDetails: vi.fn() },
+      locale: { getLocale: () => ({ active: 'zh' }) },
+      settingsScope: { bind: () => ({ getSnapshot: () => ({ value: undefined }), subscribe: () => () => {} }) },
+      on: () => () => {},
       slots: {
         register: (spec: { inject?: (id: SessionId) => { hooks: { projectBrain: { getSnapshot(): unknown } } } }) => ({
           inject: spec.inject,

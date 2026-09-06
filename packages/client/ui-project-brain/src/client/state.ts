@@ -1,7 +1,9 @@
 import { defineStore, type EngineStoreHandle, type EngineStoreInstance } from '@deepseek-ai/dsh-client-runtime/client'
 import { MEETING_ANALYSIS_MOCK, PROJECT_BRAIN_PLAN } from '../project-data.ts'
+import { resolveProjectBrainData } from '../project-data.en.ts'
 import type { ProjectBrainMeetingActionItem, ProjectBrainPlanData, ProjectBrainProjectData, ProjectBrainRiskData, ProjectBrainStageData, ProjectBrainTaskData } from '../project-data.ts'
 import type { ProjectBrainRunPhase, ProjectBrainScenarioId } from '../scenario-registry.ts'
+import type { ProjectBrainLocale } from '../locale.ts'
 
 export type { ProjectBrainScenarioId } from '../scenario-registry.ts'
 export type ProjectBrainProject = ProjectBrainProjectData
@@ -38,7 +40,10 @@ const NEXT_ACTIONS: readonly ProjectBrainNextAction[] = [
   { id: 'executive-briefing', title: '准备下一次领导汇报', description: '自动汇总项目进展、风险、决策点和汇报材料草稿。', prompt: '下周要给集团领导汇报，帮我准备这个项目的汇报材料。' },
 ]
 
-const INITIAL_PROJECT_PLAN = PROJECT_BRAIN_PLAN
+/** Resolve the canonical demo plan for the requested locale. */
+function initialProjectPlan(locale: ProjectBrainLocale): ProjectBrainPlanData {
+  return locale === 'en' ? resolveProjectBrainData('en').plan : PROJECT_BRAIN_PLAN
+}
 
 /** Create the Project Brain store handle. */
 export function createProjectBrainStore(): EngineStoreHandle<ProjectBrainState, {}> {
@@ -49,12 +54,13 @@ export function createProjectBrainStore(): EngineStoreHandle<ProjectBrainState, 
 export function launchProjectScenario(
   store: EngineStoreInstance<ProjectBrainState, {}>,
   input: { readonly text: string; readonly files: readonly ProjectBrainFileMeta[] },
+  locale: ProjectBrainLocale = 'zh',
 ): ProjectBrainLaunchOutcome {
-  if (!isLaunchPrompt(input.text)) return { kind: 'ignored' }
+  if (!isLaunchPrompt(input.text, locale)) return { kind: 'ignored' }
   store.store.update((draft) => {
     draft.activeScenario = 'project-launch'
     draft.phase = 'analyzing'
-    draft.plan = clonePlan({ ...INITIAL_PROJECT_PLAN, documents: input.files })
+    draft.plan = clonePlan({ ...initialProjectPlan(locale), documents: input.files })
     draft.nextActions = []
     draft.preparedAction = null
   })
@@ -72,7 +78,7 @@ export function restoreProjectLaunchPlan(store: EngineStoreInstance<ProjectBrain
     if (draft.plan !== null) return
     draft.activeScenario = 'project-launch'
     draft.phase = 'review-ready'
-    draft.plan = clonePlan({ ...INITIAL_PROJECT_PLAN, documents: [] })
+    draft.plan = clonePlan({ ...PROJECT_BRAIN_PLAN, documents: [] })
   })
 }
 
@@ -223,7 +229,7 @@ export function launchMeetingScenario(
   store.store.update((draft) => {
     draft.activeScenario = 'meeting-actions'
     draft.phase = 'analyzing'
-    if (draft.plan === null) draft.plan = clonePlan({ ...INITIAL_PROJECT_PLAN, documents: [] })
+    if (draft.plan === null) draft.plan = clonePlan({ ...PROJECT_BRAIN_PLAN, documents: [] })
     draft.meetingItems = cloneMeetingItems(items)
     draft.nextActions = []
     draft.preparedAction = null
@@ -255,7 +261,7 @@ export function restoreMeetingPlan(
   store.store.update((draft) => {
     draft.activeScenario = 'meeting-actions'
     draft.phase = 'review-ready'
-    if (draft.plan === null) draft.plan = clonePlan({ ...INITIAL_PROJECT_PLAN, documents: [] })
+    if (draft.plan === null) draft.plan = clonePlan({ ...PROJECT_BRAIN_PLAN, documents: [] })
     draft.meetingItems = cloneMeetingItems(items)
   })
 }
@@ -300,7 +306,10 @@ function applyMeetingItems(plan: ProjectBrainLaunchPlan, items: readonly Project
   return { ...plan, tasks, risks }
 }
 
-function isLaunchPrompt(text: string): boolean { return /启动|创建|新建|初始化/u.test(text) && /项目/u.test(text) }
+function isLaunchPrompt(text: string, locale: ProjectBrainLocale = 'zh'): boolean {
+  if (locale === 'en') return /launch|start|create|initialize|initiate/i.test(text) && /project/i.test(text)
+  return /启动|创建|新建|初始化/u.test(text) && /项目/u.test(text)
+}
 function summarizeCollection(
   label: string,
   before: readonly { readonly id: string }[],

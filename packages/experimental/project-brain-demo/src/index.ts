@@ -19,8 +19,9 @@ import {
   DEFAULT_DEMO_API_BASE_URL,
   DEFAULT_PLATFORM_BASE_URL,
   projectBrainScenario,
+  resolveProjectBrainLocale,
 } from '@deepseek-ai/dsh-client-ui-project-brain/scenario'
-import type { ProjectBrainScenarioDefinition, ProjectBrainScenarioId } from '@deepseek-ai/dsh-client-ui-project-brain/scenario'
+import type { ProjectBrainLocale, ProjectBrainScenarioDefinition, ProjectBrainScenarioId } from '@deepseek-ai/dsh-client-ui-project-brain/scenario'
 import z from '@deepseek-ai/schemastery'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import '@deepseek-ai/dsh-settings'
@@ -42,6 +43,7 @@ class ProjectBrainDemoAdapter extends LlmAdapter {
   constructor(
     private readonly synchronizeDemoStatus: (enabled: boolean) => Promise<void>,
     private readonly synchronizeDemoItem: (key: string, enabled: boolean) => Promise<void>,
+    private readonly locale: () => ProjectBrainLocale,
   ) { super() }
   override providerInfo(provider: string) {
     return { id: provider, name: '项目智脑演示模型' }
@@ -57,8 +59,9 @@ class ProjectBrainDemoAdapter extends LlmAdapter {
 
   override stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const prompt = latestUserText(options)
-    const reply = resolveProjectBrainReply(prompt)
-    return streamProjectBrainReply(reply, options.signal ?? new AbortController().signal, this.synchronizeDemoStatus, this.synchronizeDemoItem)
+    const locale = this.locale()
+    const reply = resolveProjectBrainReply(prompt, locale)
+    return streamProjectBrainReply(reply, options.signal ?? new AbortController().signal, locale, this.synchronizeDemoStatus, this.synchronizeDemoItem)
   }
 }
 
@@ -81,7 +84,13 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
     showPluginDiscovery: z.boolean().default(false),
     showPresetSquare: z.boolean().default(false),
     showAppCenter: z.boolean().default(false),
+    // Mirrored from the app locale by the browser plugin; drives reply language.
+    language: z.union(['zh', 'en']).required(false),
   }))
+  // The app language (set in 设置 → 通用 → Language) is mirrored into this
+  // namespace's `language` field by the browser plugin, so the scripted
+  // replies and their streamed status lines match the UI locale.
+  const demoLocale = (): ProjectBrainLocale => resolveProjectBrainLocale(platformScope?.get()?.language)
   // Server-side sync of the scripted-reply links; the demo-status getter reads the scope live below.
   const syncPlatformBase = (): void => {
     const configured = platformScope?.get()?.platformBaseUrl
@@ -127,7 +136,7 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
   )
   const synchronizeDemoStatus = (enabled: boolean) => synchronizer.ensure(enabled)
   const synchronizeDemoItem = (key: string, enabled: boolean) => synchronizer.ensureItem(key, enabled)
-  const registration = ctx.llm.registerAdapter([PROVIDER], new ProjectBrainDemoAdapter(synchronizeDemoStatus, synchronizeDemoItem))
+  const registration = ctx.llm.registerAdapter([PROVIDER], new ProjectBrainDemoAdapter(synchronizeDemoStatus, synchronizeDemoItem, demoLocale))
   ctx.effect(() => registration, 'project-brain-demo: adapter')
   const mounted = new WeakSet<Agent>()
   const mount = (agent: Agent): void => {
@@ -145,10 +154,11 @@ export function apply(ctx: Context, config: ProjectBrainDemoConfig = {}): void {
   ctx.on('llm/stream', (options, next) => {
     const latest = latestUserText(options)
     if (latest.startsWith('Generate the session title')) return next()
-    const reply = resolveProjectBrainReply(latest)
+    const locale = demoLocale()
+    const reply = resolveProjectBrainReply(latest, locale)
     return reply.kind === 'fallback'
       ? next()
-      : streamProjectBrainReply(reply, options.signal ?? new AbortController().signal, synchronizeDemoStatus, synchronizeDemoItem)
+      : streamProjectBrainReply(reply, options.signal ?? new AbortController().signal, locale, synchronizeDemoStatus, synchronizeDemoItem)
   })
 }
 
@@ -185,9 +195,9 @@ const REPLY_KIND_SCENARIOS: Partial<Record<ProjectBrainReplyKind, ProjectBrainSc
 }
 
 /** Resolve the scenario whose registered stream pacing applies to one reply. */
-export function replyStreamScenario(reply: Pick<ProjectBrainReply, 'kind' | 'scenarioId'>): ProjectBrainScenarioDefinition {
-  if (reply.scenarioId !== undefined) return projectBrainScenario(reply.scenarioId)
-  return projectBrainScenario(REPLY_KIND_SCENARIOS[reply.kind] ?? 'project-launch')
+export function replyStreamScenario(reply: Pick<ProjectBrainReply, 'kind' | 'scenarioId'>, locale: ProjectBrainLocale = 'zh'): ProjectBrainScenarioDefinition {
+  if (reply.scenarioId !== undefined) return projectBrainScenario(reply.scenarioId, locale)
+  return projectBrainScenario(REPLY_KIND_SCENARIOS[reply.kind] ?? 'project-launch', locale)
 }
 
 interface ScenarioTextOptions { readonly thinking?: string }
@@ -249,55 +259,65 @@ export async function* streamScenarioText(text: string, scenario: ProjectBrainSc
 }
 
 /** Stream a scripted reply with its optional thinking preamble and scenario pacing. */
-async function* streamDeterministicReply(reply: ProjectBrainReply, signal: AbortSignal): AsyncIterable<StreamChunk> {
-  const thinking = THINKING_REPLY_KINDS.has(reply.kind) ? replyStreamScenario(reply).thinking : undefined
-  yield* streamScenarioText(reply.text, replyStreamScenario(reply), signal, thinking === undefined ? {} : { thinking })
+async function* streamDeterministicReply(reply: ProjectBrainReply, signal: AbortSignal, locale: ProjectBrainLocale): AsyncIterable<StreamChunk> {
+  const scenario = replyStreamScenario(reply, locale)
+  const thinking = THINKING_REPLY_KINDS.has(reply.kind) ? scenario.thinking : undefined
+  yield* streamScenarioText(reply.text, scenario, signal, thinking === undefined ? {} : { thinking })
 }
 
 /** Route one scripted reply through its streaming presentation and platform synchronization duties. */
 async function* streamProjectBrainReply(
   reply: ProjectBrainReply,
   signal: AbortSignal,
+  locale: ProjectBrainLocale,
   synchronizeDemoStatus: (enabled: boolean) => Promise<void>,
   synchronizeDemoItem: (key: string, enabled: boolean) => Promise<void>,
 ): AsyncIterable<StreamChunk> {
   if (reply.kind === 'meeting-receipt') {
-    yield* streamMeetingExecutionReceipt(reply.text, signal, synchronizeDemoStatus, synchronizeDemoItem)
+    yield* streamMeetingExecutionReceipt(reply.text, signal, synchronizeDemoStatus, synchronizeDemoItem, locale)
     return
   }
   if (reply.kind === 'launch-receipt') {
-    yield* streamExecutionReceipt(reply.text, signal, synchronizeDemoStatus)
+    yield* streamExecutionReceipt(reply.text, signal, locale, synchronizeDemoStatus)
     return
   }
   if (reply.kind === 'platform-retry') {
-    yield* streamPlatformRetry(signal, synchronizeDemoStatus)
+    yield* streamPlatformRetry(signal, locale, synchronizeDemoStatus)
     return
   }
   if (reply.kind === 'launch-plan') {
     try {
       await synchronizeDemoStatus(false)
     } catch {
-      yield* streamScenarioText('## 平台模拟数据暂不可用\n\n未能在初始化前关闭平台模拟数据，请确认服务连接后重新发起项目导入。\n\n<!-- project-brain:platform-failed -->', replyStreamScenario(reply), signal)
+      const failed = locale === 'en'
+        ? '## Platform demo data unavailable\n\nCould not switch off the platform demo data before initialization. Check the service connection and retry the project import.\n\n<!-- project-brain:platform-failed -->'
+        : '## 平台模拟数据暂不可用\n\n未能在初始化前关闭平台模拟数据，请确认服务连接后重新发起项目导入。\n\n<!-- project-brain:platform-failed -->'
+      yield* streamScenarioText(failed, replyStreamScenario(reply, locale), signal)
       return
     }
   }
-  yield* streamDeterministicReply(reply, signal)
+  yield* streamDeterministicReply(reply, signal, locale)
 }
 
 /** Retry the external-platform synchronization without replaying initialization steps. */
-async function* streamPlatformRetry(signal: AbortSignal, synchronizeDemoStatus: (enabled: boolean) => Promise<void>): AsyncIterable<StreamChunk> {
-  let text = '正在重新加载项目智脑平台模拟数据…'
+async function* streamPlatformRetry(signal: AbortSignal, locale: ProjectBrainLocale, synchronizeDemoStatus: (enabled: boolean) => Promise<void>): AsyncIterable<StreamChunk> {
+  const loading = locale === 'en' ? 'Reloading the Project Brain platform demo data…' : '正在重新加载项目智脑平台模拟数据…'
+  let text = loading
   yield { type: 'block-start', index: 0, blockType: 'text' }
   yield { type: 'text-delta', index: 0, text }
   await delay(1_000, signal)
   if (signal.aborted) return
   try {
     await synchronizeDemoStatus(true)
-    const delta = '\n\n## 平台模拟数据已加载\n\n项目已同步到项目智脑平台，可以继续进入项目查看详情。\n\n<!-- project-brain:platform-ready -->'
+    const delta = locale === 'en'
+      ? '\n\n## Platform demo data loaded\n\nThe project has been synced to the Project Brain platform. You can now open it and view the details.\n\n<!-- project-brain:platform-ready -->'
+      : '\n\n## 平台模拟数据已加载\n\n项目已同步到项目智脑平台，可以继续进入项目查看详情。\n\n<!-- project-brain:platform-ready -->'
     text += delta
     yield { type: 'text-delta', index: 0, text: delta }
   } catch {
-    const delta = '\n\n## 平台模拟数据尚未加载\n\n仍未能开启平台模拟数据，请确认服务连接后再次重试。\n\n<!-- project-brain:platform-failed -->'
+    const delta = locale === 'en'
+      ? '\n\n## Platform demo data not loaded\n\nThe demo data could not be enabled. Check the service connection and retry.\n\n<!-- project-brain:platform-failed -->'
+      : '\n\n## 平台模拟数据尚未加载\n\n仍未能开启平台模拟数据，请确认服务连接后再次重试。\n\n<!-- project-brain:platform-failed -->'
     text += delta
     yield { type: 'text-delta', index: 0, text: delta }
   }
@@ -306,8 +326,10 @@ async function* streamPlatformRetry(signal: AbortSignal, synchronizeDemoStatus: 
 }
 
 /** Stream four business steps, wait for platform synchronization, then expose the final state. */
-async function* streamExecutionReceipt(receipt: string, signal: AbortSignal, synchronizeDemoStatus: (enabled: boolean) => Promise<void>): AsyncIterable<StreamChunk> {
-  const progress = ['收到，开始按当前方案完成项目初始化。', '1. ✓ 创建项目管理空间', '2. ✓ 初始化阶段与项目计划', '3. ✓ 建立任务、责任关系与风险台账', '4. ✓ 配置项目知识空间与协同规则']
+async function* streamExecutionReceipt(receipt: string, signal: AbortSignal, locale: ProjectBrainLocale, synchronizeDemoStatus: (enabled: boolean) => Promise<void>): AsyncIterable<StreamChunk> {
+  const progress = locale === 'en'
+    ? ['Understood, initializing the project with the current plan.', '1. ✓ Create the project workspace', '2. ✓ Initialize stages and the project plan', '3. ✓ Set up tasks, ownership, and the risk ledger', '4. ✓ Configure the knowledge space and collaboration rules']
+    : ['收到，开始按当前方案完成项目初始化。', '1. ✓ 创建项目管理空间', '2. ✓ 初始化阶段与项目计划', '3. ✓ 建立任务、责任关系与风险台账', '4. ✓ 配置项目知识空间与协同规则']
   let text = ''
   yield { type: 'block-start', index: 0, blockType: 'text' }
   for (const item of progress) {
@@ -317,19 +339,28 @@ async function* streamExecutionReceipt(receipt: string, signal: AbortSignal, syn
     if (signal.aborted) return
     yield { type: 'text-delta', index: 0, text: delta }
   }
-  const syncing = '\n\n> 正在同步项目数据到项目智脑平台，请稍候…'
+  const syncing = locale === 'en'
+    ? '\n\n> Syncing project data to the Project Brain platform, please wait…'
+    : '\n\n> 正在同步项目数据到项目智脑平台，请稍候…'
   text += syncing
   yield { type: 'text-delta', index: 0, text: syncing }
   await delay(PROJECT_EXECUTION_SYNC_DELAY_MS, signal)
   if (signal.aborted) return
   try {
     await synchronizeDemoStatus(true)
-    const ready = receipt.slice(receipt.indexOf('## 项目已就绪'))
+    const readyMarker = locale === 'en' ? '## Project Ready' : '## 项目已就绪'
+    const ready = receipt.includes(readyMarker)
+      ? receipt.slice(receipt.indexOf(readyMarker))
+      : locale === 'en'
+        ? `## Project Ready\n\n**${receipt}**`
+        : `## 项目已就绪\n\n**${receipt}**`
     const delta = `\n\n${ready}\n\n<!-- project-brain:platform-ready -->`
     text += delta
     yield { type: 'text-delta', index: 0, text: delta }
   } catch {
-    const delta = '\n\n## 平台模拟数据尚未加载\n\n项目方案已保留，但平台模拟数据未能开启。请检查服务连接后重试加载。\n\n<!-- project-brain:platform-failed -->'
+    const delta = locale === 'en'
+      ? '\n\n## Platform demo data not loaded\n\nThe project plan is preserved, but the platform demo data could not be enabled. Check the service connection and retry.\n\n<!-- project-brain:platform-failed -->'
+      : '\n\n## 平台模拟数据尚未加载\n\n项目方案已保留，但平台模拟数据未能开启。请检查服务连接后重试加载。\n\n<!-- project-brain:platform-failed -->'
     text += delta
     yield { type: 'text-delta', index: 0, text: delta }
   }
@@ -348,8 +379,9 @@ export async function* streamMeetingExecutionReceipt(
   signal: AbortSignal,
   synchronizeDemoStatus: (enabled: boolean) => Promise<void>,
   synchronizeDemoItem: (key: string, enabled: boolean) => Promise<void>,
+  locale: ProjectBrainLocale = 'zh',
 ): AsyncIterable<StreamChunk> {
-  const scenario = replyStreamScenario({ kind: 'meeting-receipt' })
+  const scenario = replyStreamScenario({ kind: 'meeting-receipt' }, locale)
   const { visible, hidden } = splitTrailingPrivateMarkers(receipt)
   let text = visible
   yield { type: 'block-start', index: 0, blockType: 'text' }
@@ -358,7 +390,9 @@ export async function* streamMeetingExecutionReceipt(
     if (signal.aborted) return
     yield { type: 'text-delta', index: 0, text: text.slice(offset, offset + scenario.stream.chunkChars) }
   }
-  const syncing = '\n\n> 正在同步会议任务数据到项目智脑平台，请稍候…'
+  const syncing = locale === 'en'
+    ? '\n\n> Syncing meeting task data to the Project Brain platform, please wait…'
+    : '\n\n> 正在同步会议任务数据到项目智脑平台，请稍候…'
   text += syncing
   yield { type: 'text-delta', index: 0, text: syncing }
   await delay(PROJECT_EXECUTION_SYNC_DELAY_MS, signal)
@@ -366,11 +400,15 @@ export async function* streamMeetingExecutionReceipt(
   try {
     await synchronizeDemoStatus(true)
     await synchronizeDemoItem(DEMO_TASK_CREATION_KEY, true)
-    const ready = '\n\n## 平台模拟数据已加载\n\n会议任务数据已同步到项目智脑平台，任务与风险台账已更新，可以进入项目查看详情。\n\n<!-- project-brain:platform-ready -->'
+    const ready = locale === 'en'
+      ? '\n\n## Platform demo data loaded\n\nMeeting task data has been synced to the Project Brain platform. Tasks and the risk ledger are updated; you can open the project to view details.\n\n<!-- project-brain:platform-ready -->'
+      : '\n\n## 平台模拟数据已加载\n\n会议任务数据已同步到项目智脑平台，任务与风险台账已更新，可以进入项目查看详情。\n\n<!-- project-brain:platform-ready -->'
     text += ready
     yield { type: 'text-delta', index: 0, text: ready }
   } catch {
-    const failed = '\n\n## 平台模拟数据尚未加载\n\n会议任务数据未能同步到项目智脑平台。请确认服务连接后重试。\n\n<!-- project-brain:platform-failed -->'
+    const failed = locale === 'en'
+      ? '\n\n## Platform demo data not loaded\n\nMeeting task data could not be synced to the Project Brain platform. Check the service connection and retry.\n\n<!-- project-brain:platform-failed -->'
+      : '\n\n## 平台模拟数据尚未加载\n\n会议任务数据未能同步到项目智脑平台。请确认服务连接后重试。\n\n<!-- project-brain:platform-failed -->'
     text += failed
     yield { type: 'text-delta', index: 0, text: failed }
   }

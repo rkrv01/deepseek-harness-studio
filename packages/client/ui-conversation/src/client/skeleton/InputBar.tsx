@@ -38,11 +38,6 @@ const INERT_DECORATIONS: DraftDecorations = { token: null, chips: [], textRefs: 
 /** Demo build: the composer is display-only; scenarios start from the quick entries above it. */
 const DEMO_INPUT_READ_ONLY = process.env.DSH_CLIENT_DEMO_MODE === '1'
 
-/** Demo-only placeholder and internal-model label shown in the locked composer. */
-const DEMO_INPUT_PLACEHOLDER = '当前为演示版本，请选择上方场景应用方式使用。'
-const DEMO_INTERNAL_MODEL_LABEL = '企业内部模型'
-const DEMO_LOCKED_TOOL_TOAST = '当前演示版本不可使用'
-
 /** Browser picker filter for demo document formats accepted beside images. */
 const PROJECT_BRAIN_DOCUMENT_ACCEPT = [
   '.txt', '.md', '.markdown', '.doc', '.docx', '.xls', '.xlsx', '.pdf',
@@ -651,7 +646,7 @@ export function InputBar({
       command={command}
       t={t}
       {...DEMO_INPUT_READ_ONLY
-        ? { onLockedClick: () => { showToast(DEMO_LOCKED_TOOL_TOAST) } }
+        ? { onLockedClick: () => { showToast(t('demo.lockedToast')) } }
         : {}}
     />
 
@@ -822,7 +817,7 @@ export function InputBar({
               aria-expanded={workspaceTrigger ? workspacePickerOpen : undefined}
               data-phase={input?.phase ?? 'inert'}
               placeholder={DEMO_INPUT_READ_ONLY
-                ? DEMO_INPUT_PLACEHOLDER
+                ? t('demo.placeholder')
                 : placeholder ?? (parentOffline
                   ? t('placeholder.parentOffline')
                   : disabled
@@ -858,7 +853,7 @@ export function InputBar({
                 disabled={locked || toggleCommandMenu === undefined}
                 onMouseDown={keepFocus}
                 onClick={DEMO_INPUT_READ_ONLY
-                  ? () => { showToast(DEMO_LOCKED_TOOL_TOAST) }
+                  ? () => { showToast(t('demo.lockedToast')) }
                   : onToggleCommandMenu}
               >
                 <IconPlusOutline16 size={14} />
@@ -885,7 +880,7 @@ export function InputBar({
                     disabled={locked || addDocuments === undefined}
                     onMouseDown={keepFocus}
                     onClick={DEMO_INPUT_READ_ONLY
-                      ? () => { showToast(DEMO_LOCKED_TOOL_TOAST) }
+                      ? () => { showToast(t('demo.lockedToast')) }
                       : () => { fileInputRef.current?.click() }}
                   >
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -904,7 +899,7 @@ export function InputBar({
           <div className={css.trailing}>
             {rightItems}
             {DEMO_INPUT_READ_ONLY
-              ? <span className={css.internalModel} title={DEMO_INTERNAL_MODEL_LABEL}>{DEMO_INTERNAL_MODEL_LABEL}</span>
+              ? <span className={css.internalModel} title={t('demo.internalModel')}>{t('demo.internalModel')}</span>
               : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
             <ContextMeter useProjection={useProjection} t={t} />
             {/* The clear control appears only while the composer holds text or
