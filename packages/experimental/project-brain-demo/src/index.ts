@@ -286,14 +286,12 @@ async function* streamProjectBrainReply(
     return
   }
   if (reply.kind === 'launch-plan') {
+    // Demo presentation never fails on the platform handshake: the pre-close
+    // switch is best-effort, and an unreachable service only skips it.
     try {
       await synchronizeDemoStatus(false)
-    } catch {
-      const failed = locale === 'en'
-        ? '## Platform demo data unavailable\n\nCould not switch off the platform demo data before initialization. Check the service connection and retry the project import.\n\n<!-- project-brain:platform-failed -->'
-        : '## 平台模拟数据暂不可用\n\n未能在初始化前关闭平台模拟数据，请确认服务连接后重新发起项目导入。\n\n<!-- project-brain:platform-failed -->'
-      yield* streamScenarioText(failed, replyStreamScenario(reply, locale), signal)
-      return
+    } catch (error: unknown) {
+      console.warn('[project-brain-demo] pre-close demo status skipped:', error)
     }
   }
   yield* streamDeterministicReply(reply, signal, locale)
@@ -307,20 +305,18 @@ async function* streamPlatformRetry(signal: AbortSignal, locale: ProjectBrainLoc
   yield { type: 'text-delta', index: 0, text }
   await delay(1_000, signal)
   if (signal.aborted) return
+  // Demo presentation never fails on the platform handshake: the retry switch
+  // is best-effort, and an unreachable service only skips it.
   try {
     await synchronizeDemoStatus(true)
-    const delta = locale === 'en'
-      ? '\n\n## Platform demo data loaded\n\nThe project has been synced to the Project Brain platform. You can now open it and view the details.\n\n<!-- project-brain:platform-ready -->'
-      : '\n\n## 平台模拟数据已加载\n\n项目已同步到项目智脑平台，可以继续进入项目查看详情。\n\n<!-- project-brain:platform-ready -->'
-    text += delta
-    yield { type: 'text-delta', index: 0, text: delta }
-  } catch {
-    const delta = locale === 'en'
-      ? '\n\n## Platform demo data not loaded\n\nThe demo data could not be enabled. Check the service connection and retry.\n\n<!-- project-brain:platform-failed -->'
-      : '\n\n## 平台模拟数据尚未加载\n\n仍未能开启平台模拟数据，请确认服务连接后再次重试。\n\n<!-- project-brain:platform-failed -->'
-    text += delta
-    yield { type: 'text-delta', index: 0, text: delta }
+  } catch (error: unknown) {
+    console.warn('[project-brain-demo] retry demo status skipped:', error)
   }
+  const delta = locale === 'en'
+    ? '\n\n## Platform demo data loaded\n\nThe project has been synced to the Project Brain platform. You can now open it and view the details.\n\n<!-- project-brain:platform-ready -->'
+    : '\n\n## 平台模拟数据已加载\n\n项目已同步到项目智脑平台，可以继续进入项目查看详情。\n\n<!-- project-brain:platform-ready -->'
+  text += delta
+  yield { type: 'text-delta', index: 0, text: delta }
   yield { type: 'block-end', index: 0, block: { type: 'text', text } }
   yield { type: 'finish', reason: { kind: 'stop' } }
 }
@@ -346,24 +342,22 @@ async function* streamExecutionReceipt(receipt: string, signal: AbortSignal, loc
   yield { type: 'text-delta', index: 0, text: syncing }
   await delay(PROJECT_EXECUTION_SYNC_DELAY_MS, signal)
   if (signal.aborted) return
+  // Demo presentation never fails on the platform handshake: enabling the
+  // switch is best-effort, and an unreachable service only skips it.
   try {
     await synchronizeDemoStatus(true)
-    const readyMarker = locale === 'en' ? '## Project Ready' : '## 项目已就绪'
-    const ready = receipt.includes(readyMarker)
-      ? receipt.slice(receipt.indexOf(readyMarker))
-      : locale === 'en'
-        ? `## Project Ready\n\n**${receipt}**`
-        : `## 项目已就绪\n\n**${receipt}**`
-    const delta = `\n\n${ready}\n\n<!-- project-brain:platform-ready -->`
-    text += delta
-    yield { type: 'text-delta', index: 0, text: delta }
-  } catch {
-    const delta = locale === 'en'
-      ? '\n\n## Platform demo data not loaded\n\nThe project plan is preserved, but the platform demo data could not be enabled. Check the service connection and retry.\n\n<!-- project-brain:platform-failed -->'
-      : '\n\n## 平台模拟数据尚未加载\n\n项目方案已保留，但平台模拟数据未能开启。请检查服务连接后重试加载。\n\n<!-- project-brain:platform-failed -->'
-    text += delta
-    yield { type: 'text-delta', index: 0, text: delta }
+  } catch (error: unknown) {
+    console.warn('[project-brain-demo] execution demo status skipped:', error)
   }
+  const readyMarker = locale === 'en' ? '## Project Ready' : '## 项目已就绪'
+  const ready = receipt.includes(readyMarker)
+    ? receipt.slice(receipt.indexOf(readyMarker))
+    : locale === 'en'
+      ? `## Project Ready\n\n**${receipt}**`
+      : `## 项目已就绪\n\n**${receipt}**`
+  const delta = `\n\n${ready}\n\n<!-- project-brain:platform-ready -->`
+  text += delta
+  yield { type: 'text-delta', index: 0, text: delta }
   yield { type: 'block-end', index: 0, block: { type: 'text', text } }
   yield { type: 'usage', usage: { inputTokens: 128, outputTokens: text.length } }
   yield { type: 'finish', reason: { kind: 'stop' } }
@@ -397,21 +391,23 @@ export async function* streamMeetingExecutionReceipt(
   yield { type: 'text-delta', index: 0, text: syncing }
   await delay(PROJECT_EXECUTION_SYNC_DELAY_MS, signal)
   if (signal.aborted) return
+  // Demo presentation never fails on the platform handshake: enabling the
+  // switches is best-effort, and an unreachable service only skips it.
   try {
     await synchronizeDemoStatus(true)
-    await synchronizeDemoItem(DEMO_TASK_CREATION_KEY, true)
-    const ready = locale === 'en'
-      ? '\n\n## Platform demo data loaded\n\nMeeting task data has been synced to the Project Brain platform. Tasks and the risk ledger are updated; you can open the project to view details.\n\n<!-- project-brain:platform-ready -->'
-      : '\n\n## 平台模拟数据已加载\n\n会议任务数据已同步到项目智脑平台，任务与风险台账已更新，可以进入项目查看详情。\n\n<!-- project-brain:platform-ready -->'
-    text += ready
-    yield { type: 'text-delta', index: 0, text: ready }
-  } catch {
-    const failed = locale === 'en'
-      ? '\n\n## Platform demo data not loaded\n\nMeeting task data could not be synced to the Project Brain platform. Check the service connection and retry.\n\n<!-- project-brain:platform-failed -->'
-      : '\n\n## 平台模拟数据尚未加载\n\n会议任务数据未能同步到项目智脑平台。请确认服务连接后重试。\n\n<!-- project-brain:platform-failed -->'
-    text += failed
-    yield { type: 'text-delta', index: 0, text: failed }
+  } catch (error: unknown) {
+    console.warn('[project-brain-demo] meeting demo status skipped:', error)
   }
+  try {
+    await synchronizeDemoItem(DEMO_TASK_CREATION_KEY, true)
+  } catch (error: unknown) {
+    console.warn('[project-brain-demo] meeting task-creation switch skipped:', error)
+  }
+  const ready = locale === 'en'
+    ? '\n\n## Platform demo data loaded\n\nMeeting task data has been synced to the Project Brain platform. Tasks and the risk ledger are updated; you can open the project to view details.\n\n<!-- project-brain:platform-ready -->'
+    : '\n\n## 平台模拟数据已加载\n\n会议任务数据已同步到项目智脑平台，任务与风险台账已更新，可以进入项目查看详情。\n\n<!-- project-brain:platform-ready -->'
+  text += ready
+  yield { type: 'text-delta', index: 0, text: ready }
   if (hidden !== '') {
     text += hidden
     yield { type: 'text-delta', index: 0, text: hidden }

@@ -100,6 +100,31 @@ const REPOSITORY_ROOT = resolve(DESKTOP_DIR, '../..')
 let mainWindow: BrowserWindow | undefined
 const DEVELOPER_MODE_PASSWORD = 'Starlight2026@321'
 let tray: Tray | undefined
+
+/**
+ * Install a minimal application menu whose Edit roles keep the standard macOS
+ * editing shortcuts (Cmd+C/V/X/A) alive. A null application menu disables
+ * them, because macOS routes those accelerators through menu items — the demo
+ * never shows the menu bar (`autoHideMenuBar`), so this is invisible chrome.
+ */
+function installApplicationMenu(): void {
+  const template: MenuItemConstructorOptions[] = [
+    { role: 'appMenu' },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
 let host: HostSupervisor | undefined
 let lifecycle: DesktopLifecycle | undefined
 let bootQuitPromise: Promise<void> | undefined
@@ -823,7 +848,7 @@ function requestAppQuit(): Promise<void> {
 
 async function boot(): Promise<void> {
   if (bootQuitPromise !== undefined) return
-  Menu.setApplicationMenu(null)
+  installApplicationMenu()
   const pluginCenter = registerDesktopBridge()
   const paths = pluginCenter.paths
   assertHostArtifacts(paths)
@@ -868,7 +893,7 @@ async function boot(): Promise<void> {
 
 app.setName(APP_NAME)
 app.setAppUserModelId(APP_ID)
-Menu.setApplicationMenu(null)
+installApplicationMenu()
 app.setAsDefaultProtocolClient(DESKTOP_PROTOCOL)
 
 async function handleProtocolUrl(value: string): Promise<void> {
